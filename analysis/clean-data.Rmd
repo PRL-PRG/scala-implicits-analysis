@@ -1,0 +1,420 @@
+---
+title: "Cleanup the dataset from DejaVu"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(pbapply)
+library(tidyverse)
+library(fs)
+library(anytime)
+```
+
+# Configuration
+
+```{r config}
+DEJAVU_HOME <- "/mnt/nvme1/scala/ghtorrent"
+RUN_HOME <- "~/Research/Projects/scala-macro-analysis/run" # /mnt/nvme0/scala/run
+PROJECTS_HOME <- path(RUN_HOME, "projects")
+N_JOBS <- 32
+```
+
+```{r aux}
+git_remote_origin <- function(path) {
+  system2("git", c(str_c("--git-dir=", path, "/.git"), "remote", "get-url", "origin"), stdout=TRUE)
+}
+
+git_first_commit_time <- function(path) {
+  # git log ignores -n when used with reverse :(
+  out <- system2("git",  c(str_c("--git-dir=", path, "/.git"), "log", "--reverse", "--date=unix", "--pretty=format:'%cd'"), stdout=TRUE)
+  out[1]
+}
+
+git_last_commit <- function(path) {
+  commit <- system2("git",  c(str_c("--git-dir=", path, "/.git"), "log", "--pretty=format:'%H'", "-n", "1"), stdout=TRUE, stderr=TRUE)
+}
+
+git_last_commit_time <- function(path) {
+  system2("git",  c(str_c("--git-dir=", path, "/.git"), "log", "--date=unix", "--pretty=format:'%cd'", "-n", "1"), stdout=TRUE)
+}
+
+get_sloc <- function(path) {
+  sloc <- path(path, "_analysis_", "sloc.csv")
+  if (file_exists(sloc)) {
+    read_csv(sloc, col_types=cols_only(files="i", language="c", code="i"))
+  } else {
+    data_frame(files=NA, language=NA, code=NA)
+  }
+}
+
+get_size <- function(path) {
+  system2("du", c("-sb", path), stdout=TRUE) %>% str_replace("^([0-9]+).*", "\\1")
+}
+```
+
+# Load data
+
+## Get all the projects
+
+Find download and processed projects by dejavu
+
+```{r list projects}
+dirs <- dir_ls(path(DEJAVU_HOME, "tmp"), type="directory")
+```
+
+Create the project data frame that contains all the projects and their origins
+
+```{r load origins}
+origins <- pbsapply(dirs, git_remote_origin, cl=N_JOBS)
+```
+
+```{r load commit hashes}
+commits <- pbsapply(dirs, git_last_commit, cl=N_JOBS)
+```
+
+There might be some problems getting the latest commit
+```{r}
+commits_problems <- Filter(function(x) length(x) > 1, commits)
+print(commits_problems)
+```
+
+Take just the commits
+```{r}
+commits[names(commits_problems)] <- sapply(commits[names(commits_problems)], `[[`, 2)
+```
+
+
+
+```{r projects data frame}
+projects <- data_frame(
+  project_id=str_replace(dirs, ".*/tmp/([0-9]+)", "\\1") %>% as.integer(), 
+  project=str_replace(origins, "http://github.com/([^/]+)/(.*).git$", "\\1--\\2"),
+  dir=dirs, 
+  origin=origins,
+  commit=unlist(commits)
+)
+```
+
+Save so other scripts can use that. This is because stars and commits are in the big CSV files in ghtorrent and we want only the scala ones.
+
+```{r}
+write_csv(projects, path(DEJAVU_HOME, "scala-projects.csv"))
+```
+
+## Add stars, commits and sloc
+
+Once the `scala-project.csv` is saved we can run:
+
+1. run the `stars.R`
+2. run the `commits.R`
+3. run the `slocs.R`
+
+```{r}
+projects <- left_join(
+  projects,
+  read_csv(path(DEJAVU_HOME, "stars.csv"), col_types="ii"),
+  by="project_id"
+)
+```
+
+```{r}
+projects <- left_join(
+  projects,
+  read_csv(path(DEJAVU_HOME, "commits.csv"), col_types="ii"),
+  by="project_id"
+)
+```
+
+```{r}
+projects <- left_join(
+  projects,
+  read_csv(path(DEJAVU_HOME, "slocs.csv"), col_types="iiiii"),
+  by="project_id"
+)
+```
+
+
+## Remove the ones that point to the same origin
+
+### find duplicated projects based on their origins
+
+- find projects that point to the same origin
+- add commit informations to such duplicate projects
+```{r}
+duplicate_projects <- 
+  group_by(projects, origin) %>% 
+  filter(n() > 1) %>%
+  mutate(
+    commit=sapply(dir, git_last_commit),
+    last_commit_time=as.integer(sapply(dir, git_last_commit_time))
+  )
+```
+
+### check if they have the same commits
+
+- get the projects with multiple unique commits (muc)
+```{r}
+duplicate_projects_muc <- 
+  group_by(duplicate_projects, origin) %>% 
+  summarise(unique_commits=length(unique(commit))) %>% 
+  filter(unique_commits > 1)
+```
+
+- list the projects
+```{r}
+semi_join(duplicate_projects, duplicate_projects_muc, by="origin") %>% 
+  arrange(origin) %>%
+  mutate(last_commit_time=anytime(last_commit_time)) %>%
+  select(-dir, project_id, project, origin, last_commit_time, commit)
+```
+
+### Partitioning the duplicates to ones we want to keep
+
+We keep only the newest ones.
+
+```{r}
+duplicate_projects_keep <- 
+  duplicate_projects %>% 
+  group_by(origin) %>% 
+  filter(last_commit_time == max(last_commit_time)) %>% 
+  distinct(origin, .keep_all = TRUE)
+
+duplicate_projects_remove <-
+  anti_join(duplicate_projects, duplicate_projects_keep, by="project_id")
+```
+
+```{r}
+projects_unique_origins <- anti_join(projects, duplicate_projects_remove, by="project_id")
+```
+
+## Removing non-sbt projects
+
+We only want to keep projects that have `build.sbt` in its root.
+
+```{r}
+has_build_sbt <- Vectorize(function(dir) {
+  build_sbt <- path(dir, "build.sbt")
+  file_exists(build_sbt)
+}, USE.NAMES=FALSE)
+```
+
+```{r}
+projects_sbt <- filter(projects_unique_origins, has_build_sbt(dir))
+```
+
+## Removing projects that have all files duplicated
+
+Load the files hashes from dejavu.
+```{r}
+files_hashes <- read_csv(
+  # norally the file is in dataset/scala, but Peta had to rerun the dejavu due to the bug of skipping some files
+  path(DEJAVU_HOME, "files.csv.h2i"), 
+  col_names=c("file_id", "project_id", "relative_url", "file_hash"), 
+  col_types=cols(file_id="i", project_id="i", relative_url="c", file_hash="i")
+)
+```
+
+We only consider the files that are in the sbt projects
+```{r}
+files_considered <- semi_join(files_hashes, projects_sbt, by="project_id")
+```
+
+
+Compute the level of duplication
+```{r}
+files_duplicates <- count(files_considered, file_hash) %>% mutate(duplicated=n > 1)
+files_project_duplicates <- left_join(files_considered, select(files_duplicates, -n), by="file_hash")
+files_project_duplication <- group_by(files_project_duplicates, project_id) %>% summarise(duplication=sum(duplicated)/n())
+```
+
+
+Look at the missing projects - dejavu does not always process all files.
+Most of the missing ones shall be empty - no `.scala` files, but we need to check which are the ones that it skipped:
+```{r}
+projects_missing <- anti_join(projects_sbt, files_project_duplication, by="project_id")
+
+find_scala_files <- Vectorize(function(dir) {
+   length(dir_ls(dir, glob="*.scala", recursive=TRUE))
+}, USE.NAMES = FALSE)
+
+projects_missing_n_scala <- projects_missing %>% mutate(scala_files=find_scala_files(dir))
+
+filter(projects_missing_n_scala, scala_files > 0)
+```
+
+
+File level duplication in the sbt projects
+```{r}
+files_project_duplication %>% 
+  ggplot(aes(x=duplication)) + 
+  geom_histogram(binwidth = .05) +
+  labs(x="Duplication (num of duplicate files / num of all files)", y="Number of projects", title="Files duplication in Scala") +
+  scale_x_continuous(labels=scales::percent_format()) +
+  scale_y_continuous(labels=scales::comma_format())
+```
+
+```{r}
+projects_sbt_duplication <- projects_sbt %>% right_join(files_project_duplication, by="project_id")
+```
+
+Keep only the projects that have less than 75%
+```{r}
+projects_final <- projects_sbt %>% semi_join(filter(files_project_duplication, duplication < 1), by="project_id")
+```
+
+
+
+
+
+
+Create the shell script that make project symbolic links
+```{r}
+projects_sbt_duplication %>% 
+  str_glue_data("ln -sf {path(DEJAVU_HOME, 'tmp', project_id)} {path('projects', project)}") %>%
+  writeLines("../project-links.sh")
+```
+
+```{r}
+projects_sbt_duplication$project %>% 
+  writeLines("../projects.txt")
+```
+
+
+
+
+```{r}
+commits <- pbsapply(dirs, git_last_commit, cl=N_JOBS)
+first_commit_time <- pbsapply(dirs, git_first_commit_time, cl=N_JOBS)
+last_commits_time <- pbsapply(dirs, git_last_commit_time, cl=N_JOBS)
+slocs <- pbsapply(dirs, get_sloc, cl=N_JOBS)
+```
+
+```{r}
+raw_sizes <- pbsapply(dirs, get_size, cl=N_JOBS)
+```
+
+```{r}
+projects <- data_frame(
+  project_id=str_replace(dirs, ".*/tmp/([0-9]+)", "\\1") %>% as.integer(), 
+  project=str_replace(origins, "http://github.com/([^/]+)/(.*).git$", "\\1--\\2"),
+  dir=dirs, 
+  origin=origins,
+  commit=commits, 
+  first_commit=as.integer(first_commits),
+  last_commit=as.integer(last_commits)
+)
+```
+
+## Load file-level information from DejaVu
+
+
+# Remove duplicated projects based on origins
+
+
+Final projects to keep
+```{r}
+projects_final <- projects %>% anti_join(duplicate_projects_remove, by="project_id")
+```
+
+
+## Find the unique file
+
+```{r}
+files_kept <- inner_join(files, projects_final, by="project_id")
+```
+
+
+## Remove duplicate projects
+
+Removing the `r nrow(duplicate_projects_remove)` duplicate project will remove `r nrow(files) - nrow(files_kept)`.
+
+### Remove dirs
+```{r}
+dirs_to_remove <- duplicate_projects_remove$dir
+dir_delete(dirs_to_remove[dir_exists(dirs_to_remove)])
+```
+
+## Create unique file lists
+
+If there are multiple equivalent files, take the one from from an older project.
+```{r}
+unique_files <- 
+  group_by(files_kept, file_hash) %>%
+  filter(first_commit == min(first_commit)) %>%
+  ungroup()
+```
+
+There are projects which are effictivelly forks, but have not been created as proper forks.
+```{r}
+bad_forks <-
+  group_by(unique_files, file_hash) %>% filter(n() > 1, length(unique(project_id)) > 1)
+```
+
+
+
+```{r}
+all <- inner_join(unique_files, projects_final, by="project_id")
+```
+
+```{r}
+write_csv(all, path(RUN_HOME, "unique-files.csv"))
+transmute(all, path=path(dir, relative_url), path_rel=str_replace(path, ".*/(ghtorrent/.*)", "\\1")) %>%
+  .$path_rel %>%
+  write_lines(path(RUN_HOME, "unique-files.txt"))
+```
+
+```{r}
+save_one <- function(df) {
+    analysis_dir <- path(df$dir[1], "_analysis_")
+    dir_create(analysis_dir)
+    
+    write_csv(data_frame(project=df$project[1], github_url=df$origin[1], commit=df$commit[1], timestamp=df$timestamp[1]), "metadata.csv")
+    write_csv(select(df, project, project_id, path=relative_url), path(analysis_dir, "unique-files.csv"))
+    write_lines(df$relative_url, path(analysis_dir, "unique-files.txt"))
+    
+    data_frame()
+}
+
+all %>% group_by(project_id) %>% do(save_one(.))
+```
+
+## Project mapping between ghtorrent and names
+
+```{r}
+mapping <- transmute(projects_final, project, project_id, dir=path("ghtorrent/tmp", project_id), link=path("projects", project))
+write_csv(mapping, path(RUN_HOME, "ghtorrent-link-mappings.csv"))
+write_lines(mapping$project, path(RUN_HOME, "projects.txt"))
+
+link_src <- mapping$dir
+link_trg <- mapping$link
+link_src <- link_src[!file_exists(link_trg)]
+link_trg <- link_trg[!file_exists(link_trg)]
+
+write_lines(str_c("ln -s ../", link_src, " ", str_replace(link_trg, "projects/", "")), path(RUN_HOME, "make-links.sh"))
+```
+
+## Partition the files to 2 disks
+
+```{r}
+find_partition <- function(xs) {
+    A <- numeric()
+    A_sum <- 0
+    B <- numeric()
+    B_sum <- 0
+    
+    xs <- sort(xs, dec=TRUE)
+    
+    for (i in seq_along(xs)) {
+        if (A_sum < B_sum) {
+           A <- append(A, i)
+           A_sum <- A_sum + xs[i]
+        } else {
+           B <- append(B, i)
+           B_sum <- B_sum + xs[i]
+        }
+    }
+}
+```
+

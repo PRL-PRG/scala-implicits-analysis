@@ -1,0 +1,97 @@
+SHELL := /bin/bash
+
+# absolute path to the ivy2 directory
+GLOBAL_IVY_CACHE_DIR := /mnt/nvme1/scala/ivy2
+# absolute path to the prepopulated sbt-boot directory 
+GLOBAL_SBT_BOOT_DIR := /mnt/nvme1/scala/sbt-boot
+
+ANALYSIS_DIR := _analysis_
+IVY_DIR := .ivy
+SBT_BOOT_DIR := .sbt-boot
+COMPILE := $(ANALYSIS_DIR)/compile.status
+SEMANTICDB := $(ANALYSIS_DIR)/semanticdb.status
+SBT_CONFIG := $(ANALYSIS_DIR)/sbt-config.out
+METADATA := $(ANALYSIS_DIR)/metadata.csv
+SLOC := $(ANALYSIS_DIR)/sloc.csv
+
+ALL := $(ANALYSIS_DIR) \
+       $(IVY_DIR) \
+	   $(SBT_BOOT_DIR) \
+       $(SEMANTICDB) \
+	   $(SDB_CONFIG) \
+	   $(SLOC_FULL) \
+       $(SLOC_UNIQUE)
+
+SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem 32000 -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
+
+bootstrap := $(ANALYSIS_DIR) $(IVY_DIR) $(SBT_BOOT_DIR)
+
+.PHONY: all bootstrap semanticdb metadata compile ivy clean sbtclean distclean sloc
+
+# this is here so we prevent a duplication in clean/distclean
+# I don't know how to call a target post-priory
+define clean =
+-rm -fr $(ALL)
+endef
+
+all: $(ALL)
+
+$(ANALYSIS_DIR):
+	mkdir -p $(ANALYSIS_DIR)
+
+$(IVY_DIR):
+	mkdir -p $(IVY_DIR)
+	ln -sf $(GLOBAL_IVY_CACHE_DIR) $(IVY_DIR)/cache
+
+$(SBT_BOOT_DIR):
+	mkdir -p $(SBT_BOOT_DIR)
+	ls -1 $(GLOBAL_SBT_BOOT_DIR) | parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
+
+$(SBT_CONFIG): $(bootstrap)
+	$(SBT) \
+		'show compile:managedSourceDirectories' \
+		'show test:managedSourceDirectories' \
+		'show compile:unmanagedSourceDirectories' \
+		'show test:unmanagedSourceDirectories' \
+		'show scalaVersion' \
+		'show test:scalaVersion' \
+		'show sbtBinaryVersion' \
+		'show test:sbtBinaryVersion' \
+	> $(SBT_CONFIG) 2>&1
+
+$(SLOC): $(ANALYSIS_DIR)
+	cloc --quiet --csv . | sed 's/,".*$///' | tail -n +2 > $(SLOC)
+
+# $(SLOC_SBT): $(SBT_PATHS)
+# 	cloc --quiet --csv . | sed 's/,".*$//' | tail -n +2 > $(SLOC_FULL)
+
+# $(SLOC_UNIQUE):
+# 	cloc --quiet --csv . | sed 's/,".*$//' | tail -n +2 > $(SLOC_FULL)
+
+$(COMPILE): $(bootstrap)
+	$(SBT) compile; echo "$$?" > $(COMPILE)
+	find . -name "*.class" -delete
+
+$(SEMANTICDB): $(bootstrap)
+	$(SBT) semanticdb; \
+    echo -e "exitcode,duration\n$$?,$$SECONDS" > $(SEMANTICDB)
+
+metadata: $(SBT_CONFIG)
+compile: $(COMPILE)
+semanticdb: $(SEMANTICDB)
+ivy: $(IVY_DIR)
+sloc: $(SLOC)
+
+sbtclean:
+	-$(SBT) clean
+
+clean:
+	$(clean)
+
+distclean: $(IVY_DIR)
+	-$(SBT) clean
+	$(clean)
+
+#$(OUTPUT_DIR)/def-macros-output.csv:
+#$(ANALYZER_DIR)/bin/macro-def-analysis.sh .
+
