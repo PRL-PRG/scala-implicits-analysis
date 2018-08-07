@@ -7,12 +7,11 @@ import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
 
-import scala.sys.process._
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  val GHOrigin: Regex = "https://github.com/(.*)/(.*)\\.git[\n]?".r
+  val GHOrigin: Regex = "http[s]?://github.com/(.*)/(.*)\\.git[\n]?".r
 
   case class SourceDir(projectId: String, projectName: String, scope: String, kind: String, path: String, sloc: SLOC)
 
@@ -127,7 +126,11 @@ object MetadataExportPlugin extends AutoPlugin {
   def runCommand(cmd: String): Try[String] = {
     val stdout = new StringBuilder
     val stderr = new StringBuilder
-    val status = cmd ! ProcessLogger(x => stdout append x + "\n", x => stderr append x + "\n")
+
+    // we have to use FQN since sbt 0.13 also defines stringToProcess and ProcessLogger
+    // both deprecated in sbt 1.0
+    val status =
+    sys.process.stringToProcess(cmd) ! sys.process.ProcessLogger(x => stdout append x + "\n", x => stderr append x + "\n")
 
     if (status == 0) {
       Success(stdout.toString())
