@@ -1,11 +1,14 @@
+include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
+
 TIMEOUT := 30m
 
 GHTORRENT_DIR := /mnt/nvme1/scala/ghtorrent
-ANALYSIS_DIR := _analysis_
 RUN_DIR := projects
-LOG_DIR := logs
+LOG_DIR_BASE := logs
+LOG_DIR := $(LOG_DIR_BASE)/$(shell date +'%Y%m%d-%H%M%S')
+LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
 
-SCALA_PROJECT_CSV := $(GHTORRENT_DIR)/scala-projects.csv
+SCALA_PROJECT_CSV := scala-projects.csv
 PROJECTS_ALL_FILE := projects-all.txt
 PROJECTS_FILE := projects.txt
 JOBS_FILE := jobsfile.txt
@@ -32,13 +35,15 @@ endef
 
 bootstrap := $(LOG_DIR) $(RUN_DIR)
 
-.PHONY: all metadata semanticdb clean distclean
+.PHONY: all metadata semanticdb clean distclean sbt-plugins
 
 all: $(LOG_DIR)
 	$(parallel) semanticdb metadata-raw
 
 $(LOG_DIR):
-	-mkdir -p $(LOG_DIR)
+	-mkdir $(LOG_DIR_BASE)
+	mkdir -p $(LOG_DIR)
+	ln -sf $(dir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
 $(PROJECTS_ALL_FILE): $(SCALA_PROJECT_CSV)
 	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "{project}")' > $(PROJECTS_ALL_FILE)
@@ -50,6 +55,7 @@ $(RUN_DIR): $(SCALA_PROJECT_CSV)
 		parallel -C, --bar -j2 ln -sf "{1}" "{2}"
 
 metadata: $(bootstrap)
+	@echo 16 >! jobsfile.txt 
 	$(parallel) $@
 compile: $(bootstrap)
 	$(parallel) $@
@@ -57,7 +63,15 @@ semanticdb: $(bootstrap)
 	$(parallel) $@
 clean: $(bootstrap)
 	$(parallel) $@
+gitclean: $(bootstrap)
+	$(parallel) $@
 sbtclean: $(bootstrap)
 	$(parallel) $@
 distclean: $(bootstrap)
 	$(parallel) $@
+sbt-plugins: $(IVY_DIR)
+	rm ~/.sbt/0.13/plugins/scala-corpus.sbt
+	rm ~/.sbt/1.0/plugins/scala-corpus.sbt
+	cd sbt-plugins && sbt -batch -ivy ../$(IVY_DIR) "^ publishLocal"
+	echo 'addSbtPlugin("cz.cvut.fit.prl.scala-corpus" % "sbt-plugins" % "0.1-SNAPSHOT")' > ~/.sbt/0.13/plugins/scala-corpus.sbt
+	echo 'addSbtPlugin("cz.cvut.fit.prl.scala-corpus" % "sbt-plugins" % "0.1-SNAPSHOT")' > ~/.sbt/1.0/plugins/scala-corpus.sbt

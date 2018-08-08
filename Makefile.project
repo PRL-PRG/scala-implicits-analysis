@@ -1,17 +1,18 @@
+include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
 SHELL := /bin/bash
 
+SBT_MEM := 16000
 # absolute path to the ivy2 directory
-GLOBAL_IVY_CACHE_DIR := /mnt/nvme1/scala/ivy2
+#GLOBAL_IVY_CACHE_DIR := /mnt/nvme1/scala/ivy
 # absolute path to the prepopulated sbt-boot directory 
 GLOBAL_SBT_BOOT_DIR := /mnt/nvme1/scala/sbt-boot
 
-ANALYSIS_DIR := _analysis_
-IVY_DIR := .ivy
+#ANALYSIS_DIR := _analysis_
+#IVY_DIR := .ivy
 SBT_BOOT_DIR := .sbt-boot
 COMPILE := $(ANALYSIS_DIR)/compile.status
 SEMANTICDB := $(ANALYSIS_DIR)/semanticdb.status
-SBT_CONFIG := $(ANALYSIS_DIR)/sbt-config.out
-METADATA := $(ANALYSIS_DIR)/metadata.csv
+METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv
 SLOC := $(ANALYSIS_DIR)/sloc.csv
 
 ALL := $(ANALYSIS_DIR) \
@@ -22,7 +23,7 @@ ALL := $(ANALYSIS_DIR) \
 	   $(SLOC_FULL) \
        $(SLOC_UNIQUE)
 
-SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem 32000 -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
+SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem $(SBT_MEM) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
 
 bootstrap := $(ANALYSIS_DIR) $(IVY_DIR) $(SBT_BOOT_DIR)
 
@@ -39,34 +40,15 @@ all: $(ALL)
 $(ANALYSIS_DIR):
 	mkdir -p $(ANALYSIS_DIR)
 
-$(IVY_DIR):
-	mkdir -p $(IVY_DIR)
-	ln -sf $(GLOBAL_IVY_CACHE_DIR) $(IVY_DIR)/cache
-
 $(SBT_BOOT_DIR):
 	mkdir -p $(SBT_BOOT_DIR)
 	ls -1 $(GLOBAL_SBT_BOOT_DIR) | parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
 
-$(SBT_CONFIG): $(bootstrap)
-	$(SBT) \
-		'show compile:managedSourceDirectories' \
-		'show test:managedSourceDirectories' \
-		'show compile:unmanagedSourceDirectories' \
-		'show test:unmanagedSourceDirectories' \
-		'show scalaVersion' \
-		'show test:scalaVersion' \
-		'show sbtBinaryVersion' \
-		'show test:sbtBinaryVersion' \
-	> $(SBT_CONFIG) 2>&1
+$(METADATA): $(bootstrap)
+	$(SBT) 'metadata'
 
 $(SLOC): $(ANALYSIS_DIR)
 	cloc --quiet --csv . | sed 's/,".*$///' | tail -n +2 > $(SLOC)
-
-# $(SLOC_SBT): $(SBT_PATHS)
-# 	cloc --quiet --csv . | sed 's/,".*$//' | tail -n +2 > $(SLOC_FULL)
-
-# $(SLOC_UNIQUE):
-# 	cloc --quiet --csv . | sed 's/,".*$//' | tail -n +2 > $(SLOC_FULL)
 
 $(COMPILE): $(bootstrap)
 	$(SBT) compile; echo "$$?" > $(COMPILE)
@@ -76,11 +58,14 @@ $(SEMANTICDB): $(bootstrap)
 	$(SBT) semanticdb; \
     echo -e "exitcode,duration\n$$?,$$SECONDS" > $(SEMANTICDB)
 
-metadata: $(SBT_CONFIG)
+metadata: $(METADATA)
 compile: $(COMPILE)
 semanticdb: $(SEMANTICDB)
 ivy: $(IVY_DIR)
 sloc: $(SLOC)
+
+gitclean:
+	git clean -fdx
 
 sbtclean:
 	-$(SBT) clean

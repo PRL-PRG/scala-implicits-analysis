@@ -2,6 +2,7 @@ package cz.cvut.fit.prl.scala.sbt
 
 import sbt.Keys._
 import sbt._
+import sbt.inc.Analysis
 import sbt.plugins.JvmPlugin
 
 object SemanticdbCommandPlugin extends AutoPlugin {

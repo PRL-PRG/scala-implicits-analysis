@@ -1,0 +1,10 @@
+.ivy
+logs
+projects
+sbt-plugins/.idea
+sbt-plugins/project/project
+sbt-plugins/project/target
+sbt-plugins/target
+projects-*.txt
+projects.txt
+scala-projects.csv

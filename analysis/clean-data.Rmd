@@ -269,16 +269,14 @@ projects_final <- projects_sbt %>% semi_join(filter(files_project_duplication, d
 
 
 
-Create the shell script that make project symbolic links
+Store actual scala-projects CSV:
 ```{r}
-projects_sbt_duplication %>% 
-  str_glue_data("ln -sf {path(DEJAVU_HOME, 'tmp', project_id)} {path('projects', project)}") %>%
-  writeLines("../project-links.sh")
+write_csv(projects_sbt_duplication, "../scala-projects.csv")
 ```
 
 ```{r}
 projects_sbt_duplication$project %>% 
-  writeLines("../projects.txt")
+  writeLines("../projects-all.txt")
 ```
 
 

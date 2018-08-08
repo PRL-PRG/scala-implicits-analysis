@@ -1,0 +1,9 @@
+# absolute path to the ivy directory that contains cache and local subdirs
+GLOBAL_IVY_CACHE_DIR := /mnt/nvme1/scala/ivy
+ANALYSIS_DIR := _analysis_
+IVY_DIR := .ivy
+
+$(IVY_DIR):
+	mkdir -p $(IVY_DIR)
+	ln -sf $(GLOBAL_IVY_CACHE_DIR)/cache $(IVY_DIR)
+	ln -sf $(GLOBAL_IVY_CACHE_DIR)/local $(IVY_DIR)
