@@ -11,7 +11,7 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  val GHOrigin: Regex = "http[s]?://github.com/(.*)/(.*)\\.git[\n]?".r
+  val GHOrigin: Regex = "http[s]?://github.com/(.*)/(.*)(?:\\.git)?[\n]?".r
 
   case class SourceDir(projectId: String, projectName: String, scope: String, kind: String, path: String, sloc: SLOC)
 
