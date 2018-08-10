@@ -120,6 +120,7 @@ projects <- left_join(
 ```
 
 ```{r}
+# change number of commits to use git
 projects <- left_join(
   projects,
   read_csv(path(DEJAVU_HOME, "commits.csv"), col_types="ii"),

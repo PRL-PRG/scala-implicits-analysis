@@ -21,7 +21,7 @@ object MetadataExportPlugin extends AutoPlugin {
     override def toString = s"$files,$language,$blank,$comment,$code"
   }
 
-  case class Classpath(projectId: String, projectName: String, path: String)
+  case class ProjectPath(projectId: String, projectName: String, path: String)
 
   object autoImport {
     val metadata = taskKey[Unit]("dumps project metadata")
@@ -59,6 +59,9 @@ object MetadataExportPlugin extends AutoPlugin {
 
   lazy val classpathFile =
     deleteIfExists(new File(analysisDir, "classpath.csv"))
+
+  lazy val cleanpathsFile =
+    deleteIfExists(new File(analysisDir, "cleanpaths.csv"))
 
   override lazy val projectSettings = Seq(
     metadata := {
@@ -98,12 +101,14 @@ object MetadataExportPlugin extends AutoPlugin {
 
       val classpath = for {
         path <- (fullClasspath in Test).value
-      } yield Classpath(projectId, projectName, path.data.getAbsolutePath)
+      } yield ProjectPath(projectId, projectName, path.data.getAbsolutePath)
 
       writeCSV(classpathFile, "project_id,project_name,path", classpath)
-    },
 
-    cleanFiles += analysisDir
+      val cleanpaths = for (path <- cleanFiles.value) yield ProjectPath(projectId, projectName, path.getAbsolutePath)
+
+      writeCSV(cleanpathsFile, "project_id,project_name,path", cleanpaths)
+    }
   )
 
   def computeSloc(path: File): Try[Seq[SLOC]] = {
@@ -140,10 +145,6 @@ object MetadataExportPlugin extends AutoPlugin {
   }
 
   def writeCSV(filename: File, header: String, data: Seq[Product], append: Boolean = true): Unit = {
-    if (data.isEmpty) {
-      return
-    }
-
     synchronized {
       val addHeader = !filename.exists()
       managed(new FileWriter(filename, append)).foreach { w =>
@@ -151,7 +152,11 @@ object MetadataExportPlugin extends AutoPlugin {
           w.write(header + "\n")
         }
 
-        w.write(data.map(_.productIterator.mkString(",")).mkString("\n") + "\n")
+        w.write(data.map(_.productIterator.mkString(",")).mkString("\n"))
+
+        if (!data.isEmpty) {
+          w.write("\n")
+        }
       }
     }
   }

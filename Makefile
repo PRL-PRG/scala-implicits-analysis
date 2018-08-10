@@ -41,9 +41,9 @@ all: $(LOG_DIR)
 	$(parallel) semanticdb metadata-raw
 
 $(LOG_DIR):
-	-mkdir $(LOG_DIR_BASE)
-	mkdir -p $(LOG_DIR)
-	ln -sf $(dir $(LOG_DIR)) $(LOG_DIR_LATEST)
+	@echo "LOG_DIR: $(LOG_DIR)"
+	@mkdir -p $(LOG_DIR)
+	ln -sf $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
 $(PROJECTS_ALL_FILE): $(SCALA_PROJECT_CSV)
 	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "{project}")' > $(PROJECTS_ALL_FILE)
@@ -55,20 +55,30 @@ $(RUN_DIR): $(SCALA_PROJECT_CSV)
 		parallel -C, --bar -j2 ln -sf "{1}" "{2}"
 
 metadata: $(bootstrap)
-	@echo 16 >! jobsfile.txt 
+	@echo 24 > jobsfile.txt
 	$(parallel) $@
 compile: $(bootstrap)
+	@echo 24 > jobsfile.txt
 	$(parallel) $@
 semanticdb: $(bootstrap)
+	@echo 24 > jobsfile.txt
 	$(parallel) $@
 clean: $(bootstrap)
+	@echo 64 > jobsfile.txt
+	$(parallel) $@
+classclean: $(bootstrap)
+	@echo 64 > jobsfile.txt
 	$(parallel) $@
 gitclean: $(bootstrap)
+	@echo 64 > jobsfile.txt
 	$(parallel) $@
 sbtclean: $(bootstrap)
+	@echo 24 > jobsfile.txt
 	$(parallel) $@
 distclean: $(bootstrap)
+	@echo 64 > jobsfile.txt
 	$(parallel) $@
+
 sbt-plugins: $(IVY_DIR)
 	rm ~/.sbt/0.13/plugins/scala-corpus.sbt
 	rm ~/.sbt/1.0/plugins/scala-corpus.sbt

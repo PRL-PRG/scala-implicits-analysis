@@ -12,7 +12,7 @@ GLOBAL_SBT_BOOT_DIR := /mnt/nvme1/scala/sbt-boot
 SBT_BOOT_DIR := .sbt-boot
 COMPILE := $(ANALYSIS_DIR)/compile.status
 SEMANTICDB := $(ANALYSIS_DIR)/semanticdb.status
-METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv
+METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv $(ANALYSIS_DIR)/cleanpaths.csv
 SLOC := $(ANALYSIS_DIR)/sloc.csv
 
 ALL := $(ANALYSIS_DIR) \
@@ -63,6 +63,9 @@ compile: $(COMPILE)
 semanticdb: $(SEMANTICDB)
 ivy: $(IVY_DIR)
 sloc: $(SLOC)
+
+classclean:
+	find . -type d -name "target" | parallel find "{1}" -type f -name "\*.class" -delete
 
 gitclean:
 	git clean -fdx
