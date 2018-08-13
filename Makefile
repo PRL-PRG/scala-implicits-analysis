@@ -55,13 +55,13 @@ $(RUN_DIR): $(SCALA_PROJECT_CSV)
 		parallel -C, --bar -j2 ln -sf "{1}" "{2}"
 
 metadata: $(bootstrap)
-	@echo 24 > jobsfile.txt
+	@echo 20 > jobsfile.txt
 	$(parallel) $@
 compile: $(bootstrap)
-	@echo 24 > jobsfile.txt
+	@echo 20 > jobsfile.txt
 	$(parallel) $@
 semanticdb: $(bootstrap)
-	@echo 24 > jobsfile.txt
+	@echo 20 > jobsfile.txt
 	$(parallel) $@
 clean: $(bootstrap)
 	@echo 64 > jobsfile.txt

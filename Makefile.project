@@ -11,7 +11,7 @@ GLOBAL_SBT_BOOT_DIR := /mnt/nvme1/scala/sbt-boot
 #IVY_DIR := .ivy
 SBT_BOOT_DIR := .sbt-boot
 COMPILE := $(ANALYSIS_DIR)/compile.status
-SEMANTICDB := $(ANALYSIS_DIR)/semanticdb.status
+SEMANTICDB := $(ANALYSIS_DIR)/semanticdb-status.csv
 METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv $(ANALYSIS_DIR)/cleanpaths.csv
 SLOC := $(ANALYSIS_DIR)/sloc.csv
 
@@ -52,11 +52,10 @@ $(SLOC): $(ANALYSIS_DIR)
 
 $(COMPILE): $(bootstrap)
 	$(SBT) compile; echo "$$?" > $(COMPILE)
-	find . -name "*.class" -delete
 
 $(SEMANTICDB): $(bootstrap)
 	$(SBT) semanticdb; \
-    echo -e "exitcode,duration\n$$?,$$SECONDS" > $(SEMANTICDB)
+    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$?,$$SECONDS" > $(SEMANTICDB)
 
 metadata: $(METADATA)
 compile: $(COMPILE)

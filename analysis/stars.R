@@ -1,16 +1,25 @@
-library(pbapply)
+library(purrr)
 library(tidyverse)
 library(fs)
 library(httr)
 
 get_gh_stars <- function(reponame) {
-  tryCatch({
+  stars <- tryCatch({
     url <- str_c("https://api.github.com/repos/", reponame, "?client_id=", client_id, "&client_secret=", client_secret)
-    as.integer(content(GET(url))$stargazers_count)
+    res <- GET(url)
+    if (res$status_code == 200) {
+      cnt <- content(res)
+      as.integer(cnt$stargazers_count)
+    } else {
+      -1L
+    }
   }, error=function(e) {
     message("Unable to get stargazers for ", reponame)
     -1L
   })
+
+  message(reponame, ": ", stars)
+  stars
 }
 
 client_id <- read_lines("gh-client-id.txt")
@@ -27,23 +36,18 @@ while(any(is.na(stars))) {
     batch <- batch[1:5000]
   }
   repos <- projects_scala$gh_project[batch]
-  
+
   message("Done ", sum(!is.na(stars)), "/", length(stars))
   start <- Sys.time()
-  stars[batch] <- pbsapply(repos, get_gh_stars)
+  stars[batch] <- map_int(repos, ~get_gh_stars(.))
   end <- Sys.time()
-  
+
   duration <- as.numeric(end - start, unit="secs")
-  message("Sleeping for ", duration)
-  Sys.sleep(max(c(0, 3600-duration)))
+  pause <- 3600-duration
+  message("Sleeping for ", pause)
+  Sys.sleep(max(c(0, pause)))
 }
 
-projects_scala_stars <- 
-  left_join(
-    select(projects_scala, project_id),
-    select(watchers_count, project_id, stars=n),
-    by="project_id"
-  ) %>% 
-  mutate(stars=coalesce(stars, 0L))
+projects_scala_stars <- select(projects_scala, project_id) %>% mutate(stars=stars)
 
 write_csv(projects_scala_stars, path(analysis_dir, "stars.csv"))
