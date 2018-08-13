@@ -1,11 +1,9 @@
+# -*- mode: makefile -*-
+
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
 SHELL := /bin/bash
 
 SBT_MEM := 16000
-# absolute path to the ivy2 directory
-#GLOBAL_IVY_CACHE_DIR := /mnt/nvme1/scala/ivy
-# absolute path to the prepopulated sbt-boot directory 
-GLOBAL_SBT_BOOT_DIR := /mnt/nvme1/scala/sbt-boot
 
 #ANALYSIS_DIR := _analysis_
 #IVY_DIR := .ivy

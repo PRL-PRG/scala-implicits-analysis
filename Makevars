@@ -1,5 +1,8 @@
 # absolute path to the ivy directory that contains cache and local subdirs
-GLOBAL_IVY_CACHE_DIR := /mnt/nvme1/scala/ivy
+GLOBAL_IVY_CACHE_DIR ?= /mnt/nvme1/scala/ivy
+# absolute path to the prepopulated sbt-boot directory 
+GLOBAL_SBT_BOOT_DIR ?= /mnt/nvme1/scala/sbt-boot
+
 ANALYSIS_DIR := _analysis_
 IVY_DIR := .ivy
 
