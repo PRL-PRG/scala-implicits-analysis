@@ -3,11 +3,6 @@
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
 SHELL := /bin/bash
 
-SBT_MEM := 16000
-
-#ANALYSIS_DIR := _analysis_
-#IVY_DIR := .ivy
-SBT_BOOT_DIR := .sbt-boot
 COMPILE := $(ANALYSIS_DIR)/compile.status
 SEMANTICDB := $(ANALYSIS_DIR)/semanticdb-status.csv
 METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv $(ANALYSIS_DIR)/cleanpaths.csv
@@ -37,10 +32,6 @@ all: $(ALL)
 
 $(ANALYSIS_DIR):
 	mkdir -p $(ANALYSIS_DIR)
-
-$(SBT_BOOT_DIR):
-	mkdir -p $(SBT_BOOT_DIR)
-	ls -1 $(GLOBAL_SBT_BOOT_DIR) | parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
 
 $(METADATA): $(bootstrap)
 	$(SBT) 'metadata'
