@@ -4,16 +4,13 @@ import sbt.Keys._
 import sbt._
 import sbt.inc.Analysis
 import sbt.plugins.JvmPlugin
+import Config._
 
+// This is based on code provided Olaf Geirsson (https://github.com/olafurpg)
 object SemanticdbCommandPlugin extends AutoPlugin {
   override def requires: Plugins = JvmPlugin
 
   override def trigger: PluginTrigger = allRequirements
-
-  val V: Map[(Int, Int), String] = Map(
-    (2 -> 11) -> "2.11.12",
-    (2 -> 12) -> "2.12.4"
-  )
 
   def relevantProjects(state: State): Seq[(ProjectRef, String)] = {
     val extracted = Project.extract(state)
@@ -21,7 +18,7 @@ object SemanticdbCommandPlugin extends AutoPlugin {
       p <- extracted.structure.allProjectRefs
       version <- scalaVersion.in(p).get(extracted.structure.data).toList
       partialVersion <- CrossVersion.partialVersion(version).toList
-      fullVersion <- V.get(partialVersion).toList
+      fullVersion <- VersionMapping_sbt_0_13.get(partialVersion).toList
     } yield p -> fullVersion
   }
 
@@ -45,9 +42,9 @@ object SemanticdbCommandPlugin extends AutoPlugin {
         (p, fullVersion) <- relevantProjects(s)
         setting <- List(
           scalaVersion.in(p) := fullVersion,
-          scalacOptions.in(p) ++= Seq("-Yrangepos", "-P:semanticdb:denotations:all"),
+          scalacOptions.in(p) ++= SemanticdbScalacOptions,
           libraryDependencies.in(p) += compilerPlugin(
-            "org.scalameta" % "semanticdb-scalac" % "3.7.4" cross CrossVersion.full)
+            "org.scalameta" % "semanticdb-scalac" % ScalametaVersion cross CrossVersion.full)
         )
       } yield setting
       val installed = extracted.append(settings, s)

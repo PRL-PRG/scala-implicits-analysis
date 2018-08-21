@@ -5,16 +5,13 @@ import sbt._
 import sbt.internal.inc.Analysis
 import sbt.librarymanagement.CrossVersion
 import sbt.plugins.JvmPlugin
+import Config._
 
+// This is based on code provided Olaf Geirsson (https://github.com/olafurpg)
 object SemanticdbCommandPlugin extends AutoPlugin {
   override def requires: Plugins = JvmPlugin
 
   override def trigger: PluginTrigger = allRequirements
-
-  val V: Map[(Long, Long), String] = Map(
-    (2L -> 11L) -> "2.11.12",
-    (2L -> 12L) -> "2.12.4"
-  )
 
   def relevantProjects(state: State): Seq[(ProjectRef, String)] = {
     val extracted = Project.extract(state)
@@ -22,7 +19,7 @@ object SemanticdbCommandPlugin extends AutoPlugin {
       p <- extracted.structure.allProjectRefs
       version <- scalaVersion.in(p).get(extracted.structure.data).toList
       partialVersion <- CrossVersion.partialVersion(version).toList
-      fullVersion <- V.get(partialVersion).toList
+      fullVersion <- VersionMapping_sbt_1_0.get(partialVersion).toList
     } yield p -> fullVersion
   }
 
@@ -32,13 +29,13 @@ object SemanticdbCommandPlugin extends AutoPlugin {
     aggregate.in(compileAll) := false,
     compileAll := Def.taskDyn {
       val refs = relevantProjects(state.value).map(_._1)
-      println(refs.toList)
       val filter = ScopeFilter(
         projects = inProjects(refs: _*),
         configurations = inConfigurations(Compile, Test))
       compile.all(filter)
     }.value,
     commands += Command.command("semanticdb") { s =>
+      println(">> SEMANTICDB OPTIONS: "+SemanticdbScalacOptions)
       val extracted = Project.extract(s)
       val toCompile = List.newBuilder[TaskKey[Analysis]]
       val refs = List.newBuilder[ProjectRef]
@@ -46,9 +43,9 @@ object SemanticdbCommandPlugin extends AutoPlugin {
         (p, fullVersion) <- relevantProjects(s)
         setting <- List(
           scalaVersion.in(p) := fullVersion,
-          scalacOptions.in(p) ++= Seq("-Yrangepos", "-P:semanticdb:denotations:all"),
+          scalacOptions.in(p) ++= SemanticdbScalacOptions,
           libraryDependencies.in(p) += compilerPlugin(
-            "org.scalameta" % "semanticdb-scalac" % "3.7.4" cross CrossVersion.full)
+            "org.scalameta" % "semanticdb-scalac" % ScalametaVersion cross CrossVersion.full)
         )
       } yield setting
       val installed = extracted.append(settings, s)
