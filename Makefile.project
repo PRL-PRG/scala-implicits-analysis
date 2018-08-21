@@ -43,7 +43,7 @@ $(COMPILE): $(bootstrap)
 	$(SBT) compile; echo "$$?" > $(COMPILE)
 
 $(SEMANTICDB): $(bootstrap)
-	$(SBT) semanticdb; \
+	$(SBT) clean semanticdb; \
     echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$?,$$SECONDS" > $(SEMANTICDB)
 
 metadata: $(METADATA)
