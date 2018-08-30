@@ -2,7 +2,6 @@ package cz.cvut.fit.prl.scala.sbt
 
 import java.io.FileWriter
 
-import resource.managed
 import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
@@ -147,15 +146,23 @@ object MetadataExportPlugin extends AutoPlugin {
   def writeCSV(filename: File, header: String, data: Seq[Product], append: Boolean = true): Unit = {
     synchronized {
       val addHeader = !filename.exists()
-      managed(new FileWriter(filename, append)).foreach { w =>
+      var w: FileWriter = null
+      try {
+        w = new FileWriter(filename, append)
+
         if (addHeader) {
           w.write(header + "\n")
         }
 
         w.write(data.map(_.productIterator.mkString(",")).mkString("\n"))
 
-        if (!data.isEmpty) {
+        if (data.nonEmpty) {
           w.write("\n")
+        }
+
+      } finally {
+        if (w != null) {
+          w.close()
         }
       }
     }
