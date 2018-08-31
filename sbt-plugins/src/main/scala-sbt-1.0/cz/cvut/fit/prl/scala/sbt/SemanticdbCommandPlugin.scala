@@ -35,7 +35,8 @@ object SemanticdbCommandPlugin extends AutoPlugin {
       compile.all(filter)
     }.value,
     commands += Command.command("semanticdb") { s =>
-      println(">> SEMANTICDB OPTIONS: "+SemanticdbScalacOptions)
+      println("** SEMANTICDB VERSION: " + ScalametaVersion)
+      println("** SEMANTICDB OPTIONS: " + SemanticdbScalacOptions)
       val extracted = Project.extract(s)
       val toCompile = List.newBuilder[TaskKey[Analysis]]
       val refs = List.newBuilder[ProjectRef]
