@@ -1,7 +1,7 @@
 package cz.cvut.fit.prl.scala.sbt
 
 object Config {
-  val ScalametaVersion: String = System.getenv.getOrDefault("SCALAMETA_VERSION", "4.0.0-M10")
+  val ScalametaVersion: String = System.getenv.getOrDefault("SCALAMETA_VERSION", "4.0.0")
   val SemanticdbScalacOptions: Seq[String] = Seq(
     "-Yrangepos",
     "-P:semanticdb:text:on",
