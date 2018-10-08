@@ -3,8 +3,6 @@
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
 SHELL := /bin/bash
 
-COMPILE := $(ANALYSIS_DIR)/compile.status
-SEMANTICDB := $(ANALYSIS_DIR)/semanticdb-status.csv
 METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv $(ANALYSIS_DIR)/cleanpaths.csv
 SLOC := $(ANALYSIS_DIR)/sloc.csv
 
@@ -40,11 +38,16 @@ $(SLOC): $(ANALYSIS_DIR)
 	cloc --quiet --csv . | sed 's/,".*$///' | tail -n +2 > $(SLOC)
 
 $(COMPILE): $(bootstrap)
-	$(SBT) compile; echo "$$?" > $(COMPILE)
+	$(SBT) clean compile; \
+    exit_code=$$?; \
+    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(COMPILE); \
+    exit $$exit_code
 
 $(SEMANTICDB): $(bootstrap)
 	$(SBT) clean semanticdb; \
-    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$?,$$SECONDS" > $(SEMANTICDB)
+    exit_code=$$?; \
+    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(SEMANTICDB); \
+    exit $$exit_code
 
 metadata: $(METADATA)
 compile: $(COMPILE)
@@ -67,7 +70,3 @@ clean:
 distclean: $(IVY_DIR)
 	-$(SBT) clean
 	$(clean)
-
-#$(OUTPUT_DIR)/def-macros-output.csv:
-#$(ANALYZER_DIR)/bin/macro-def-analysis.sh .
-

@@ -1,11 +1,11 @@
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
 
-TIMEOUT := 30m
-
 GHTORRENT_DIR := /mnt/nvme1/scala/ghtorrent
+SCRIPTS_DIR := scripts
 RUN_DIR := projects
 LOG_DIR_BASE := logs
-LOG_DIR := $(LOG_DIR_BASE)/$(shell date +'%Y%m%d-%H%M%S')
+LOG_DIR := $(LOG_DIR_BASE)/$(shell echo $$(($$(ls -1 $(LOG_DIR_BASE) | grep '[0-9][0-9]*' | wc -l) + 1)))
+TIMESTAMP := $(shell LC_LOCALE=C date)
 LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
 
 SCALA_PROJECT_CSV := scala-projects.csv
@@ -19,6 +19,7 @@ base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # some so we just say keep going this will run make on each package with tasks
 # given in as parameters
 define parallel =
+@echo $(N_JOBS) > jobsfile.txt
 -parallel \
   --jobs $(JOBS_FILE) \
   -a "$(PROJECTS_FILE)" \
@@ -26,7 +27,7 @@ define parallel =
   --bar \
   --tagstring "$@ - {}:" \
   --result "$(RUN_DIR)/{1}/$(ANALYSIS_DIR)/{2}" \
-  --joblog "$(LOG_DIR)/$@.log" \
+  --joblog "$(LOG_DIR)/parallel.log" \
   --timeout $(TIMEOUT) \
   --shuf \
   make $(MFLAGS) -C "$(RUN_DIR)/{1}" -f $(base_dir)/Makefile.project "{2}" \
@@ -43,40 +44,48 @@ all: $(LOG_DIR)
 $(LOG_DIR):
 	@echo "LOG_DIR: $(LOG_DIR)"
 	@mkdir -p $(LOG_DIR)
-	ln -sf $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
+	echo "$(TIMESTAMP)" > $(LOG_DIR)/timestamp
+    -@rm $(LOG_DIR_LATEST)
+	ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
 $(PROJECTS_ALL_FILE): $(SCALA_PROJECT_CSV)
 	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "{project}")' > $(PROJECTS_ALL_FILE)
 
+download-projects: $(SCALA_PROJECT_CSV)
+	-mkdir -p $(RUN_DIR)
+	cat projects-all.txt | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
+        parallel -C, --bar -j2 git clone "https://github.com/{1}/{2}" projects/"{1}--{2}"
+
 # this one has a hard coded requirement for the projects file which comes from clean-corpus.Rmd
-$(RUN_DIR): $(SCALA_PROJECT_CSV)
+link-ghtorrent-projects: $(SCALA_PROJECT_CSV)
 	-mkdir -p $(RUN_DIR)
 	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "$(GHTORRENT_DIR)/tmp/{project_id},$(RUN_DIR)/{project}")' | \
 		parallel -C, --bar -j2 ln -sf "{1}" "{2}"
 
+log-result: $(LOG_DIR_LATEST)
+	$(SCRIPTS_DIR)/projects-by-status.R $(LOG_DIR_LATEST)/parallel.log
+	cp $(SCRIPTS_DIR)/parallel-task-result.Rmd $(LOG_DIR_LATEST)
+	Rscript -e 'rmarkdown::render("$(LOG_DIR_LATEST)/parallel-task-result.Rmd")'
+	@rm $(LOG_DIR_LATEST)/parallel-task-result.Rmd
+
+clean-semanticdb:
+	parallel --bar -j2 -a $(PROJECTS_FILE) rm -f $(RUN_DIR)/"{1}"/$(SEMANTICDB)
+
 metadata: $(bootstrap)
-	@echo 20 > jobsfile.txt
 	$(parallel) $@
 compile: $(bootstrap)
-	@echo 20 > jobsfile.txt
 	$(parallel) $@
 semanticdb: $(bootstrap)
-	@echo 20 > jobsfile.txt
 	$(parallel) $@
 clean: $(bootstrap)
-	@echo 64 > jobsfile.txt
 	$(parallel) $@
 classclean: $(bootstrap)
-	@echo 64 > jobsfile.txt
 	$(parallel) $@
 gitclean: $(bootstrap)
-	@echo 64 > jobsfile.txt
 	$(parallel) $@
 sbtclean: $(bootstrap)
-	@echo 24 > jobsfile.txt
 	$(parallel) $@
 distclean: $(bootstrap)
-	@echo 64 > jobsfile.txt
 	$(parallel) $@
 
 sbt-plugins: $(IVY_DIR)

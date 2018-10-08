@@ -1,0 +1,79 @@
+---
+title: "Task result"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(fs)
+library(glue)
+library(DT)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+# this one is stored in $base/logs/<n>/result.Rmd
+# and we are looking for files in $base/projects
+RUN_DIR_NAME <- "projects"
+ANALYSIS_DIR <- "_analysis_"
+RUN_DIR <- path("..", "..", RUN_DIR_NAME)
+```
+
+```{r load_data, echo=FALSE, include=FALSE}
+log <- read_tsv("parallel.log")
+
+# the command shall be always make -C <project> -f <path> <taskname>
+command_split <- str_split_fixed(log$Command, " ", 6)
+projects <- str_replace(command_split[,3], str_c(RUN_DIR_NAME, "/"), "")
+origin <- str_c("https://github.com/", str_replace(projects, "--", "/"))
+taskname <- command_split[1,6]
+dirs <- path(RUN_DIR, projects)
+stdouts <- path(dirs, ANALYSIS_DIR, taskname)
+stderrs <- path(dirs, ANALYSIS_DIR, str_c(taskname, ".err"))
+
+result <- mutate(
+  log, 
+  project=projects,
+  origin=origin,
+  stdout=stdouts,
+  stderr=stderrs
+)
+```
+
+```{r table, echo=FALSE}
+table <- transmute(
+  result, 
+  project=glue("<a href='{origin}' target='_new'>{project}</a>"), 
+  duration=JobRuntime, 
+  exit=Exitval, 
+  signal=Signal, 
+  cmd=Command,
+  stdout=glue("<a href='{stdout}' target='_new'>stdout</a>"),
+  stderr=glue("<a href='{stderr}' target='_new'>stderr</a>")
+)
+
+display <- function(table) {
+  DT::datatable(
+    table,
+    class='cell-border stripe',
+    options=list(pageLength=100),
+    escape=FALSE
+  )
+}
+```
+
+## Failed
+
+```{r results='asis', echo=FALSE}
+failed <- filter(table, exit != 0)
+if (nrow(failed) > 0) {
+  display(failed)  
+} else {
+  cat("No failures")
+}
+```
+
+## All
+
+```{r include=TRUE, echo=FALSE}
+display(table)
+```
