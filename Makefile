@@ -4,9 +4,14 @@ GHTORRENT_DIR := /mnt/nvme1/scala/ghtorrent
 SCRIPTS_DIR := scripts
 RUN_DIR := projects
 LOG_DIR_BASE := logs
-LOG_DIR := $(LOG_DIR_BASE)/$(shell echo $$(($$(ls -1 $(LOG_DIR_BASE) | grep '[0-9][0-9]*' | wc -l) + 1)))
 TIMESTAMP := $(shell LC_LOCALE=C date)
 LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
+
+# it cannot be simply be ?= because that one is not immediate, but deferred so
+# it will be evaluated multiple times
+ifeq ($(origin LOG_DIR), undefined)
+	LOG_DIR := $(LOG_DIR_BASE)/$(shell echo $$(($$(ls -1 $(LOG_DIR_BASE) | grep '[0-9][0-9]*' | wc -l) + 1)))
+endif
 
 SCALA_PROJECT_CSV := scala-projects.csv
 PROJECTS_ALL_FILE := projects-all.txt
@@ -34,18 +39,17 @@ define parallel =
   :::
 endef
 
+# there is no direct rule how to create RUN_DIR
+# this has to be done manually using either download-projects or link-ghtorrent-projects tasks
 bootstrap := $(LOG_DIR) $(RUN_DIR)
 
-.PHONY: all metadata semanticdb clean distclean sbt-plugins
-
-all: $(LOG_DIR)
-	$(parallel) semanticdb metadata-raw
+.PHONY: metadata semanticdb clean distclean sbt-plugins
 
 $(LOG_DIR):
 	@echo "LOG_DIR: $(LOG_DIR)"
 	@mkdir -p $(LOG_DIR)
 	echo "$(TIMESTAMP)" > $(LOG_DIR)/timestamp
-    -@rm $(LOG_DIR_LATEST)
+	-@rm $(LOG_DIR_LATEST)
 	ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
 $(PROJECTS_ALL_FILE): $(SCALA_PROJECT_CSV)
@@ -54,19 +58,27 @@ $(PROJECTS_ALL_FILE): $(SCALA_PROJECT_CSV)
 download-projects: $(SCALA_PROJECT_CSV)
 	-mkdir -p $(RUN_DIR)
 	cat projects-all.txt | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
-        parallel -C, --bar -j2 git clone "https://github.com/{1}/{2}" projects/"{1}--{2}"
+        parallel -C, --bar -j4 git clone "https://github.com/{1}/{2}" projects/"{1}--{2}"
 
 # this one has a hard coded requirement for the projects file which comes from clean-corpus.Rmd
 link-ghtorrent-projects: $(SCALA_PROJECT_CSV)
 	-mkdir -p $(RUN_DIR)
 	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "$(GHTORRENT_DIR)/tmp/{project_id},$(RUN_DIR)/{project}")' | \
-		parallel -C, --bar -j2 ln -sf "{1}" "{2}"
+		parallel -C, --bar -j1 ln -sf "{1}" "{2}"
 
-log-result: $(LOG_DIR_LATEST)
-	$(SCRIPTS_DIR)/projects-by-status.R $(LOG_DIR_LATEST)/parallel.log
-	cp $(SCRIPTS_DIR)/parallel-task-result.Rmd $(LOG_DIR_LATEST)
-	Rscript -e 'rmarkdown::render("$(LOG_DIR_LATEST)/parallel-task-result.Rmd")'
-	@rm $(LOG_DIR_LATEST)/parallel-task-result.Rmd
+tail-log: $(LOG_DIR_LATEST)
+	tail -f $(LOG_DIR_LATEST)/parallel.log
+
+results-report-latest: $(LOG_DIR_LATEST)
+	$(MAKE) results-report LOG_DIR=$(LOG_DIR_LATEST)
+
+results-report: $(LOG_DIR)
+	$(SCRIPTS_DIR)/projects-by-status.R $(LOG_DIR)/parallel.log
+	cp $(SCRIPTS_DIR)/parallel-task-result.Rmd $(LOG_DIR)
+	Rscript -e 'rmarkdown::render("$(LOG_DIR)/parallel-task-result.Rmd")'
+	@rm $(LOG_DIR)/parallel-task-result.Rmd
+	@echo "REPORT is in $(LOG_DIR)/parallel-task-result.html"
+	@wc -l $(LOG_DIR)/*.txt
 
 clean-semanticdb:
 	parallel --bar -j2 -a $(PROJECTS_FILE) rm -f $(RUN_DIR)/"{1}"/$(SEMANTICDB)
