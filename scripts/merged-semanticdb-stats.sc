@@ -2,34 +2,53 @@ import $ivy.`cz.cvut.fit.prl.scala.implicits::model:1.0-SNAPSHOT`
 import $ivy.`cz.cvut.fit.prl.scala.implicits::transformation:1.0-SNAPSHOT`
 
 import better.files._
-import cz.cvut.fit.prl.scala.implicits.merged.SemanticdbFile
-
 import scala.meta.internal.semanticdb.TextDocuments
 
-val LeftPathMatcher = "scala-corpus/projects/"
-val RightPathMatcher = "/target/scala-"
+import $file.commons
+import commons._
 
-def toCSV(msg: SemanticdbFile): Product = {
-  val path = msg.path
-  val sdb = msg.sdb
+case class Stats(occurrences: Int, synthetics: Int, symbols: Int) {
+  def +(that: Stats): Stats = Stats(occurrences + that.occurrences, synthetics + that.synthetics, symbols + that.symbols)
 
+  def toCSV: String = productIterator.mkString(",")
+}
+
+def computeStats(sdb: TextDocuments): Stats = {
   val occurrences = sdb.documents.map(x => x.occurrences.size).sum
   val synthetics = sdb.documents.map(x => x.synthetics.size).sum
   val symbols = sdb.documents.map(x => x.symbols.size).sum
 
-  (sdb.documents.head.uri, occurrences, synthetics, symbols)
+  Stats(occurrences, synthetics, symbols)
 }
 
-def run(mergedSemanticdbs: File): Unit = {
-  for (input <- mergedSemanticdbs.newInputStream.autoClosed) {
-    SemanticdbFile.streamFromDelimitedInput(input)
-      .map(toCSV)
-      .map(_.productIterator.mkString(","))
-      .foreach(println)
+def run(pathsFile: File): Unit = {
+  val projects = pathsFile.lines.toList
+
+  projects.zipWithIndex.foreach { case (name, idx) =>
+    val projectPath = File(s"$RunDir/$name")
+    val inputFile = File(s"$projectPath/$OutputDir/$MergedSemanticdbsFilename")
+    val outputFile = File(s"$projectPath/$OutputDir/$MergedSemanticdbsStatsFilename")
+
+    print(s"Processing $name [${idx + 1}/${projects.size}] ")
+
+    if (inputFile.exists) {
+      val csv =
+        inputFile
+          .inputStream
+          .apply(input => TextDocuments.streamFromDelimitedInput(input).map(computeStats).toList)
+          .foldLeft(Stats(0, 0, 0))((a, b) => a + b)
+          .toCSV
+
+      outputFile.writeText(s"project,occurrencies,synthtics,symbols\n$name,$csv\n")
+
+      println(s"done ($csv)")
+    } else {
+      println("skipped")
+    }
   }
 }
 
 @main
-def main(mergedSemanticdbs: String) = {
-  run(File(mergedSemanticdbs))
+def main(pathsFile: String) = {
+  run(File(pathsFile))
 }
