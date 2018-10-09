@@ -11,6 +11,21 @@ projectpath=$(dirname $scriptpath)
 # ssh prl4 mkdir -p .ivy2/local/cz.cvut.fit.prl.scala/sdb-reader_2.12
 
 echo "** Syncing: $projectpath"
-rsync -avh --delete --exclude target $projectpath/ prl4:Research/Projects/scala-implicits/sdb-reader/scala
-echo "** Syncing: $projectpath"
+rsync \
+    -avh \
+    --delete \
+    --exclude "logs" \
+    --exclude ".ivy" \
+    --exclude "projects" \
+    --exclude "projects*.txt" \
+    --exclude "scala-projects*.csv" \
+    --exclude "scripts/target" \
+    --exclude "sbt-plugings/target" \
+    --exclude "libs/target" \
+    --exclude "libs/project/target" \
+    --exclude "libs/project/project/target" \
+    $projectpath/ prl4:Research/Projects/scala-corpus
+
+echo "** Syncing: ~/.ivy2"
 rsync -avh --delete ~/.ivy2/local/cz.cvut.fit.prl.scala.implicits/ prl4:.ivy2/local/cz.cvut.fit.prl.scala.implicits
+
