@@ -1,7 +1,19 @@
 import scalapb.compiler.Version.scalapbVersion
 
-val scalametaVersion = "4.0.0"
-val circeVersion = "0.9.0"
+val ScalametaVersion = "4.0.0"
+val CirceVersion = "0.9.0"
+
+val CirceLibraries = Seq(
+  "io.circe" %% "circe-core",
+  "io.circe" %% "circe-generic",
+  "io.circe" %% "circe-parser",
+  "io.circe" %% "circe-yaml"
+).map(_ % CirceVersion)
+
+val TestLibraries = Seq(
+  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
+  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
+)
 
 ThisBuild / scalaVersion := "2.12.6"
 ThisBuild / organization := "cz.cvut.fit.prl.scala.implicits"
@@ -37,12 +49,16 @@ lazy val root = (project in file("."))
 // and they do not work well together
 // when they are together, the build fails with `BuildInfo is already defined as case class BuildInfo`
 // there seem to be some race conditions (sometimes it would simply complain that the buildinfo does not exist)
+// it is also super convenient for developing - once can rebuild model with errors in transformation module
 lazy val model = (project in file("model"))
   .settings(
     name := "model",
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "semanticdb" % scalametaVersion
+      "org.scalameta" %% "semanticdb" % ScalametaVersion,
+      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
     ),
+    libraryDependencies ++= TestLibraries,
+    libraryDependencies ++= CirceLibraries,
     PB.targets in Compile := Seq(
       scalapb.gen(
         flatPackage = true // Don't append filename to package
@@ -59,15 +75,16 @@ lazy val transformation = (project in file("transformation"))
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
 
+      "com.lihaoyi" %% "pprint" % "0.5.3",
       "com.github.pathikrit" %% "better-files" % "3.4.0",
       "com.github.scopt" % "scopt_2.11" % "3.7.0",
       "com.chuusai" %% "shapeless" % "2.3.3",
       "com.nrinaudo" %% "kantan.csv-generic" % "0.4.0",
-
-      "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
-      "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
-      "org.scalameta" %% "testkit" % scalametaVersion % Test,
+      
+      "org.scalameta" %% "testkit" % ScalametaVersion % Test,
     ),
+    
+    libraryDependencies ++= TestLibraries,
 
     libraryDependencies ++= Seq(
       "org.scalameta" %% "scalameta",
@@ -78,14 +95,9 @@ lazy val transformation = (project in file("transformation"))
       "org.scalameta" % ("metac_" + scalaVersion.value),
       "org.scalameta" % ("interactive_" + scalaVersion.value),
       "org.scalameta" % ("semanticdb-scalac_" + scalaVersion.value),
-    ).map(_ % scalametaVersion),
+    ).map(_ % ScalametaVersion),
 
-    libraryDependencies ++= Seq(
-      "io.circe" %% "circe-core",
-      "io.circe" %% "circe-generic",
-      "io.circe" %% "circe-parser",
-      "io.circe" %% "circe-yaml"
-    ).map(_ % circeVersion),
+    libraryDependencies ++= CirceLibraries,
 
     buildInfoPackage := "cz.cvut.fit.prl.scala.implicits.utils",
     buildInfoKeys := Seq[BuildInfoKey](
@@ -93,16 +105,16 @@ lazy val transformation = (project in file("transformation"))
       version,
       scalaVersion,
       sbtVersion,
-      "scalametaVersion" -> scalametaVersion,
+      "scalametaVersion" -> ScalametaVersion,
       scalacOptions.in(Test),
       // fullClasspath is impossible since it will need also to recompile the actual BuildInfo
       externalDependencyClasspath.in(Test),
       "semanticdbScalacPluginJar" -> (
         System.getProperty("user.home") +
-        "/.ivy2/cache/org.scalameta/semanticdb-scalac_"+ scalaVersion.value +
-        "/jars/" +
-        "semanticdb-scalac_" + scalaVersion.value + "-" + scalametaVersion + ".jar"
-      )
+          "/.ivy2/cache/org.scalameta/semanticdb-scalac_" + scalaVersion.value +
+          "/jars/" +
+          "semanticdb-scalac_" + scalaVersion.value + "-" + ScalametaVersion + ".jar"
+        )
     ),
 
     scalacOptions ++= Seq(

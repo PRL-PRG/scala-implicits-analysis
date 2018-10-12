@@ -1,0 +1,115 @@
+syntax = "proto2";
+
+//import "semanticdb.proto";
+import "scalapb/scalapb.proto";
+
+package cz.cvut.fit.prl.scala.implicits.model;
+
+enum Language {
+    UNKNOWN_LANGUAGE = 0;
+    SCALA = 1;
+    JAVA = 2;
+}
+
+message Project {
+    // <github-user>--<github-repo>
+    required string name = 1;
+    repeated Unit units = 2;
+}
+
+message Unit {
+    required string path = 1;
+    repeated TypeDeclaration types = 2;
+    repeated MethodDeclaration methods = 3;
+    repeated CallSite callSites = 5;
+}
+
+message Location {
+    required string path = 1;
+    required bool isLocal = 2;
+}
+
+// the first three fields must be fqn, name, location, language
+// each declaration has additionally an id and parent
+message Symbol {
+    required string fqn = 1;
+    required string name = 2;
+    required Location location = 3;
+    required Language language = 4;
+    required bool isImplicit = 5;
+}
+
+message MethodDeclaration {
+    option (scalapb.message).extends = "cz.cvut.fit.prl.scala.implicits.model.Declaration";
+
+    required Symbol symbol = 1;
+    repeated TypeParameter type_parameters = 3;
+    repeated ParameterList parameter_lists = 4;
+    required Type return_type = 5;
+}
+
+message TypeDeclaration {
+    option (scalapb.message).extends = "cz.cvut.fit.prl.scala.implicits.model.Declaration";
+
+    required Symbol symbol = 1;
+    repeated TypeParameter type_parameters = 3;
+    repeated Type parents = 4;
+}
+
+message TypeParameter {
+    required string name = 1;
+    repeated TypeParameter type_parameters = 2;
+    optional Type upper_bound = 3;
+    optional Type lower_bound = 4;
+}
+
+message ParameterList {
+    repeated Parameter parameters = 1;
+}
+
+message Parameter {
+    required string name = 1;
+    required Type tpe = 2;
+    required bool isImplicit = 3;
+}
+
+message Type {
+    oneof sealed_value {
+        TypeRef type_ref = 1;
+        TypeParameterRef type_parameter_ref = 2;
+    }
+}
+
+message TypeRef {
+    // references a TypeDeclaration
+    required string type_ref = 1;
+    repeated Type type_arguments = 2;
+}
+
+message TypeParameterRef {
+    // references a Declaration (Type of Method)
+    required string declaration_ref = 1;
+    required string name = 2;
+    repeated Type type_arguments = 3;
+}
+
+message Position {
+    required int32 startLine = 1;
+    required int32 startCol = 2;
+    required int32 endLine = 3;
+    required int32 endCol = 4;
+}
+
+message CallSite {
+    enum Kind {
+        NORMAL = 0;
+        SYNTHETIC = 1;
+        CONVERSION = 2;
+    }
+
+    required string declaration_ref = 1;
+    required Kind kind = 2;
+    required string code = 3;
+    required Position position = 4;
+    repeated Type typeArguments = 5;
+}

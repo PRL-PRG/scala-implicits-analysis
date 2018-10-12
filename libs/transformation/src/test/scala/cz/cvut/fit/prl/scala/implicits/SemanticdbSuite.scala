@@ -18,7 +18,7 @@ import scala.tools.nsc.interactive.Global
 
 abstract class SemanticdbSuite extends FunSuite {
 
-  protected val classpath: Classpath = {
+  val classpath: Classpath = {
     val projectClasspath =
       Classpath(
       BuildInfo
@@ -30,9 +30,9 @@ abstract class SemanticdbSuite extends FunSuite {
     Libraries.JvmBootClasspath ++ projectClasspath
   }
 
-  protected lazy val symtab: GlobalSymbolTable = GlobalSymbolTable(classpath)
+  lazy val symtab: GlobalSymbolTable = GlobalSymbolTable(classpath)
 
-  protected lazy val compiler: Global = {
+  lazy val compiler: Global = {
     val pluginClasspath = classOf[SemanticdbPlugin].getClassLoader match {
       case cl: URLClassLoader => cl.getURLs.map(_.getFile).mkString(JFile.pathSeparator)
       case cl => sys.error(s"unsupported classloader: $cl")
