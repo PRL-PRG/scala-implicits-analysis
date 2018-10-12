@@ -51,16 +51,16 @@ object MetadataExportPlugin extends AutoPlugin {
   }
 
   lazy val sourceDirectoriesFile =
-    deleteIfExists(new File(analysisDir, "source-directories.csv"))
+    deleteIfExists(new File(analysisDir, "metadata-sourcepaths.csv"))
 
   lazy val versionsFile =
-    deleteIfExists(new File(analysisDir, "versions.csv"))
+    deleteIfExists(new File(analysisDir, "metadata-versions.csv"))
 
   lazy val classpathFile =
-    deleteIfExists(new File(analysisDir, "classpath.csv"))
+    deleteIfExists(new File(analysisDir, "metadata-classpath.csv"))
 
   lazy val cleanpathsFile =
-    deleteIfExists(new File(analysisDir, "cleanpaths.csv"))
+    deleteIfExists(new File(analysisDir, "metadata-cleanpaths.csv"))
 
   override lazy val projectSettings = Seq(
     metadata := {

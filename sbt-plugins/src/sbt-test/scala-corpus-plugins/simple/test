@@ -1,4 +1,4 @@
 # check if sources gets created
 > metadata
-$ exists _analysis_/source-directories.csv
-$ exists _analysis_/versions.csv
+$ exists _analysis_/metadata-sourcepaths.csv
+$ exists _analysis_/metadata-versions.csv
