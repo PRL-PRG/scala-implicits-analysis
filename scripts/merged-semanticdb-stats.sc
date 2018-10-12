@@ -1,11 +1,10 @@
 import $ivy.`cz.cvut.fit.prl.scala.implicits::model:1.0-SNAPSHOT`
 import $ivy.`cz.cvut.fit.prl.scala.implicits::transformation:1.0-SNAPSHOT`
+import $file.commons
+import commons._
 
 import better.files._
 import scala.meta.internal.semanticdb.TextDocuments
-
-import $file.commons
-import commons._
 
 case class Stats(occurrences: Int, synthetics: Int, symbols: Int) {
   def +(that: Stats): Stats = Stats(occurrences + that.occurrences, synthetics + that.synthetics, symbols + that.symbols)

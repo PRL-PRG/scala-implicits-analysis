@@ -1,3 +1,7 @@
+MAKEFLAGS += --no-builtin-rules
+
+.SUFFIXES:
+
 # absolute path to the ivy directory that contains cache and local subdirs
 ifndef GLOBAL_IVY_DIR
 $(error GLOBAL_IVY_DIR is not set. Typically ~/.ivy2)
@@ -13,14 +17,16 @@ ifndef N_JOBS
 $(error N_JOBS is not set. Controls the number of parallel jobs)
 endif
 
+SBT_MEM ?= 16000
+TIMEOUT ?= 30m
+
 ANALYSIS_DIR := _analysis_
 IVY_DIR := .ivy
 SBT_BOOT_DIR := .sbt-boot
-SEMANTICDB := $(ANALYSIS_DIR)/semanticdb-status.csv
-COMPILE := $(ANALYSIS_DIR)/compile-status.csv
-
-SBT_MEM ?= 16000
-TIMEOUT ?= 30m
+SEMANTICDB_STATUS := $(ANALYSIS_DIR)/semanticdb-status.csv
+SEMANTICDB_LOG := $(ANALYSIS_DIR)/semanticdb.log
+METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv
+METADATA_LOG := $(ANALYSIS_DIR)/metadata.log
 
 $(IVY_DIR):
 	mkdir -p $(IVY_DIR)
@@ -29,4 +35,10 @@ $(IVY_DIR):
 
 $(SBT_BOOT_DIR):
 	mkdir -p $(SBT_BOOT_DIR)
-	ls -1 $(GLOBAL_SBT_BOOT_DIR) | grep "^scala-" | parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
+	ls -1 $(GLOBAL_SBT_BOOT_DIR) |\
+        grep "^scala-" |\
+        parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
+
+color_off:=\x1b[0m
+color_green:=\x1b[32;06m
+color_red:=\x1b[31;06m

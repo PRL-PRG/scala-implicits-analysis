@@ -13,7 +13,6 @@ projectpath=$(dirname $scriptpath)
 echo "** Syncing: $projectpath"
 rsync \
     -avh \
-    --delete \
     --exclude "logs" \
     --exclude ".ivy" \
     --exclude "projects" \

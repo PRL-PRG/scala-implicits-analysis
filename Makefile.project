@@ -1,72 +1,67 @@
 # -*- mode: makefile -*-
 
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
+
 SHELL := /bin/bash
-
-METADATA := $(ANALYSIS_DIR)/versions.csv $(ANALYSIS_DIR)/source-directories.csv $(ANALYSIS_DIR)/classpath.csv $(ANALYSIS_DIR)/cleanpaths.csv
-SLOC := $(ANALYSIS_DIR)/sloc.csv
-
-ALL := $(ANALYSIS_DIR) \
-       $(IVY_DIR) \
-	   $(SBT_BOOT_DIR) \
-       $(SEMANTICDB) \
-	   $(SDB_CONFIG) \
-	   $(SLOC_FULL) \
-       $(SLOC_UNIQUE)
 
 SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem $(SBT_MEM) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
 
 bootstrap := $(ANALYSIS_DIR) $(IVY_DIR) $(SBT_BOOT_DIR)
 
-.PHONY: all bootstrap semanticdb metadata compile ivy clean sbtclean distclean sloc
-
-# this is here so we prevent a duplication in clean/distclean
-# I don't know how to call a target post-priory
-define clean =
--rm -fr $(ALL)
-endef
-
-all: $(ALL)
+.PHONY: metadata clean-metadata semanticdb clean-semanticdb clean clean-classes clean-sbt reset
 
 $(ANALYSIS_DIR):
 	mkdir -p $(ANALYSIS_DIR)
 
-$(METADATA): $(bootstrap)
-	$(SBT) 'metadata'
+# --------------------------------------------------------------------------------
+# metadata
+# --------------------------------------------------------------------------------
 
-$(SLOC): $(ANALYSIS_DIR)
-	cloc --quiet --csv . | sed 's/,".*$///' | tail -n +2 > $(SLOC)
-
-$(COMPILE): $(bootstrap)
-	$(SBT) clean compile; \
+$(METADATA_STATUS): $(bootstrap)
+	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
-    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(COMPILE); \
+    echo "project,exitcode,duration,log" > $(METADATA_STATUS); \
+    echo "$(notdir $(CURDIR)),$$exit_code,$$SECONDS,$(METADATA_LOG)" > $(METADATA_STATUS); \
     exit $$exit_code
 
-$(SEMANTICDB): $(bootstrap)
-	$(SBT) clean semanticdb; \
+metadata: $(METADATA_STATUS)
+
+clean-metadata:
+	rm -f $(METADATA_STATUS) $(METADATA_LOG)
+
+# --------------------------------------------------------------------------------
+# semanticdb
+# --------------------------------------------------------------------------------
+
+# runs the semanticdb task on a clean project
+$(SEMANTICDB_STATUS): $(bootstrap)
+	$(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
-    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(SEMANTICDB); \
+    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$exit_code,$$SECONDS" >\
+        $(SEMANTICDB_STATUS); \
     exit $$exit_code
 
-metadata: $(METADATA)
-compile: $(COMPILE)
-semanticdb: $(SEMANTICDB)
-ivy: $(IVY_DIR)
-sloc: $(SLOC)
+semanticdb: $(SEMANTICDB_STATUS)
 
-classclean:
+clean-semanticdb:
+	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
+
+# --------------------------------------------------------------------------------
+# other
+# --------------------------------------------------------------------------------
+
+# removes the artifacts created by running tasks from this Makefile
+clean:
+	rm -fr $(ANALYSIS_DIR)
+
+# removes classes under target (only works for regular sbt projects)
+clean-classes:
 	find . -type d -name "target" | parallel find "{1}" -type f -name "\*.class" -delete
 
-gitclean:
+# removes whatever sbt was configured to remove
+clean-sbt:
+	$(SBT) clean
+
+# removes all that was not original part of the repository
+reset:
 	git clean -fdx
-
-sbtclean:
-	-$(SBT) clean
-
-clean:
-	$(clean)
-
-distclean: $(IVY_DIR)
-	-$(SBT) clean
-	$(clean)

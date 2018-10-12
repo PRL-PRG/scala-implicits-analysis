@@ -13,11 +13,18 @@ ifeq ($(origin LOG_DIR), undefined)
 	LOG_DIR := $(LOG_DIR_BASE)/$(shell echo $$(($$(ls -1 $(LOG_DIR_BASE) | grep '[0-9][0-9]*' | wc -l) + 1)))
 endif
 
+# a file describing the corpus generated from dejavu by
+# scripts/analysis/corpus.Rmd
 SCALA_PROJECT_CSV := scala-projects.csv
-PROJECTS_ALL_FILE := projects-all.txt
+# a file with project names (one per line) that should be run
 PROJECTS_FILE := projects.txt
+# a file controlling the number of parallel tasks it can be updated while the
+# task is run, but gets reset before a task is run
 JOBS_FILE := jobsfile.txt
 
+# --------------------------------------------------------------------------------
+
+# the location of this makefile
 base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # parallel exit code is based on how many jobs has failed there will for sure be
@@ -25,13 +32,14 @@ base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # given in as parameters
 define parallel =
 @echo $(N_JOBS) > jobsfile.txt
+@echo ">> $(color_green)Running parallel with logs in $(LOG_DIR)$(color_off)..."
 -parallel \
   --jobs $(JOBS_FILE) \
   -a "$(PROJECTS_FILE)" \
   --files \
   --bar \
   --tagstring "$@ - {}:" \
-  --result "$(RUN_DIR)/{1}/$(ANALYSIS_DIR)/{2}" \
+  --result "$(RUN_DIR)/{1}/$(ANALYSIS_DIR)/parallel/{2}" \
   --joblog "$(LOG_DIR)/parallel.log" \
   --timeout $(TIMEOUT) \
   --shuf \
@@ -39,21 +47,18 @@ define parallel =
   :::
 endef
 
-# there is no direct rule how to create RUN_DIR
-# this has to be done manually using either download-projects or link-ghtorrent-projects tasks
+# there is no direct rule how to create RUN_DIR this has to be done manually
+# using either download-projects or link-ghtorrent-projects tasks
 bootstrap := $(LOG_DIR) $(RUN_DIR)
 
-.PHONY: metadata semanticdb clean distclean sbt-plugins
+.PHONY: metadata semanticdb clean distclean build-sbt-plugins
 
 $(LOG_DIR):
-	@echo "LOG_DIR: $(LOG_DIR)"
 	@mkdir -p $(LOG_DIR)
-	echo "$(TIMESTAMP)" > $(LOG_DIR)/timestamp
-	-@rm $(LOG_DIR_LATEST)
-	ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
+	@echo "$(TIMESTAMP)" > $(LOG_DIR)/timestamp
+	@rm -f $(LOG_DIR_LATEST)
+	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-$(PROJECTS_ALL_FILE): $(SCALA_PROJECT_CSV)
-	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "{project}")' > $(PROJECTS_ALL_FILE)
 
 download-projects: $(SCALA_PROJECT_CSV)
 	-mkdir -p $(RUN_DIR)
@@ -65,14 +70,13 @@ link-ghtorrent-projects: $(SCALA_PROJECT_CSV)
 	-mkdir -p $(RUN_DIR)
 	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "$(GHTORRENT_DIR)/tmp/{project_id},$(RUN_DIR)/{project}")' | \
 		parallel -C, --bar -j1 ln -sf "{1}" "{2}"
+	Rscript -e 'glue::glue_data(readr::read_csv("$(SCALA_PROJECT_CSV)"), "{project}")' > $(PROJECT_FILE)
 
 tail-log: $(LOG_DIR_LATEST)
 	tail -f $(LOG_DIR_LATEST)/parallel.log
 
-results-report-latest: $(LOG_DIR_LATEST)
-	$(MAKE) results-report LOG_DIR=$(LOG_DIR_LATEST)
-
-results-report: $(LOG_DIR)
+generate-task-report:
+	[ -d $(LOG_DIR) ] || exit 1
 	$(SCRIPTS_DIR)/projects-by-status.R $(LOG_DIR)/parallel.log
 	cp $(SCRIPTS_DIR)/parallel-task-result.Rmd $(LOG_DIR)
 	Rscript -e 'rmarkdown::render("$(LOG_DIR)/parallel-task-result.Rmd")'
@@ -80,31 +84,49 @@ results-report: $(LOG_DIR)
 	@echo "REPORT is in $(LOG_DIR)/parallel-task-result.html"
 	@wc -l $(LOG_DIR)/*.txt
 
-clean-semanticdb:
-	parallel --bar -j2 -a $(PROJECTS_FILE) rm -f $(RUN_DIR)/"{1}"/$(SEMANTICDB)
-
 metadata: $(bootstrap)
 	$(parallel) $@
-compile: $(bootstrap)
+
+
+clean-metadata:
 	$(parallel) $@
+	$(generate-task-report)
+
 semanticdb: $(bootstrap)
 	$(parallel) $@
+	cp $(SCRIPTS_DIR)/semanticdb-task-result.Rmd $(LOG_DIR)
+
+	env PROJECTS_FILE=$(PROJECTS_FILE) \
+      Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/semanticdb-task-result.Rmd", output_file="$(LOG_DIR)/result.html", knit_root_dir="$(LOG_DIR)")'
+	@echo ">> $(color_green)Report is in $(LOG_DIR)/result.html$(color_off)"
+
+clean-semanticdb:
+	$(parallel) $@
+	$(generate-task-report)
+
 clean: $(bootstrap)
 	$(parallel) $@
-classclean: $(bootstrap)
-	$(parallel) $@
-gitclean: $(bootstrap)
-	$(parallel) $@
-sbtclean: $(bootstrap)
-	$(parallel) $@
-distclean: $(bootstrap)
-	$(parallel) $@
+	$(generate-task-report)
 
-sbt-plugins: $(IVY_DIR)
+clean-classes: $(bootstrap)
+	$(parallel) $@
+	$(generate-task-report)
+
+clean-sbt: $(bootstrap)
+	$(parallel) $@
+	$(generate-task-report)
+
+reset: $(bootstrap)
+	$(parallel) $@
+	$(generate-task-report)
+
+build-sbt-plugins: $(IVY_DIR)
 	-rm ~/.sbt/0.13/plugins/scala-corpus.sbt
 	-rm ~/.sbt/1.0/plugins/scala-corpus.sbt
 	cd sbt-plugins && sbt -batch -ivy ../$(IVY_DIR) "^ publishLocal"
 	-mkdir -p ~/.sbt/0.13/plugins
 	-mkdir -p ~/.sbt/1.0/plugins
-	echo 'addSbtPlugin("cz.cvut.fit.prl.scala-corpus" % "sbt-plugins" % "0.1-SNAPSHOT")' > ~/.sbt/0.13/plugins/scala-corpus.sbt
-	echo 'addSbtPlugin("cz.cvut.fit.prl.scala-corpus" % "sbt-plugins" % "0.1-SNAPSHOT")' > ~/.sbt/1.0/plugins/scala-corpus.sbt
+	echo 'addSbtPlugin("cz.cvut.fit.prl.scala-corpus" % "sbt-plugins" % "0.1-SNAPSHOT")' >\
+        ~/.sbt/0.13/plugins/scala-corpus.sbt
+	echo 'addSbtPlugin("cz.cvut.fit.prl.scala-corpus" % "sbt-plugins" % "0.1-SNAPSHOT")' >\
+        ~/.sbt/1.0/plugins/scala-corpus.sbt

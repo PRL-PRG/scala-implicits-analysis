@@ -7,6 +7,8 @@
   - tidyverse
   - fs
   - DT
+- cloc >= 1.8
+
 
 From some reason I had to install xml2 package manually (it just would not pick the `PKG_CONFIG_DIR` from homebrew):
 

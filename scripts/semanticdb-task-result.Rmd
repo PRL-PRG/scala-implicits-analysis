@@ -1,0 +1,67 @@
+---
+title: "Semanticdb Task result"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(fs)
+library(glue)
+library(DT)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+RUN_DIRNAME <- "projects"
+ANALYSIS_DIRNAME <- "_analysis_"
+SEMANTICDB_FILENAME <- "semanticdb-status.csv"
+
+BASE_DIR <- system2("git", c("rev-parse", "--show-toplevel"), stdout = TRUE)
+RUN_DIR <- path(BASE_DIR, RUN_DIRNAME)
+PROJECT_FILE <- path(BASE_DIR, Sys.getenv("PROJECTS_FILE"))
+```
+
+```{r load data, echo=FALSE, include=FALSE}
+projects <- read_lines(PROJECT_FILE)
+projects_path <- path(RUN_DIR, projects)
+projects_analysis_path <- path(projects_path, ANALYSIS_DIRNAME)
+
+run_df <- data_frame(
+  project=projects,
+  origin=str_c("https://github.com/", str_replace(projects, "--", "/")),
+  taskname="semanticdb",
+  path=projects_path,
+  stdout=path(projects_analysis_path, taskname),
+  stderr=str_c(stdout, ".err")
+)
+
+results_files <- path(projects_analysis_path, SEMANTICDB_FILENAME)
+results_files_existing <- results_files[file_exists(results_files)]
+results_df <- map_dfr(results_files_existing, ~read_csv(.))
+
+final_df <- 
+  left_join(run_df, results_df, by="project") %>% 
+  select(project, exitcode, everything())
+```
+
+```{r table, echo=FALSE}
+table <- 
+  mutate(
+    final_df, 
+    project=glue("<a href='{origin}' target='_blank'>{project}</a>"), 
+    path=glue("<a href='{path}' target='_blank'>{path}</a>"), 
+    stdout=glue("<a href='{stdout}' target='_blank'>stdout</a>"),
+    stderr=glue("<a href='{stderr}' target='_blank'>stderr</a>")
+  ) %>%
+  select(-origin)
+
+display <- function(table) {
+  DT::datatable(
+    table,
+    class='cell-border stripe',
+    options=list(pageLength=100),
+    escape=FALSE
+  )
+}
+
+display(table)
+```
