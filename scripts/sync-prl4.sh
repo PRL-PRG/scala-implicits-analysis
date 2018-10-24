@@ -15,7 +15,7 @@ rsync \
     -avh \
     --exclude "logs" \
     --exclude ".ivy" \
-    --exclude "projects" \
+    --exclude "corpora" \
     --exclude "projects*.txt" \
     --exclude "scala-projects*.csv" \
     --exclude "scripts/target" \

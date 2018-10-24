@@ -1,3 +1,5 @@
+val ScalametaVersion = "4.0.0"
+
 ThisBuild / scalaVersion := "2.12.6"
 ThisBuild / organization := "cz.cvut.fit.prl.scala.implicits"
 ThisBuild / version := "1.0-SNAPSHOT"
@@ -5,7 +7,15 @@ ThisBuild / version := "1.0-SNAPSHOT"
 // this is for the sbt-buildinfo plugin
 resolvers += Resolver.sbtPluginRepo("releases")
 
-val ScalametaVersion = "4.0.0"
+
+val TestLibraries = Seq(
+  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
+  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
+)
+val LoggingLibraries = Seq(
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
+)
 
 // the reason, why we split the project is that there is some bug in either scalapb or buildinfo
 // and they do not work well together
@@ -25,6 +35,7 @@ lazy val model = (project in file("model")).settings(
     ) -> sourceManaged.in(Compile).value
   ),
 )
+
 lazy val transformation = (project in file("transformation"))
   .enablePlugins(BuildInfoPlugin)
   .dependsOn(model)
@@ -93,13 +104,5 @@ lazy val transformation = (project in file("transformation"))
 
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   )
-val TestLibraries = Seq(
-  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
-  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
-)
-val LoggingLibraries = Seq(
-  "ch.qos.logback" % "logback-classic" % "1.2.3",
-  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
-)
 
 lazy val root = (project in file(".")).aggregate(model, transformation)

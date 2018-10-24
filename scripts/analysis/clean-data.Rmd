@@ -1,6 +1,8 @@
 ---
 title: "Cleanup the dataset from DejaVu"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -15,43 +17,19 @@ library(anytime)
 # Configuration
 
 ```{r config}
-DEJAVU_HOME <- "/mnt/nvme1/scala/ghtorrent"
-RUN_HOME <- "~/Research/Projects/scala-macro-analysis/run" # /mnt/nvme0/scala/run
-PROJECTS_HOME <- path(RUN_HOME, "projects")
-N_JOBS <- 32
-```
+N_JOBS <- 8
 
-```{r aux}
-git_remote_origin <- function(path) {
-  system2("git", c(str_c("--git-dir=", path, "/.git"), "remote", "get-url", "origin"), stdout=TRUE)
-}
+BASE_DIR <- "/mnt/array/scala-10.18"
+DOWNLOAD_DIR <- path(BASE_DIR, "download")
+DEJAVU_DIR <- path(BASE_DIR, "dejavu")
+STARS_FILE <- path(BASE_DIR, "stars.csv")
 
-git_first_commit_time <- function(path) {
-  # git log ignores -n when used with reverse :(
-  out <- system2("git",  c(str_c("--git-dir=", path, "/.git"), "log", "--reverse", "--date=unix", "--pretty=format:'%cd'"), stdout=TRUE)
-  out[1]
-}
+ANALYSIS_DIRNAME <- "_analysis_"
+REPO_METADATA_FILE <- path(ANALYSIS_DIRNAME, "repo-metadata.csv")
+SLOC_FILE <- path(ANALYSIS_DIRNAME, "repo-sloc.csv")
 
-git_last_commit <- function(path) {
-  commit <- system2("git",  c(str_c("--git-dir=", path, "/.git"), "log", "--pretty=format:'%H'", "-n", "1"), stdout=TRUE, stderr=TRUE)
-}
-
-git_last_commit_time <- function(path) {
-  system2("git",  c(str_c("--git-dir=", path, "/.git"), "log", "--date=unix", "--pretty=format:'%cd'", "-n", "1"), stdout=TRUE)
-}
-
-get_sloc <- function(path) {
-  sloc <- path(path, "_analysis_", "sloc.csv")
-  if (file_exists(sloc)) {
-    read_csv(sloc, col_types=cols_only(files="i", language="c", code="i"))
-  } else {
-    data_frame(files=NA, language=NA, code=NA)
-  }
-}
-
-get_size <- function(path) {
-  system2("du", c("-sb", path), stdout=TRUE) %>% str_replace("^([0-9]+).*", "\\1")
-}
+ALL_SCALA_PROJECTS <- path(DEJAVU_DIR, "scala-projects-all.csv")
+SBT_SCALA_PROJECTS <- path(DEJAVU_DIR, "scala-projects-sbt.csv")
 ```
 
 # Load data
@@ -61,114 +39,118 @@ get_size <- function(path) {
 Find download and processed projects by dejavu
 
 ```{r list projects}
-dirs <- dir_ls(path(DEJAVU_HOME, "tmp"), type="directory")
+dirs <- dir_ls(DOWNLOAD_DIR, type="directory")
 ```
-
-Create the project data frame that contains all the projects and their origins
-
-```{r load origins}
-origins <- pbsapply(dirs, git_remote_origin, cl=N_JOBS)
-```
-
-```{r load commit hashes}
-commits <- pbsapply(dirs, git_last_commit, cl=N_JOBS)
-```
-
-There might be some problems getting the latest commit
-```{r}
-commits_problems <- Filter(function(x) length(x) > 1, commits)
-print(commits_problems)
-```
-
-Take just the commits
-```{r}
-commits[names(commits_problems)] <- sapply(commits[names(commits_problems)], `[[`, 2)
-```
-
-
 
 ```{r projects data frame}
-projects <- data_frame(
-  project_id=str_replace(dirs, ".*/tmp/([0-9]+)", "\\1") %>% as.integer(), 
-  project=str_replace(origins, "http://github.com/([^/]+)/(.*).git$", "\\1--\\2"),
-  dir=dirs, 
-  origin=origins,
-  commit=unlist(commits)
+projects_paths_df <- data_frame(
+  dejavu_id=basename(dirs) %>% as.integer(), 
+  path=dirs
 )
 ```
 
-Save so other scripts can use that. This is because stars and commits are in the big CSV files in ghtorrent and we want only the scala ones.
+## Load repo metadata
 
-```{r}
-write_csv(projects, path(DEJAVU_HOME, "scala-projects.csv"))
+```{r repo metadata}
+repo_metadata_files <- path(dirs, REPO_METADATA_FILE)
 ```
 
-## Add stars, commits and sloc
-
-Once the `scala-project.csv` is saved we can run:
-
-1. run the `stars.R`
-2. run the `commits.R`
-3. run the `slocs.R`
+Missing repo metadata files:
+```{r}
+repo_metadata_files_exists <- file_exists(repo_metadata_files)
+missing_repo_metadata_files <- repo_metadata_files[!repo_metadata_files_exists]
+repo_metadata_files <- repo_metadata_files[repo_metadata_files_exists]
+```
 
 ```{r}
-projects <- left_join(
-  projects,
-  read_csv(path(DEJAVU_HOME, "stars.csv"), col_types="ii"),
-  by="project_id"
+missing_repo_metadata_files
+```
+
+This will be the base of constracting a data frame containing all the projects
+```{r}
+repo_metadata_df <- map_dfr(
+  repo_metadata_files, 
+  ~read_csv(
+    ., 
+    col_types=cols(
+      project_id="c",
+      commit_count="i",
+      commit="c",
+      first_commit_date="i",
+      commit_date="i",
+      size="d"
+    ), 
+    col_names=c(
+      "project_id", 
+      "commit_count", 
+      "commit", 
+      "first_commit_date", 
+      "commit_date", 
+      "size"
+    )
+  )
 )
 ```
 
+### Convert commit times
+
 ```{r}
-# change number of commits to use git
-projects <- left_join(
-  projects,
-  read_csv(path(DEJAVU_HOME, "commits.csv"), col_types="ii"),
-  by="project_id"
+repo_metadata_df <- mutate(
+  repo_metadata_df,
+  first_commit_date=lubridate::as_datetime(first_commit_date),
+  commit_date=lubridate::as_datetime(commit_date)
 )
 ```
 
+### Merge with prooject paths
+
 ```{r}
-projects <- left_join(
-  projects,
-  read_csv(path(DEJAVU_HOME, "slocs.csv"), col_types="iiiii"),
-  by="project_id"
-)
-```
-
-
-## Remove the ones that point to the same origin
-
-### find duplicated projects based on their origins
-
-- find projects that point to the same origin
-- add commit informations to such duplicate projects
-```{r}
-duplicate_projects <- 
-  group_by(projects, origin) %>% 
-  filter(n() > 1) %>%
-  mutate(
-    commit=sapply(dir, git_last_commit),
-    last_commit_time=as.integer(sapply(dir, git_last_commit_time))
+# getting the dejavu_id from ..../<id>/_analysis_/repo-metadata.csv (REPO_METADATA_FILE)
+repo_metadata_files_ids <- as.integer(basename(dirname(dirname(repo_metadata_files))))
+projects_df <- 
+  projects_paths_df %>% 
+  right_join(
+    mutate(repo_metadata_df, dejavu_id=repo_metadata_files_ids),
+    by="dejavu_id"
   )
 ```
 
-### check if they have the same commits
+Check for mistakes in the merging. This could potentially happen if there are some problems in the bulk read of the `REPO_METADATA_FILE` files.
+
+```{r}
+projects_df %>% filter(dejavu_id != as.integer(basename(path)))
+```
+
+## Remove the ones that point to the same origin
+
+Now we need to filter out duplicates - these are caused by the errors in ghtorrent. The same github repository would be there more than once.
+
+### Find duplicated projects based on their origins
+
+- find projects that point to the same origin
+- add commit informations to such duplicate projects
+
+```{r}
+duplicate_projects_df <- 
+  group_by(projects_df, project_id) %>% 
+  filter(n() > 1)
+```
+
+### Check if they have the same commits
 
 - get the projects with multiple unique commits (muc)
+
 ```{r}
-duplicate_projects_muc <- 
-  group_by(duplicate_projects, origin) %>% 
+duplicate_projects_muc_df <- 
+  group_by(duplicate_projects_df, project_id) %>% 
   summarise(unique_commits=length(unique(commit))) %>% 
   filter(unique_commits > 1)
 ```
 
 - list the projects
 ```{r}
-semi_join(duplicate_projects, duplicate_projects_muc, by="origin") %>% 
-  arrange(origin) %>%
-  mutate(last_commit_time=anytime(last_commit_time)) %>%
-  select(-dir, project_id, project, origin, last_commit_time, commit)
+semi_join(duplicate_projects_df, duplicate_projects_muc_df, by="project_id") %>% 
+  arrange(project_id)
 ```
 
 ### Partitioning the duplicates to ones we want to keep
@@ -176,33 +158,171 @@ semi_join(duplicate_projects, duplicate_projects_muc, by="origin") %>%
 We keep only the newest ones.
 
 ```{r}
-duplicate_projects_keep <- 
-  duplicate_projects %>% 
-  group_by(origin) %>% 
-  filter(last_commit_time == max(last_commit_time)) %>% 
-  distinct(origin, .keep_all = TRUE)
+duplicate_projects_keep_df <- 
+  duplicate_projects_df %>% 
+  group_by(project_id) %>% 
+  filter(commit_date == max(commit_date)) %>% 
+  distinct(project_id, .keep_all = TRUE)
 
-duplicate_projects_remove <-
-  anti_join(duplicate_projects, duplicate_projects_keep, by="project_id")
+duplicate_projects_remove_df <-
+  anti_join(duplicate_projects_df, duplicate_projects_keep_df, by="dejavu_id")
 ```
 
 ```{r}
-projects_unique_origins <- anti_join(projects, duplicate_projects_remove, by="project_id")
-```
-
-## Removing non-sbt projects
-
-We only want to keep projects that have `build.sbt` in its root.
-
-```{r}
-has_build_sbt <- Vectorize(function(dir) {
-  build_sbt <- path(dir, "build.sbt")
-  file_exists(build_sbt)
-}, USE.NAMES=FALSE)
+projects_all_df <- projects_df
 ```
 
 ```{r}
-projects_sbt <- filter(projects_unique_origins, has_build_sbt(dir))
+projects_df <- anti_join(projects_all_df, duplicate_projects_remove_df, by="dejavu_id")
+```
+
+## Load Github stars
+
+```{r}
+stars_df <- read_csv(STARS_FILE)
+```
+
+## Load build system
+
+```{r}
+get_build_system <- function(p) {
+  systems_def <- c(
+    "sbt"="build.sbt", 
+    "maven"="pom.xml",
+    "mill"="build.sc",
+    "graddle"="build.gradle",
+    "cbt"="build/build.scala",
+    "maven-scala"="pom.scala",
+    "maven-groovy"="pom.groovy",
+    "maven-yml"="pom.yml",
+    "maven-clojure"="pom.clojure",
+    "maven-ruby"="pom.ruby",
+    "maven-java"="pom.java",
+    "make"="Makefile"
+  )
+  
+  systems <- names(systems_def)
+  system <- "unknown"
+
+  for (i in seq_along(systems_def)) {
+    if (file_exists(path(p, systems_def[i]))) {
+      system <- systems[i]    
+    }
+  }
+  
+  system
+}
+```
+
+```{r}
+build_system_df <- 
+  select(projects_df, dejavu_id, path) %>%
+  mutate(
+    build_system=pbapply::pbsapply(path, get_build_system, cl=N_JOBS)
+  )
+```
+
+
+## Load SLOC
+
+```{r}
+projects_sloc_df <- projects_df %>% 
+  rowwise() %>% 
+  do(
+    mutate(
+      read_csv(
+        path(.$path, SLOC_FILE), 
+        col_types=cols(files="i", language="c", blank="i", comment="i", code="i"), 
+        col_names=c("files", "language", "blank", "comment", "code")
+      ), 
+      dejavu_id=.$dejavu_id
+    )
+  )
+```
+
+### Summary for all languages
+
+```{r}
+sloc_summary_df <- projects_sloc_df %>%
+  group_by(dejavu_id) %>%
+  summarise(
+    files=sum(files),
+    sloc_code=sum(code),
+    sloc_comment=sum(comment),
+    sloc_blank=sum(blank),
+    languages=str_c(language, collapse=",")
+  )
+```
+
+### Summary for Scala only
+
+```{r}
+sloc_scala_summary_df <- projects_sloc_df %>%
+  filter(language=="Scala") %>%
+  group_by(dejavu_id) %>%
+  summarise(
+    scala_files=sum(files),
+    scala_sloc_code=sum(code)
+  )
+```
+
+## Merge
+
+### Backup
+
+```{r}
+projects_backup_df <- projects_df
+```
+
+### Add stars
+
+```{r}
+projects_df <- inner_join(projects_df, select(stars_df, dejavu_id, stars), by="dejavu_id")
+```
+
+### Add build
+
+```{r}
+projects_df <- inner_join(projects_df, select(build_system_df, dejavu_id, build_system), by="dejavu_id")
+```
+
+### Add SLOC
+
+```{r}
+projects_df <- left_join(
+  projects_df,
+  sloc_summary_df,
+  by="dejavu_id"
+) %>% left_join(
+  sloc_scala_summary_df,
+  by="dejavu_id"
+) %>% replace_na(
+  list(
+    files=0,
+    sloc_code=0,
+    sloc_comment=0,
+    sloc_blank=0,
+    languages="",
+    scala_files=0,
+    scala_sloc_code=0
+  )
+)
+```
+
+## Write all scala projects CSV file
+
+```{r}
+write_csv(projects_df, ALL_SCALA_PROJECTS)
+```
+
+## SBT projects
+
+```{r}
+sbt_projects_df <- filter(projects_df, build_system=="sbt")
+```
+
+```{r}
+write_csv(sbt_projects_df, SBT_SCALA_PROJECTS)
 ```
 
 ## Removing projects that have all files duplicated
@@ -350,8 +470,6 @@ There are projects which are effictivelly forks, but have not been created as pr
 bad_forks <-
   group_by(unique_files, file_hash) %>% filter(n() > 1, length(unique(project_id)) > 1)
 ```
-
-
 
 ```{r}
 all <- inner_join(unique_files, projects_final, by="project_id")

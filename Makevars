@@ -17,6 +17,11 @@ ifndef N_JOBS
 $(error N_JOBS is not set. Controls the number of parallel jobs)
 endif
 
+# level of concurrency
+#ifndef CORPUS_DIR
+#$(error CORPUS_DIR is not set. Controls which corpus shall be used)
+#endif
+
 SBT_MEM ?= 16000
 TIMEOUT ?= 30m
 
@@ -27,6 +32,12 @@ SEMANTICDB_STATUS := $(ANALYSIS_DIR)/semanticdb-status.csv
 SEMANTICDB_LOG := $(ANALYSIS_DIR)/semanticdb.log
 METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv
 METADATA_LOG := $(ANALYSIS_DIR)/metadata.log
+REPO_METADATA := $(ANALYSIS_DIR)/repo-metadata.csv
+IMPLICITS := $(ANALYSIS_DIR)/implicits.bin
+IMPLICITS_STATUS := $(ANALYSIS_DIR)/implicits-status.csv
+IMPLICITS_LOG := $(ANALYSIS_DIR)/implicits.log
+
+AMM := JAVA_OPTS="-Xmx$(SBT_MEM)m" amm
 
 $(IVY_DIR):
 	mkdir -p $(IVY_DIR)
@@ -39,6 +50,3 @@ $(SBT_BOOT_DIR):
         grep "^scala-" |\
         parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
 
-color_off:=\x1b[0m
-color_green:=\x1b[32;06m
-color_red:=\x1b[31;06m

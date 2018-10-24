@@ -1,6 +1,7 @@
 # -*- mode: makefile -*-
 
-include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/Makevars
+base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+include $(base_dir)/Makevars
 
 SHELL := /bin/bash
 
@@ -8,47 +9,41 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem $(SBT_MEM) -Dsb
 
 bootstrap := $(ANALYSIS_DIR) $(IVY_DIR) $(SBT_BOOT_DIR)
 
-.PHONY: metadata clean-metadata semanticdb clean-semanticdb clean clean-classes clean-sbt reset
+.PHONY: \
+	clean \
+	clean-classes \
+	clean-implicits \
+	clean-metadata \
+	clean-sbt \
+	clean-semanticdb \
+	implicits \
+	metadata \
+	semanticdb \
+	repo-metadata \
+	reset \
 
 $(ANALYSIS_DIR):
 	mkdir -p $(ANALYSIS_DIR)
 
-# --------------------------------------------------------------------------------
-# metadata
-# --------------------------------------------------------------------------------
-
 $(METADATA_STATUS): $(bootstrap)
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
-    echo "project,exitcode,duration,log" > $(METADATA_STATUS); \
-    echo "$(notdir $(CURDIR)),$$exit_code,$$SECONDS,$(METADATA_LOG)" > $(METADATA_STATUS); \
+    echo "$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(METADATA_STATUS); \
     exit $$exit_code
-
-metadata: $(METADATA_STATUS)
-
-clean-metadata:
-	rm -f $(METADATA_STATUS) $(METADATA_LOG)
-
-# --------------------------------------------------------------------------------
-# semanticdb
-# --------------------------------------------------------------------------------
 
 # runs the semanticdb task on a clean project
 $(SEMANTICDB_STATUS): $(bootstrap)
 	$(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
-    echo -e "project,exitcode,duration\n$(notdir $(CURDIR)),$$exit_code,$$SECONDS" >\
+    echo -e "$(notdir $(CURDIR)),$$exit_code,$$SECONDS" >\
         $(SEMANTICDB_STATUS); \
     exit $$exit_code
 
-semanticdb: $(SEMANTICDB_STATUS)
-
-clean-semanticdb:
-	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
-
-# --------------------------------------------------------------------------------
-# other
-# --------------------------------------------------------------------------------
+$(IMPLICITS):
+	$(AMM) $(base_dir)/scripts/extract-implicits.sc . > $(IMPLICITS_LOG) ; \
+    exit_code=$$?; \
+    echo -e "$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(IMPLICITS_STATUS); \
+    exit $$exit_code
 
 # removes the artifacts created by running tasks from this Makefile
 clean:
@@ -58,10 +53,29 @@ clean:
 clean-classes:
 	find . -type d -name "target" | parallel find "{1}" -type f -name "\*.class" -delete
 
+clean-implicits:
+	rm -f $(IMPLICITS_STATUS) $(IMPLICITS_LOG) $(IMPLICITS)
+
+clean-metadata:
+	rm -f $(METADATA_STATUS) $(METADATA_LOG)
+
 # removes whatever sbt was configured to remove
 clean-sbt:
 	$(SBT) clean
 
+clean-semanticdb:
+	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
+
+implicits: $(IMPLICITS)
+
+metadata: $(METADATA_STATUS)
+
+repo-metadata:
+	$(base_dir)/scripts/generate-repo-metadata.sh .
+	$(base_dir)/scripts/generate-sloc.sh .
+
 # removes all that was not original part of the repository
 reset:
 	git clean -fdx
+
+semanticdb: $(SEMANTICDB_STATUS)
