@@ -1,7 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits
 
 import better.files._
-import com.typesafe.scalalogging.LazyLogging
 import cz.cvut.fit.prl.scala.implicits.extractor.SemanticdbSymbolResolver
 import cz.cvut.fit.prl.scala.implicits.symtab.GlobalSymbolTable
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
@@ -24,7 +23,7 @@ case class ProjectVersion(
     sbtVersion: String
 )
 
-class ProjectMetadata(path: File) extends LazyLogging {
+class ProjectMetadata(path: File) {
 
   lazy val versionEntries: List[ProjectVersion] = {
     versionFile.path
@@ -36,18 +35,13 @@ class ProjectMetadata(path: File) extends LazyLogging {
       .asUnsafeCsvReader[ProjectClasspath](rfc.withHeader)
       .toList
   }
-  lazy val semanticdbs: Seq[s.TextDocument] = {
-    val tmp = scala.collection.mutable.Buffer[s.TextDocument]()
+  lazy val semanticdbs: List[s.TextDocument] = {
+    val dataFile = (path / Constants.AnalysisDirname / Constants.MergedSemanticdbFilename)
 
-    s.Locator(path.path) {
-      case (p, db) =>
-        logger.debug(s"Loading semanticdb file `$p`")
-
-        tmp ++= db.documents
-    }
-
-    tmp
+    dataFile.inputStream
+      .apply(input => s.TextDocument.streamFromDelimitedInput(input).toList)
   }
+
   lazy val classpath: Classpath = {
     val absolutePaths = classpathEntries.map(_.path).map(AbsolutePath(_))
 

@@ -1,11 +1,12 @@
-package cz.cvut.fit.prl.scala.implicits
-import better.files._
+package cz.cvut.fit.prl.scala.implicits.tools
+import better.files.File
 import com.typesafe.scalalogging.LazyLogging
-import cz.cvut.fit.prl.scala.implicits.extractor._
+import cz.cvut.fit.prl.scala.implicits.extractor.{ConversionException, DeclarationExtractor, ExtractionContext}
 import cz.cvut.fit.prl.scala.implicits.model.Project
 import cz.cvut.fit.prl.scala.implicits.utils._
+import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata}
 
-object Main extends App with LazyLogging {
+object ExtractImplicits extends App with LazyLogging {
 
   val projectPath = File(args(0))
 
@@ -28,10 +29,8 @@ object Main extends App with LazyLogging {
       declarations = declarations
     )
 
-    val resultFile = projectPath / "_analysis_" / "implicits.bin"
+    val resultFile = projectPath / Constants.AnalysisDirname / Constants.ExtractedImplicitsFilename
     resultFile.outputStream.apply(project.writeTo)
-
-    case class Failure(cause: Throwable, uri: String, symbol: String) {}
 
     if (exceptions.nonEmpty) {
       val failures = exceptions.collect { case x: ConversionException => x }
@@ -43,20 +42,12 @@ object Main extends App with LazyLogging {
       }
 
       println("Failure summary:")
-      val summaries = failures.map(_.summary)
-      summaries
-        .groupBy(x => x)
-        .mapValues(x => x.size)
-        .toSeq
-        .sortBy(-_._2)
-        .foreach {
-          case (problem, size) =>
-            println(s"\t$size -- $problem")
-        }
+      failures.printGroups(_.summary)
     }
 
     println
     println(s"Extracted ${declarations.size}/${declarations.size + exceptions.size} declarations into $resultFile.")
   }
+
   run(projectPath)
 }

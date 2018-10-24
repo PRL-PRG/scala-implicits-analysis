@@ -1,5 +1,7 @@
 package cz.cvut.fit.prl.scala.implicits
 
+import java.io.PrintWriter
+
 import cz.cvut.fit.prl.scala.implicits.extractor.SymbolResolver
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
@@ -81,4 +83,18 @@ package object utils {
       }
   }
 
+  implicit class XtensionTranverable[T](that: Traversable[T]) {
+
+    def printGroups[K](f: T => K, out: PrintWriter = new PrintWriter(System.out)): Unit = {
+      that.groupCount(f).foreach {
+        case (problem, size) =>
+          out.println(s"\t$size -- $problem")
+      }
+      out.flush()
+    }
+
+    def groupCount[K](f: T => K): Seq[(K, Int)] = {
+      that.groupBy(f).mapValues(x => x.size).toSeq.sortBy(-_._2)
+    }
+  }
 }

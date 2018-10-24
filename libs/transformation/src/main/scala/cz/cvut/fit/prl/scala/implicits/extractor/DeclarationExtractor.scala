@@ -4,6 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
+import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.util.{Failure, Success, Try}
 
@@ -15,8 +16,7 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
     def position(symbolInfo: s.SymbolInformation): Option[s.Range] =
       db.occurrences.find(x => x.symbol == symbolInfo.symbol && x.role.isDefinition).flatMap(_.range)
 
-    db.symbols
-      .filter(x => x.isImplicit && !x.isLocal)
+    db.symbols.filter(x => x.isImplicit && !x.symbol.isLocal)
       .map(x => x -> Try(convert(x)))
       .collect {
         case (_, Success(Some(x))) => Success(x)
