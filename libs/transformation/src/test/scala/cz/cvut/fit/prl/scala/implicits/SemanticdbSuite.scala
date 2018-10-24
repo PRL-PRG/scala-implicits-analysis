@@ -1,18 +1,16 @@
 package cz.cvut.fit.prl.scala.implicits
 
+import java.io.{File => JFile}
 import java.net.URLClassLoader
 
 import better.files._
+import cz.cvut.fit.prl.scala.implicits.symtab.GlobalSymbolTable
 import cz.cvut.fit.prl.scala.implicits.utils.{BuildInfo, Libraries}
 import org.scalatest.FunSuite
-import java.io.{File => JFile}
 
-import scala.compat.Platform.EOL
 import scala.meta.interactive.InteractiveSemanticdb
 import scala.meta.internal.semanticdb.scalac.SemanticdbPlugin
-import scala.meta.internal.symtab.GlobalSymbolTable
 import scala.meta.internal.{semanticdb => s}
-import scala.meta._
 import scala.meta.io.Classpath
 import scala.tools.nsc.interactive.Global
 
@@ -69,14 +67,12 @@ abstract class SemanticdbSuite extends FunSuite {
     )
   }
 
-  private def test(code: String)(fn: => Unit): Unit = {
-    var name = code.trim.replace(EOL, " ")
-    if (name.length > 50) name = name.take(50) + "..."
-    super.test(name)(fn)
+  def database(name: String, code: String)(fn: s.TextDocument => Unit): Unit = {
+    val db = computeDatabaseFromSnippet(code)
+    test(name)(fn(db))
   }
 
-  def database(code: String)(fn: s.TextDocument => Unit): Unit = {
-    val db = computeDatabaseFromSnippet(code)
-    test(code)(fn(db))
+  private def test(name: String)(fn: => Unit): Unit = {
+    super.test(name)(fn)
   }
 }

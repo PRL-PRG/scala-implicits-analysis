@@ -1,8 +1,5 @@
 syntax = "proto2";
 
-//import "semanticdb.proto";
-import "scalapb/scalapb.proto";
-
 package cz.cvut.fit.prl.scala.implicits.model;
 
 enum Language {
@@ -11,47 +8,83 @@ enum Language {
     JAVA = 2;
 }
 
-message Project {
-    // <github-user>--<github-repo>
-    required string name = 1;
-    repeated Unit units = 2;
-}
-
-message Unit {
-    required string path = 1;
-    repeated TypeDeclaration types = 2;
-    repeated MethodDeclaration methods = 3;
-    repeated CallSite callSites = 5;
+message Position {
+    required int32 startLine = 1;
+    required int32 startCol = 2;
+    required int32 endLine = 3;
+    required int32 endCol = 4;
 }
 
 message Location {
+    oneof sealed_value {
+        Local local = 1;
+        External external = 2;
+        SyntheticLocation synthetic = 3;
+    }
+}
+
+message Local {
     required string path = 1;
-    required bool isLocal = 2;
+    required Position position = 2;
 }
 
-// the first three fields must be fqn, name, location, language
-// each declaration has additionally an id and parent
-message Symbol {
-    required string fqn = 1;
-    required string name = 2;
-    required Location location = 3;
-    required Language language = 4;
-    required bool isImplicit = 5;
+message External {
+    required bool compressed = 1;
+    required string path = 2;
+    required string entry = 3;
 }
 
-message MethodDeclaration {
-    option (scalapb.message).extends = "cz.cvut.fit.prl.scala.implicits.model.Declaration";
+message SyntheticLocation {
 
-    required Symbol symbol = 1;
+}
+
+message Project {
+    // <github-user>--<github-repo>
+    required string name = 1;
+    repeated Declaration declarations = 2;
+    repeated CallSite callSites = 5;
+}
+
+message DeclarationRef {
+    required Location location = 1;
+    required string fqn = 2;
+}
+
+message Declaration {
+    enum Kind {
+        DEF = 0;
+        VAL = 1;
+        VAR = 2;
+        TYPE = 3;
+        CLASS = 4;
+        TRAIT = 5;
+        OBJECT = 6;
+        INTERFACE = 7;
+        ENUM = 8;
+        MACRO = 9;
+        TYPE_PARAMETER = 10;
+    };
+
+    required Kind kind = 1;
+    required string fqn = 2;
+    required string name = 3;
+    required Location location = 4;
+    required Language language = 5;
+    required bool isImplicit = 6;
+
+    oneof signature {
+        TypeSignature type = 8;
+        MethodSignature method = 9;
+    }
+}
+
+message MethodSignature {
     repeated TypeParameter type_parameters = 3;
     repeated ParameterList parameter_lists = 4;
     required Type return_type = 5;
 }
 
-message TypeDeclaration {
-    option (scalapb.message).extends = "cz.cvut.fit.prl.scala.implicits.model.Declaration";
-
-    required Symbol symbol = 1;
+message TypeSignature {
     repeated TypeParameter type_parameters = 3;
     repeated Type parents = 4;
 }
@@ -81,23 +114,14 @@ message Type {
 }
 
 message TypeRef {
-    // references a TypeDeclaration
-    required string type_ref = 1;
+    required DeclarationRef ref = 1;
     repeated Type type_arguments = 2;
 }
 
 message TypeParameterRef {
-    // references a Declaration (Type of Method)
-    required string declaration_ref = 1;
+    required DeclarationRef ref = 1;
     required string name = 2;
     repeated Type type_arguments = 3;
-}
-
-message Position {
-    required int32 startLine = 1;
-    required int32 startCol = 2;
-    required int32 endLine = 3;
-    required int32 endCol = 4;
 }
 
 message CallSite {
@@ -107,9 +131,9 @@ message CallSite {
         CONVERSION = 2;
     }
 
-    required string declaration_ref = 1;
+    required DeclarationRef ref = 1;
     required Kind kind = 2;
     required string code = 3;
-    required Position position = 4;
+    required Location location = 4;
     repeated Type typeArguments = 5;
 }

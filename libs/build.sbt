@@ -1,50 +1,7 @@
-import scalapb.compiler.Version.scalapbVersion
+
 
 val ScalametaVersion = "4.0.0"
 val CirceVersion = "0.9.0"
-
-val CirceLibraries = Seq(
-  "io.circe" %% "circe-core",
-  "io.circe" %% "circe-generic",
-  "io.circe" %% "circe-parser",
-  "io.circe" %% "circe-yaml"
-).map(_ % CirceVersion)
-
-val TestLibraries = Seq(
-  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
-  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
-)
-
-ThisBuild / scalaVersion := "2.12.6"
-ThisBuild / organization := "cz.cvut.fit.prl.scala.implicits"
-ThisBuild / version := "1.0-SNAPSHOT"
-
-// this is for the sbt-buildinfo plugin
-resolvers += Resolver.sbtPluginRepo("releases")
-
-// this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
-// the semanticdb jar does not include the proto file so we cannot use the standard mechanism
-// this has to be run manually, I do not know how to make it a dependency for the PB.generate
-lazy val downloadSemanticdbProto = taskKey[Unit]("Download semanticdb proto file")
-downloadSemanticdbProto := {
-  val outputFile = new java.io.File("model/target/protobuf_external/semanticdb.proto")
-  if (!outputFile.exists()) {
-    if (!outputFile.getParentFile.exists()) {
-      outputFile.getParentFile.mkdirs()
-    }
-    val src = scala.io.Source.fromURL("https://raw.githubusercontent.com/scalameta/scalameta/master/semanticdb/semanticdb/semanticdb.proto")
-    val out = new java.io.FileWriter(outputFile)
-    out.write(src.mkString)
-    out.close()
-    println("Downloaded " + outputFile)
-  } else {
-    println(s"$outputFile has been already downloaded")
-  }
-}
-
-lazy val root = (project in file("."))
-  .aggregate(model, transformation)
-
 // the reason, why we split the project is that there is some bug in either scalapb or buildinfo
 // and they do not work well together
 // when they are together, the build fails with `BuildInfo is already defined as case class BuildInfo`
@@ -55,7 +12,8 @@ lazy val model = (project in file("model"))
     name := "model",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "semanticdb" % ScalametaVersion,
-      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
+      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
+      BetterFilesLibrary,
     ),
     libraryDependencies ++= TestLibraries,
     libraryDependencies ++= CirceLibraries,
@@ -65,25 +23,27 @@ lazy val model = (project in file("model"))
       ) -> sourceManaged.in(Compile).value
     ),
   )
-
 lazy val transformation = (project in file("transformation"))
   .enablePlugins(BuildInfoPlugin)
   .dependsOn(model)
   .settings(
     name := "transformation",
+    assemblyJarName in assembly := "implicit-extractor.jar",
+    test in assembly := {},
+    mainClass in assembly := Some("com.example.Main"),
 
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
 
       "com.lihaoyi" %% "pprint" % "0.5.3",
-      "com.github.pathikrit" %% "better-files" % "3.4.0",
       "com.github.scopt" % "scopt_2.11" % "3.7.0",
       "com.chuusai" %% "shapeless" % "2.3.3",
       "com.nrinaudo" %% "kantan.csv-generic" % "0.4.0",
-      
+      BetterFilesLibrary,
+
       "org.scalameta" %% "testkit" % ScalametaVersion % Test,
     ),
-    
+
     libraryDependencies ++= TestLibraries,
 
     libraryDependencies ++= Seq(
@@ -98,6 +58,13 @@ lazy val transformation = (project in file("transformation"))
     ).map(_ % ScalametaVersion),
 
     libraryDependencies ++= CirceLibraries,
+    libraryDependencies ++= LoggingLibraries,
+    libraryDependencies += "com.lihaoyi" % "ammonite" % "1.3.2" % "test" cross CrossVersion.full,
+    sourceGenerators in Test += Def.task {
+      val file = (sourceManaged in Test).value / "amm.scala"
+      IO.write(file, """object amm extends App { ammonite.Main.main(args) }""")
+      Seq(file)
+    }.taskValue,
 
     buildInfoPackage := "cz.cvut.fit.prl.scala.implicits.utils",
     buildInfoKeys := Seq[BuildInfoKey](
@@ -108,6 +75,7 @@ lazy val transformation = (project in file("transformation"))
       "scalametaVersion" -> ScalametaVersion,
       scalacOptions.in(Test),
       // fullClasspath is impossible since it will need also to recompile the actual BuildInfo
+      productDirectories.in(Compile),
       externalDependencyClasspath.in(Test),
       "semanticdbScalacPluginJar" -> (
         System.getProperty("user.home") +
@@ -125,4 +93,50 @@ lazy val transformation = (project in file("transformation"))
 
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   )
+// this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
+// the semanticdb jar does not include the proto file so we cannot use the standard mechanism
+// this has to be run manually, I do not know how to make it a dependency for the PB.generate
+lazy val downloadSemanticdbProto = taskKey[Unit]("Download semanticdb proto file")
+lazy val root = (project in file(".")).aggregate(model, transformation)
+
+val CirceLibraries = Seq(
+  "io.circe" %% "circe-core",
+  "io.circe" %% "circe-generic",
+  "io.circe" %% "circe-parser",
+  "io.circe" %% "circe-yaml"
+).map(_ % CirceVersion)
+
+ThisBuild / scalaVersion := "2.12.6"
+ThisBuild / organization := "cz.cvut.fit.prl.scala.implicits"
+ThisBuild / version := "1.0-SNAPSHOT"
+
+// this is for the sbt-buildinfo plugin
+resolvers += Resolver.sbtPluginRepo("releases")
+
+val TestLibraries = Seq(
+  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
+  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
+)
+downloadSemanticdbProto := {
+  val outputFile = new java.io.File("model/target/protobuf_external/semanticdb.proto")
+  if (!outputFile.exists()) {
+    if (!outputFile.getParentFile.exists()) {
+      outputFile.getParentFile.mkdirs()
+    }
+    val src = scala.io.Source.fromURL("https://raw.githubusercontent.com/scalameta/scalameta/master/semanticdb/semanticdb/semanticdb.proto")
+    val out = new java.io.FileWriter(outputFile)
+    out.write(src.mkString)
+    out.close()
+    println("Downloaded " + outputFile)
+  } else {
+    println(s"$outputFile has been already downloaded")
+  }
+}
+val BetterFilesVersion = "3.4.0"
+
+val LoggingLibraries = Seq(
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
+)
+val BetterFilesLibrary = "com.github.pathikrit" %% "better-files" % BetterFilesVersion
 
