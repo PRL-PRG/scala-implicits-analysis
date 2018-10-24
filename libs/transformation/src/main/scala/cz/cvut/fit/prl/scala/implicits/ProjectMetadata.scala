@@ -6,6 +6,7 @@ import cz.cvut.fit.prl.scala.implicits.symtab.GlobalSymbolTable
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
 import kantan.csv._
 import kantan.csv.ops._
+import kantan.csv.generic._
 
 import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
