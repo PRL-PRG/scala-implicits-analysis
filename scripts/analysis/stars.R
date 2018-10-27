@@ -17,7 +17,7 @@ get_gh_stars <- function(reponame) {
     message("Unable to get stargazers for ", reponame)
     -1L
   })
-
+  
   message(reponame, ": ", stars)
   stars
 }
@@ -36,16 +36,18 @@ while(any(is.na(stars))) {
     batch <- batch[1:5000]
   }
   repos <- projects_scala$gh_project[batch]
-
+  
   message("Done ", sum(!is.na(stars)), "/", length(stars))
   start <- Sys.time()
   stars[batch] <- map_int(repos, ~get_gh_stars(.))
   end <- Sys.time()
-
-  duration <- as.numeric(end - start, unit="secs")
-  pause <- 3600-duration
-  message("Sleeping for ", pause)
-  Sys.sleep(max(c(0, pause)))
+  
+  if (any(is.na(stars))) {
+    duration <- as.numeric(end - start, unit="secs")
+    pause <- 3600-duration
+    message("Sleeping for ", pause)
+    Sys.sleep(max(c(0, pause)))
+  }
 }
 
 projects_scala_stars <- select(projects_scala, project_id) %>% mutate(stars=stars)

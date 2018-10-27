@@ -113,7 +113,7 @@ link-projects: $(PROJECTS_CSV_FILE)
 	cat $(PROJECTS_CSV_FILE) | csvcut -c project_id | csvformat -K 1 > $(PROJECTS_FILE)
 
 merge-semanticdbs: $(bootstrap)
-	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc $(PROJECTS_FILE)
+	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc $(PROJECTS_FILE) 2>&1 | tee merge-semanticdbs.log
 
 merged-semanticdbs-stats: $(bootstrap)
 	$(AMM) $(SCRIPTS_DIR)/merged-semanticdbs-stats.sc $(PROJECTS_FILE)

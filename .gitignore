@@ -9,3 +9,4 @@ projects-*.txt
 projects.txt
 scala-projects*.csv
 target
+/corpora/

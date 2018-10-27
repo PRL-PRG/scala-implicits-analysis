@@ -10,7 +10,7 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  val GHOrigin: Regex = "http[s]?://github.com/(.*)/(.*)(?:\\.git)?[\n]?".r
+  val GHOrigin: Regex = "http[s]?://github.com/(.*)/(.*)[\n]?".r
 
   case class SourceDir(projectId: String, projectName: String, scope: String, kind: String, path: String, sloc: SLOC)
 
@@ -36,7 +36,7 @@ object MetadataExportPlugin extends AutoPlugin {
     runCommand("git remote get-url origin").get
   }
 
-  lazy val projectId: String = origin match {
+  lazy val projectId: String = origin.replaceAll("\\.git$", "") match {
     case GHOrigin(user, repo) => user + "--" + repo
     case _ => throw new Exception("Unable to get projectId")
   }
@@ -57,7 +57,7 @@ object MetadataExportPlugin extends AutoPlugin {
     deleteIfExists(new File(analysisDir, "metadata-versions.csv"))
 
   lazy val classpathFile =
-    deleteIfExists(new File(analysisDir, "metadata-classpath.csv"))
+    deleteIfExists(new File(analysisDir, "metadata-classpaths.csv"))
 
   lazy val cleanpathsFile =
     deleteIfExists(new File(analysisDir, "metadata-cleanpaths.csv"))
@@ -67,25 +67,25 @@ object MetadataExportPlugin extends AutoPlugin {
       val projectName = name.value
       println(s"Processing: $projectName")
 
-      val sources = Seq(
-        ("managed", "compile") -> (managedSourceDirectories in Compile).value,
-        ("managed", "test") -> (managedSourceDirectories in Test).value,
-        ("unmanaged", "compile") -> (unmanagedSourceDirectories in Compile).value,
-        ("unmanaged", "test") -> (unmanagedSourceDirectories in Test).value
-      )
-
-      val directories = for {
-        ((kind, scope), paths) <- sources
-        path <- paths
-        slocs <- computeSloc(path).toOption.toSeq
-        sloc <- slocs
-      } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
-
-      writeCSV(
-        sourceDirectoriesFile,
-        "project_id,project_name,scope,kind,path,files,language,blank,comment,code",
-        directories
-      )
+//      val sources = Seq(
+//        ("managed", "compile") -> (managedSourceDirectories in Compile).value,
+//        ("managed", "test") -> (managedSourceDirectories in Test).value,
+//        ("unmanaged", "compile") -> (unmanagedSourceDirectories in Compile).value,
+//        ("unmanaged", "test") -> (unmanagedSourceDirectories in Test).value
+//      )
+//
+//      val directories = for {
+//        ((kind, scope), paths) <- sources
+//        path <- paths
+//        slocs <- computeSloc(path).toOption.toSeq
+//        sloc <- slocs
+//      } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
+//
+//      writeCSV(
+//        sourceDirectoriesFile,
+//        "project_id,project_name,scope,kind,path,files,language,blank,comment,code",
+//        directories
+//      )
 
       val versions = Seq(
         Version(
@@ -144,6 +144,11 @@ object MetadataExportPlugin extends AutoPlugin {
   }
 
   def writeCSV(filename: File, header: String, data: Seq[Product], append: Boolean = true): Unit = {
+    def escape(x: Any): Any = x match {
+      case y: String => '"' + y + '"'
+      case y => y
+    }
+
     synchronized {
       val addHeader = !filename.exists()
       var w: FileWriter = null
@@ -154,7 +159,7 @@ object MetadataExportPlugin extends AutoPlugin {
           w.write(header + "\n")
         }
 
-        w.write(data.map(_.productIterator.mkString(",")).mkString("\n"))
+        w.write(data.map(_.productIterator.map(escape).mkString(",")).mkString("\n"))
 
         if (data.nonEmpty) {
           w.write("\n")

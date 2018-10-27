@@ -3,6 +3,7 @@ package cz.cvut.fit.prl.scala.implicits.tools
 import better.files._
 import cats.instances.all._
 import cz.cvut.fit.prl.scala.implicits.Constants._
+import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.utils._
 
 import scala.meta.internal.semanticdb.TextDocument
@@ -17,8 +18,9 @@ object MergedSemanticdbsStats extends App {
 
   object Task extends (File => (Int, Int, Int)) {
     override def apply(projectPath: File): (Int, Int, Int) = {
-      val inputFile = projectPath / AnalysisDirname / MergedSemanticdbFilename
-      val outputFile = projectPath / AnalysisDirname / MergedSemanticdbStatsFilename
+      val projectMetadata = new ProjectMetadata(projectPath)
+      val inputFile = projectMetadata.metadataFile(MergedSemanticdbFilename)
+      val outputFile = projectMetadata.metadataFile(MergedSemanticdbStatsFilename)
 
       if (inputFile.exists) {
         val semanticdbs =

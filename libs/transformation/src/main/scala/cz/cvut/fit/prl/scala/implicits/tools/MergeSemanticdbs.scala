@@ -1,37 +1,47 @@
 package cz.cvut.fit.prl.scala.implicits.tools
+import java.io.OutputStream
 import java.nio.file.FileVisitOption
 
 import better.files._
-import cats.instances.int._
-import cz.cvut.fit.prl.scala.implicits.Constants
+import cats.instances.all._
+import cz.cvut.fit.prl.scala.implicits.mergedsdb._
+import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata}
 import cz.cvut.fit.prl.scala.implicits.utils.{MultiProjectExecutor, SdbLocator}
 
 object MergeSemanticdbs extends App {
 
-  def run(projectsFile: File): Unit = {
+  def run(projectsFile: File, outputFile: File, threads: Int = 10): Unit = {
     val projects = projectsFile.lines.map(x => Constants.ProjectsDirname / x).toList
-    val result = new MultiProjectExecutor(Task).run(projects)
+    val result = outputFile.outputStream.apply { output =>
+      new MultiProjectExecutor(new Task(output), threads).run(projects)
+    }
     result.printSummary()
   }
 
-  object Task extends (File => Int) {
-    override def apply(projectPath: File): Int = {
-      val outputFile = projectPath / Constants.AnalysisDirname / Constants.MergedSemanticdbFilename
+  class Task(output: OutputStream) extends (File => (Int, Int)) {
+    override def apply(projectPath: File): (Int, Int) = {
+      val project = new ProjectMetadata(projectPath)
 
-      outputFile.outputStream.apply { output =>
-        var n = 0
-        new SdbLocator(projectPath.path)
-          .exclude(Constants.ExcludedDirs)
-          .options(FileVisitOption.FOLLOW_LINKS)
-          .run {
-            case (_, db) =>
-              db.documents.foreach(_.writeDelimitedTo(output))
-              n = n + 1
-          }
-        n
+      if (!project.mergedSemanticdbFile.exists) {
+        project.mergeSemanticdbs()
       }
+
+      val semanticdbs = project.semanticdbs
+      val classpaths = project.classpathEntries.map(_.path)
+      val sourcepaths = project.sourcepathEntries.map(x => SourcePath(x.path, x.kind, x.scope))
+
+      val merged = MergedSemanticdbs(
+        projectId = project.projectId,
+        classpaths = classpaths,
+        sourcepaths = sourcepaths,
+        semanticdbs = semanticdbs
+      )
+
+      merged.writeDelimitedTo(output)
+
+      (1, semanticdbs.size)
     }
   }
 
-  run(File(args(0)))
+  run(File(args(0)), File("merged-semanticdbs.bin"))
 }

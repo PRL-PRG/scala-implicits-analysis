@@ -25,7 +25,7 @@ object ExtractImplicits extends App with LazyLogging {
         .split()
 
     val project = Project(
-      name = metadata.versionEntries.head.projectId,
+      projectId = metadata.projectId,
       declarations = declarations
     )
 

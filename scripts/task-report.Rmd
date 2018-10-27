@@ -49,12 +49,12 @@ results_df <- pbapply::pblapply(
   results_files_existing, 
   function(x) {
     ids <- basename(dirname(dirname(x)))
-    status <- read_csv(x, col_types="cii", col_names=FALSE)
-    if (length(status) != 3) {
+    status <- read_csv(x, col_types="ii", col_names=FALSE)
+    if (length(status) != 2) {
       message(x, " length: ", length(status))
       NA
     } else {
-      transmute(status, project_id=ids, exit_code=X2, duration=X3)
+      transmute(status, project_id=ids, exit_code=X1, duration=X2)
     }
   }
 )

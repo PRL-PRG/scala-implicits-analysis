@@ -106,3 +106,23 @@ lazy val transformation = (project in file("transformation"))
   )
 
 lazy val root = (project in file(".")).aggregate(model, transformation)
+
+// this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
+// the semanticdb jar does not include the proto file so we cannot use the standard mechanism
+// this has to be run manually, I do not know how to make it a dependency for the PB.generate
+lazy val downloadSemanticdbProto = taskKey[Unit]("Download semanticdb proto file")
+downloadSemanticdbProto := {
+  val outputFile = new java.io.File("model/target/protobuf_external/semanticdb.proto")
+  if (!outputFile.exists()) {
+    if (!outputFile.getParentFile.exists()) {
+      outputFile.getParentFile.mkdirs()
+    }
+    val src = scala.io.Source.fromURL("https://raw.githubusercontent.com/scalameta/scalameta/master/semanticdb/semanticdb/semanticdb.proto")
+    val out = new java.io.FileWriter(outputFile)
+    out.write(src.mkString)
+    out.close()
+    println("Downloaded " + outputFile)
+  } else {
+    println(s"$outputFile has been already downloaded")
+  }
+}

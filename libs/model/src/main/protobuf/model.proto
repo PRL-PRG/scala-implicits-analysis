@@ -39,8 +39,7 @@ message SyntheticLocation {
 }
 
 message Project {
-    // <github-user>--<github-repo>
-    required string name = 1;
+    required string projectId = 1;
     repeated Declaration declarations = 2;
     repeated CallSite callSites = 5;
 }

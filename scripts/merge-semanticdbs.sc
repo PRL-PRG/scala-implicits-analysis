@@ -6,5 +6,5 @@ import cz.cvut.fit.prl.scala.implicits.tools.MergeSemanticdbs
 
 @main
 def main(projectsFile: String) = {
-  MergeSemanticdbs.run(File(projectsFile))
+  MergeSemanticdbs.run(File(projectsFile), File("merged-semanticdbs.bin"))
 }

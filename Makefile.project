@@ -28,15 +28,16 @@ $(ANALYSIS_DIR):
 $(METADATA_STATUS): $(bootstrap)
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
-    echo "$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(METADATA_STATUS); \
+    echo "exit_code,duration" > $(METADATA_STATUS); \
+    echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS); \
     exit $$exit_code
 
 # runs the semanticdb task on a clean project
 $(SEMANTICDB_STATUS): $(bootstrap)
 	$(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
-    echo -e "$(notdir $(CURDIR)),$$exit_code,$$SECONDS" >\
-        $(SEMANTICDB_STATUS); \
+    echo "exit_code,duration" > $(SEMANTICDB_STATUS); \
+    echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS); \
     exit $$exit_code
 
 $(IMPLICITS):
