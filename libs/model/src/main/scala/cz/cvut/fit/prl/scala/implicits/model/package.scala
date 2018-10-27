@@ -26,6 +26,16 @@ package object model {
     def declaration(implicit resolver: TypeResolver): Declaration = resolver.resolveType(that)
   }
 
+  implicit class XtensionCallSite(that: CallSite) {
+
+    def isImplicit(implicit resolver: DeclarationResolver): Boolean = {
+      val declaration = that.ref.declaration
+      declaration.signature.isMethod && (
+        declaration.isImplicit || declaration.hasImplicitParameters
+      )
+    }
+  }
+
   implicit class XtensionDeclarationRef(that: DeclarationRef) {
     def declaration(implicit resolver: DeclarationResolver): Declaration = resolver.resolveDeclaration(that.fqn)
   }
@@ -61,6 +71,9 @@ package object model {
             s"Trying to get parameterList on ${that.signature}"
           )
       }
+
+    def hasImplicitParameters: Boolean =
+      that.parameterLists.exists(_.isImplicit)
 
     def returnType(implicit resolver: TypeResolver): Declaration =
       that.signature.value match {

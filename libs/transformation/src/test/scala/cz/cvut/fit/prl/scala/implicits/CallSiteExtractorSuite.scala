@@ -45,25 +45,26 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
-//  callSites("implicit multi hop parameters",
-//    """
-//      | object o {
-//      |   class A
-//      |   class B
-//      |   class C
-//      |
-//      |   implicit def a2b(implicit x: A) = new B
-//      |   implicit def b2c(implicit x: B) = new C
-//      |
-//      |   implicit def a = new A
-//      |
-//      |   def f(x: Int)(implicit c: C) = "C"
-//      |
-//      |   f(1)
-//      | }
-//    """.stripMargin) { res =>
-//    res.callSites.prettyPrint()
-//  }
+  callSites(
+    "implicit multi hop parameters",
+    """
+      | object o {
+      |   class A
+      |   class B
+      |   class C
+      |
+      |   implicit def a2b(implicit x: A) = new B
+      |   implicit def b2c(implicit x: B) = new C
+      |
+      |   implicit def a = new A
+      |
+      |   def f(x: Int)(implicit c: C) = "C"
+      |
+      |   f(1)
+      | }
+    """.stripMargin
+  ) { res => res.callSites.prettyPrint()
+  }
 
 //  callSites("implicit conversion with parameters",
 //    """
