@@ -22,13 +22,13 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
         case (_, Success(Some(x))) => Success(x)
         case (symbolInfo, Success(None)) =>
           Failure(
-            ConversionException(
+            DeclarationConversionException(
               SkippedSymbolException(symbolInfo.kind.toString()),
               db.uri,
               position(symbolInfo),
               symbolInfo))
         case (symbolInfo, Failure(x)) =>
-          Failure(ConversionException(x, db.uri, position(symbolInfo), symbolInfo))
+          Failure(DeclarationConversionException(x, db.uri, position(symbolInfo), symbolInfo))
       }
   }
 

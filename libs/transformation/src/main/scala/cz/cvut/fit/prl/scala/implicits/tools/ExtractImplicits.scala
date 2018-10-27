@@ -1,7 +1,11 @@
 package cz.cvut.fit.prl.scala.implicits.tools
 import better.files.File
 import com.typesafe.scalalogging.LazyLogging
-import cz.cvut.fit.prl.scala.implicits.extractor.{ConversionException, DeclarationExtractor, ExtractionContext}
+import cz.cvut.fit.prl.scala.implicits.extractor.{
+  DeclarationConversionException,
+  DeclarationExtractor,
+  ExtractionContext
+}
 import cz.cvut.fit.prl.scala.implicits.model.Project
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata}
@@ -33,7 +37,7 @@ object ExtractImplicits extends App with LazyLogging {
     resultFile.outputStream.apply(project.writeTo)
 
     if (exceptions.nonEmpty) {
-      val failures = exceptions.collect { case x: ConversionException => x }
+      val failures = exceptions.collect { case x: DeclarationConversionException => x }
 
       failures.foreach { x =>
         println(x.longSummary)

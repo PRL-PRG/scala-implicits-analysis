@@ -5,7 +5,7 @@ import cz.cvut.fit.prl.scala.implicits.extractor.{DeclarationExtractor, Extracti
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.scalatest.{FunSuite, Matchers}
 
-class ExampleDeclarationExtractionTest extends FunSuite with Matchers {
+class ExampleDeclarationExtractorTest extends FunSuite with Matchers {
 
   val ProjectPath = File("example")
 

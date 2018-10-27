@@ -26,6 +26,10 @@ package object model {
     def declaration(implicit resolver: TypeResolver): Declaration = resolver.resolveType(that)
   }
 
+  implicit class XtensionDeclarationRef(that: DeclarationRef) {
+    def declaration(implicit resolver: DeclarationResolver): Declaration = resolver.resolveDeclaration(that.fqn)
+  }
+
   implicit class XtensionDeclaration(that: Declaration) {
     import Declaration.Kind._
 

@@ -4,7 +4,7 @@ import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import cz.cvut.fit.prl.scala.implicits.model._
 
-class DeclarationExtractionSuite extends ExtractionContextSuite {
+class DeclarationExtractorSuite extends ExtractionContextSuite {
 
   declarations(
     "implicit var",

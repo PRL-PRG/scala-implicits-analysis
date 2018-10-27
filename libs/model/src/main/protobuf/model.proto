@@ -124,15 +124,14 @@ message TypeParameterRef {
 }
 
 message CallSite {
-    enum Kind {
-        NORMAL = 0;
-        SYNTHETIC = 1;
-        CONVERSION = 2;
-    }
-
     required DeclarationRef ref = 1;
-    required Kind kind = 2;
     required string code = 3;
     required Location location = 4;
-    repeated Type typeArguments = 5;
+    repeated Type type_arguments = 5;
+    repeated TypeRef implicit_argument_types = 6;
 }
+
+//message ArgumentLists {
+//    repeated Argument arguments = 1;
+//}
+

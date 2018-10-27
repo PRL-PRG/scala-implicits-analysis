@@ -1,13 +1,139 @@
-//package cz.cvut.fit.prl.scala.implicits
+package cz.cvut.fit.prl.scala.implicits
+
+import cz.cvut.fit.prl.scala.implicits.model._
+
+import org.scalatest.Matchers
+
+import scala.meta.internal.{semanticdb => s}
+
+import cz.cvut.fit.prl.scala.implicits.utils._
+
+class CallSiteExtractorSuite extends ExtractionContextSuite {
+
+//  callSites("implicit conversion from scala",
+//    """
+//      | object o {
+//      |   1 -> "A"
+//      | }
+//    """.stripMargin) { res =>
+//    res.callSites.prettyPrint()
+//  }
+
+//  callSites("simple implicit parameters",
+//    """
+//      | object o {
+//      |   class A
+//      |   class B
+//      |
+//      |   implicit val a = new A
+//      |   implicit def b = new B
+//      |
+//      |   def f(x: Int)(implicit a: A, b: B)
+//      |
+//      |   f(1)
+//      | }
+//    """.stripMargin) { res =>
+//      res.callSites.prettyPrint()
+//  }
+
+//  callSites("implicit paremeter on select",
+//    """
+//      | object o {
+//      |   List(1).map(_.toString)
+//      | }
+//    """.stripMargin) { res =>
+//      res.callSites.prettyPrint()
+//  }
+
+//  callSites("implicit multi hop parameters",
+//    """
+//      | object o {
+//      |   class A
+//      |   class B
+//      |   class C
+//      |
+//      |   implicit def a2b(implicit x: A) = new B
+//      |   implicit def b2c(implicit x: B) = new C
+//      |
+//      |   implicit def a = new A
+//      |
+//      |   def f(x: Int)(implicit c: C) = "C"
+//      |
+//      |   f(1)
+//      | }
+//    """.stripMargin) { res =>
+//    res.callSites.prettyPrint()
+//  }
+
+//  callSites("implicit conversion with parameters",
+//    """
+//      | object o {
+//      |   class A
+//      |   class B {
+//      |     val x = 1
+//      |   }
+//      |
+//      |   implicit def a = new A
+//      |   implicit def c(x: Int)(implicit a: A) = new B
+//      |
+//      |   1.x
+//      | }
+//    """.stripMargin) { res =>
+//      res.callSites.prettyPrint()
+//  }
 //
-//import cz.cvut.fit.prl.scala.implicits.model._
-//
-//import org.scalatest.Matchers
-//
-//import scala.meta.internal.{semanticdb => s}
-//
-//class CallSiteExtractorSuite extends SemanticdbSuite with Matchers {
-//
+//  callSites("implicit conversion with parameters and type parameters",
+//    """
+//      | object o {
+//      |   class A[T]
+//      |
+//      |   class B {
+//      |     val x = 1
+//      |   }
+//      |
+//      |   implicit def a[T] = new A[T]
+//      |   implicit def c[T](x: T)(implicit a: A[T]) = new B
+//      |
+//      |   1.x
+//      | }
+//    """.stripMargin) { res =>
+////      res.callSites.prettyPrint()
+//  }
+
+//  callSites("for-comprehension",
+//    """
+//      | object o {
+//      |   for {
+//      |     i <- Seq(1,2)
+//      |   } yield "A" + i
+//      | }
+//    """.stripMargin) { res =>
+//      res.callSites.prettyPrint()
+//  }
+
+  callSites(
+    "for-comprehension with filter",
+    """
+      | object o {
+      |   for {
+      |     i <- 1 to 10 if i % 2 == 0
+      |     j <- 1 until i
+      |   } yield (i, j)
+      | }
+    """.stripMargin
+  ) { res => res.callSites.prettyPrint()
+  }
+
+  object o {
+    (1 to 10).flatMap(x => (1 until x).map(y => (x, y)))
+    for {
+      i <- 1 to 10
+      j <- 1 until i
+    } yield (i, j)
+  }
+
+}
+
 //  def checkNoFailures(extractor: CallSiteExtractor): Unit = {
 //    extractor.failures.foreach(_.printStackTrace())
 //    extractor.failures shouldBe empty

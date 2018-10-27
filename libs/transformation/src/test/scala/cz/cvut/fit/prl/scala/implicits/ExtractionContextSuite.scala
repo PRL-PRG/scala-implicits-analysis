@@ -1,6 +1,11 @@
 package cz.cvut.fit.prl.scala.implicits
 
-import cz.cvut.fit.prl.scala.implicits.extractor.{DeclarationExtractor, ExtractionContext, SemanticdbSymbolResolver}
+import cz.cvut.fit.prl.scala.implicits.extractor.{
+  CallSiteExtractor,
+  DeclarationExtractor,
+  ExtractionContext,
+  SemanticdbSymbolResolver
+}
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Signature
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.utils._
@@ -9,7 +14,13 @@ import org.scalatest.{Inside, Matchers, OptionValues}
 import scala.language.implicitConversions
 import scala.meta.internal.{semanticdb => s}
 
-case class Result(declarations: Seq[Declaration], ctx: ExtractionContext, db: s.TextDocument) extends TypeResolver {
+case class DeclarationsResult(declarations: Seq[Declaration], ctx: ExtractionContext, db: s.TextDocument)
+    extends TypeResolver {
+  override def resolveType(tpe: Type): Declaration = ctx.resolveType(tpe)
+}
+
+case class CallSitesResult(callSites: Seq[CallSite], ctx: ExtractionContext, db: s.TextDocument)
+    extends TypeResolver {
   override def resolveType(tpe: Type): Declaration = ctx.resolveType(tpe)
 }
 
@@ -22,10 +33,10 @@ abstract class ExtractionContextSuite
 
   val TestLocalLocation = Local("test-location", Position(0, 0, 0, 0))
 
-  def declarations(
+  def extraction(
       name: String,
       code: String
-  )(fn: Result => Unit): Unit = {
+  )(fn: (ExtractionContext, s.TextDocument) => Unit): Unit = {
     implicit object RangeSorted extends Ordering[s.Range] {
       override def compare(x: s.Range, y: s.Range): Int = {
         val d = x.startLine.compare(y.startLine)
@@ -33,21 +44,49 @@ abstract class ExtractionContextSuite
       }
     }
 
-    database(name, code)(db => {
+    database(name, code) { db =>
       val resolver = SemanticdbSymbolResolver(Seq(db), symtab)
       val ctx = new ExtractionContext(resolver)
+      val extractor = new DeclarationExtractor(ctx)
+      fn(ctx, db)
+    }
+  }
+
+  def declarations(
+      name: String,
+      code: String
+  )(fn: DeclarationsResult => Unit): Unit = {
+    extraction(name, code) { (ctx, db) =>
       val extractor = new DeclarationExtractor(ctx)
       val result = extractor.extractImplicitDeclarations(db)
       val (declarations, failures) = result.split()
 
       checkNoFailures(failures)
-      fn(Result(declarations.map(_.simplify), ctx, db))
-    })
+      fn(DeclarationsResult(declarations.map(_.simplify), ctx, db))
+    }
+  }
+
+  def callSites(
+      name: String,
+      code: String
+  )(fn: CallSitesResult => Unit): Unit = {
+    extraction(name, code) { (ctx, db) =>
+      val extractor = new CallSiteExtractor(ctx)
+      val result = extractor.extractCallSites(db)
+      val (callSites, failures) = result.split()
+
+      checkNoFailures(failures)
+      fn(CallSitesResult(callSites.map(_.simplify), ctx, db))
+    }
   }
 
   def checkNoFailures(failures: List[Throwable]): Unit = {
     failures.foreach(_.printStackTrace())
     failures shouldBe empty
+  }
+
+  implicit class SimplifyCallSite(that: CallSite) {
+    def simplify: CallSite = that
   }
 
   implicit class SimplifyDeclaration(that: Declaration) {

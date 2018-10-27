@@ -1,6 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{Declaration, Type, TypeResolver}
+import cz.cvut.fit.prl.scala.implicits.model.{Declaration, DeclarationResolver, Type, TypeResolver}
 import cz.cvut.fit.prl.scala.implicits.symtab.ResolvedSymbol
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
@@ -8,8 +8,12 @@ import cz.cvut.fit.prl.scala.implicits.{model => m}
 import scala.collection.mutable
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
+import scala.util.Try
 
-class ExtractionContext(resolver: SemanticdbSymbolResolver) extends TypeResolver with SymbolResolver {
+class ExtractionContext(resolver: SemanticdbSymbolResolver)
+    extends TypeResolver
+    with SymbolResolver
+    with DeclarationResolver {
 
   private val declarationIndex: mutable.Map[String, Declaration] = mutable.Map()
 
@@ -161,14 +165,14 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver) extends TypeResolver
       m.TypeParameter(
         name = symbolInfo.displayName,
         typeParameters = typeParameters.symbols.map(createTypeParameter),
-        lowerBound = createType(lowerBound),
-        upperBound = createType(upperBound)
+        lowerBound = Try(createType(lowerBound)).getOrElse(m.Type.Empty),
+        upperBound = Try(createType(upperBound)).getOrElse(m.Type.Empty)
       )
     case x =>
       throw UnexpectedElementException("type parameter signature", x.getClass.getSimpleName)
   }
 
-  private def createType(tpe: s.Type): m.Type = tpe match {
+  def createType(tpe: s.Type): m.Type = tpe match {
     case x: s.TypeRef if x.isTopOrBottom => m.Type.Empty
     // TODO: do we need to do anything prefix?
     case s.TypeRef(_, symbol, typeArguments) =>
@@ -179,6 +183,8 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver) extends TypeResolver
     case s.SingleType(prefix, symbol) =>
       val parent = resolveDeclaration(symbol)
       m.TypeRef(parent.ref)
+    case s.RepeatedType(repeatedType) =>
+      createTypeReference("scala/Array#", Seq(repeatedType))
     case s.Type.Empty => m.Type.Empty
     case x =>
       throw UnsupportedElementException("type", x.getClass.getSimpleName)
