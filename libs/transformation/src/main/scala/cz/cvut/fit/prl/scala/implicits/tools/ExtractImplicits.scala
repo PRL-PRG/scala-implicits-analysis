@@ -77,7 +77,7 @@ object ExtractImplicits extends App {
           .flatMap(csExtractor.extractImplicitCallSites)
           .split()
 
-      val csCount = 0 //metadata.semanticdbs.map(csExtractor.callSiteCount).sum
+      val csCount = metadata.semanticdbs.map(csExtractor.callSiteCount).sum
 
       val project = Project(
         projectId = metadata.projectId,
@@ -87,15 +87,13 @@ object ExtractImplicits extends App {
         scalaVersion = metadata.scalaVersion,
         sbtVersion = metadata.sbtVersion,
         classpaths = metadata.classpathEntries.map(_.path),
-        sourcepaths =
-          metadata.sourcepathEntries.map(x => SourcePath(x.path, x.kind, x.scope))
+        sourcepaths = metadata.sourcepathEntries.map(x => SourcePath(x.path, x.kind, x.scope))
       )
 
       project.writeDelimitedTo(output)
 
       val allExceptions = (declExceptions ++ csExceptions) collect {
-        case x: ConversionException => x
-      }
+        case x: ConversionException => x }
 
       Result(project.declarations.size, callSites.size, allExceptions)
     }

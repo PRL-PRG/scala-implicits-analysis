@@ -45,9 +45,53 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
+  // inspired by ensimefile.scala:44
+  callSites(
+    "implicit conversion and select with implicit parameter",
+    """
+      | package p
+      | object o {
+      |   class Charset
+      |   implicit class RichPath(that: String) {
+      |     def readString()(implicit cs: Charset) = 1
+      |   }
+      |
+      |   object raw {
+      |     val file = "file"
+      |   }
+      |
+      |   implicit val utf = new Charset
+      |
+      |   raw.file.readString()
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.RichPath()."),
+        "RichPath(raw.file)",
+        TestLocalLocation
+      ),
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.RichPath#readString()."),
+        "readString",
+        TestLocalLocation,
+        List(),
+        List(
+          TypeRef(
+            DeclarationRef(TestLocalLocation, "p/o.utf.")
+          )
+        )
+      )
+    )
+
+    checkElements(res.callSites, expected)
+  }
+
   callSites(
     "implicit multi hop parameters",
     """
+      | package p
       | object o {
       |   class A
       |   class B
@@ -66,37 +110,37 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "_empty_/o.a2b()."),
+        DeclarationRef(TestLocalLocation, "p/o.a2b()."),
         "a2b",
         TestLocalLocation,
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "_empty_/o.a()."),
+            DeclarationRef(TestLocalLocation, "p/o.a()."),
             List()
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "_empty_/o.b2c()."),
+        DeclarationRef(TestLocalLocation, "p/o.b2c()."),
         "b2c",
         TestLocalLocation,
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "_empty_/o.a2b()."),
+            DeclarationRef(TestLocalLocation, "p/o.a2b()."),
             List()
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "_empty_/o.f()."),
+        DeclarationRef(TestLocalLocation, "p/o.f()."),
         "f",
         TestLocalLocation,
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "_empty_/o.b2c()."),
+            DeclarationRef(TestLocalLocation, "p/o.b2c()."),
             List()
           )
         )
@@ -123,23 +167,47 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 //
-//  callSites("implicit conversion with parameters and type parameters",
-//    """
-//      | object o {
-//      |   class A[T]
-//      |
-//      |   class B {
-//      |     val x = 1
-//      |   }
-//      |
-//      |   implicit def a[T] = new A[T]
-//      |   implicit def c[T](x: T)(implicit a: A[T]) = new B
-//      |
-//      |   1.x
-//      | }
-//    """.stripMargin) { res =>
-////      res.callSites.prettyPrint()
-//  }
+  callSites(
+    "implicit conversion with parameters and type parameters",
+    """
+      | package p
+      | object o {
+      |   class A[T]
+      |
+      |   class B {
+      |     val x = 1
+      |   }
+      |
+      |   implicit def a[T] = new A[T]
+      |   implicit def c[T](x: T)(implicit a: A[T]) = new B
+      |
+      |   1.x
+      | }
+    """.stripMargin
+) { res =>
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.a()."),
+        "a[scala/Int#]",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+      ),
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.c()."),
+        "c[scala/Int#](1)",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        List(
+          TypeRef(
+            DeclarationRef(TestLocalLocation, "p/o.a()."),
+            List(
+              TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())
+            )
+          )
+        )
+      )
+    )
+  }
 
 //  callSites("for-comprehension",
 //    """
@@ -250,6 +318,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   callSites(
     "implicit argument in a constructor",
     """
+      | package p
       | object o {
       |   import scala.concurrent.ExecutionContext
       |   import scala.concurrent.ExecutionContext.Implicits.global
@@ -261,7 +330,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     """.stripMargin
   ) { res =>
     val expected = CallSite(
-      DeclarationRef(TestLocalLocation, "_empty_/o.A#`<init>`()."),
+      DeclarationRef(TestLocalLocation, "p/o.A#`<init>`()."),
       "<init>",
       TestLocalLocation,
       List(),
@@ -281,6 +350,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   callSites(
     "implicit argument in a case class",
     """
+      | package p
       | object o {
       |   import scala.concurrent.ExecutionContext
       |   import scala.concurrent.ExecutionContext.Implicits.global
@@ -292,7 +362,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     """.stripMargin
   ) { res =>
     val expected = CallSite(
-      DeclarationRef(TestLocalLocation, "_empty_/o.B.apply()."),
+      DeclarationRef(TestLocalLocation, "p/o.B.apply()."),
       ".apply",
       TestLocalLocation,
       List(),

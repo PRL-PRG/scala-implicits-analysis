@@ -19,8 +19,8 @@ class CallSiteExtractor(ctx: ExtractionContext) {
   class Converter(db: s.TextDocument, terms: Map[s.Range, Term]) {
 
     def findFunctionTerm(t: Term): Option[Tree] = t match {
-      case Term.Select(_, name)       => Some(name)
-      case x: Term.Name               => Some(x)
+      case Term.Select(_, name)       => Some(t)
+      case Term.Name(_)               => Some(t)
       case Term.ApplyType(fun, _)     => findFunctionTerm(fun)
       case Term.Apply(fun, _)         => findFunctionTerm(fun)
       case Term.New(Init(_, name, _)) => Some(name)
@@ -45,6 +45,11 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         declaration.isImplicit || arguments.flatten.exists(_.declaration.isImplicit)
 
       def toCallSite: m.CallSite = {
+        try {
+          declaration.hasImplicitParameters
+        } catch {
+          case e: Throwable => println(e)
+        }
         val implicitArgumentsTypes: Seq[m.TypeRef] =
           if (declaration.hasImplicitParameters) arguments.head.map(_.toTypeRef)
           else Seq()
@@ -82,10 +87,18 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
         case s.ApplyTree(fn, arguments) => {
           val callSitesFromArguments = arguments.flatMap(x => convertInternal(x, false))
+
           (convertInternal(fn, true) match {
             case cs :: css =>
-              val args = arguments.toList.flatMap(createArguments)
-              cs.copy(arguments = args :: cs.arguments) :: css
+              arguments match {
+                case Seq(s.OriginalTree(Some(range))) =>
+                  // implicit conversion
+                  cs.copy(
+                    code = cs.code + terms.get(range).map(x => s"($x)").getOrElse("")) :: css
+                case _ =>
+                  val args = arguments.toList.flatMap(createArguments)
+                  cs.copy(arguments = args :: cs.arguments) :: css
+              }
             case css => css
           }) ++ callSitesFromArguments
 
@@ -119,7 +132,8 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
         case s.FunctionTree(_, body) => convertInternal(body, inCall)
 
-        case s.OriginalTree(Some(range)) => {
+        case s.OriginalTree(Some(range)) if inCall => {
+//          def allSelects(x: Tree, qualifiers: List[Term.Name]): List[Term.Name] =>
           // TODO: refactor
           val csOpt = for {
             term <- terms.get(range)
@@ -128,15 +142,27 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // check if there is some inferred method call e.g.
             // Future(1) ==> Future.apply(1)
             // we want ot get a reference to actual methods, not objects
-            db.synthetics.find(_.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, false).headOption)
+            db.synthetics.find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, false).headOption)
               .getOrElse {
-                val symbol = db.occurrences.collectFirst {
-                  case s.SymbolOccurrence(Some(sr), s, _) if sr == fnTerm.pos.toRange =>
-                    s
-                }.getOrThrow(
-                    MissingSymbolException(s"Missing symbol for $term at $range in ${db.uri}"))
+
+                val nestedTermsToTry = fnTerm :: fnTerm.collect {
+                  case Term.Select(_, name) => name
+                }
+
+                val occurrences =
+                  for {
+                    x <- nestedTermsToTry
+                    y <- db.occurrences.find(_.range.exists(_ == x.pos.toRange))
+                  } yield y
+
+                val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
+                  MissingSymbolException(s"Missing symbol for $term at $range in ${db.uri}")
+                  }
 
                 val declaration = ctx.resolveDeclaration(symbol)
+                if (declaration.isObject) {
+                  println()
+                }
                 val location = m.Local(db.uri, range)
                 val code = declaration.name
                 Call(declaration, code, location)
@@ -148,6 +174,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
         case s.IdTree(symbol) if inCall => {
           val declaration = ctx.resolveDeclaration(symbol)
+          if (declaration.isObject) {
+            println()
+          }
           val code = declaration.name
 
           Call(declaration, code, location = syntheticLocation) :: Nil

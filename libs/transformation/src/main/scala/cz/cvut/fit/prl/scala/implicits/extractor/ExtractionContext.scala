@@ -1,6 +1,11 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{Declaration, DeclarationResolver, Type, TypeResolver}
+import cz.cvut.fit.prl.scala.implicits.model.{
+  Declaration,
+  DeclarationResolver,
+  Type,
+  TypeResolver
+}
 import cz.cvut.fit.prl.scala.implicits.symtab.ResolvedSymbol
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
@@ -45,17 +50,22 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         // The actual value of the key will be replaced later, but
         // that should be safe since we only call .ref which is
         // fixed from the symbol
-        val prototype =
-          createDeclaration(symbolInfo)
-            .withLocation(resolvedSymbol.location)
+        try {
+          val prototype =
+            createDeclaration(symbolInfo).withLocation(resolvedSymbol.location)
 
-        declarationIndex += symbolInfo.symbol -> prototype
+          declarationIndex += symbolInfo.symbol -> prototype
 
-        val signature = createSignature(symbolInfo.signature)
-        val declaration = prototype.withSignature(signature)
+          val signature = createSignature(symbolInfo.signature)
+          val declaration = prototype.withSignature(signature)
 
-        declarationIndex += symbolInfo.symbol -> declaration
-        declaration
+          declarationIndex += symbolInfo.symbol -> declaration
+          declaration
+        } catch {
+          case e: Throwable =>
+            declarationIndex -= symbolInfo.symbol
+            throw e
+        }
     }
   }
 
@@ -177,7 +187,9 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         upperBound = Try(createType(upperBound)).getOrElse(m.Type.Empty)
       )
     case x =>
-      throw UnexpectedElementException("type parameter signature", x.getClass.getSimpleName)
+      throw UnexpectedElementException(
+        "type parameter signature",
+        x.getClass.getSimpleName)
   }
 
   def createType(tpe: s.Type): m.Type = tpe match {
