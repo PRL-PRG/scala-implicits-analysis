@@ -45,27 +45,66 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
-//  callSites(
-//    "implicit multi hop parameters",
-//    """
-//      | object o {
-//      |   class A
-//      |   class B
-//      |   class C
-//      |
-//      |   implicit def a2b(implicit x: A) = new B
-//      |   implicit def b2c(implicit x: B) = new C
-//      |
-//      |   implicit def a = new A
-//      |
-//      |   def f(x: Int)(implicit c: C) = "C"
-//      |
-//      |   f(1)
-//      | }
-//    """.stripMargin
-//  ) { res =>
-//    res.callSites.prettyPrint()
-//  }
+  callSites(
+    "implicit multi hop parameters",
+    """
+      | object o {
+      |   class A
+      |   class B
+      |   class C
+      |
+      |   implicit def a2b(implicit x: A) = new B
+      |   implicit def b2c(implicit x: B) = new C
+      |
+      |   implicit def a = new A
+      |
+      |   def f(x: Int)(implicit c: C) = "C"
+      |
+      |   f(1)
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestLocalLocation, "_empty_/o.a2b()."),
+        "a2b",
+        TestLocalLocation,
+        List(),
+        List(
+          TypeRef(
+            DeclarationRef(TestLocalLocation, "_empty_/o.a()."),
+            List()
+          )
+        )
+      ),
+      CallSite(
+        DeclarationRef(TestLocalLocation, "_empty_/o.b2c()."),
+        "b2c",
+        TestLocalLocation,
+        List(),
+        List(
+          TypeRef(
+            DeclarationRef(TestLocalLocation, "_empty_/o.a2b()."),
+            List()
+          )
+        )
+      ),
+      CallSite(
+        DeclarationRef(TestLocalLocation, "_empty_/o.f()."),
+        "f",
+        TestLocalLocation,
+        List(),
+        List(
+          TypeRef(
+            DeclarationRef(TestLocalLocation, "_empty_/o.b2c()."),
+            List()
+          )
+        )
+      )
+    )
+
+    checkElements(res.callSites, expected)
+  }
 
 //  callSites("implicit conversion with parameters",
 //    """
@@ -124,7 +163,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      | }
 //    """.stripMargin
 //  ) { res =>
-////    res.callSites.prettyPrint()
+//    res.callSites.prettyPrint()
 //  }
 
   callSites(
@@ -141,7 +180,71 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |
       | }
     """.stripMargin
-  ) { res => res.callSites.prettyPrint()
+  ) { res =>
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestExternalLocation, "scala/concurrent/Future.apply()."),
+        ".apply[scala/Int#]",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        List(
+          TypeRef(
+            DeclarationRef(
+              TestExternalLocation,
+              "scala/concurrent/ExecutionContext.Implicits.global."
+            ),
+            List()
+          )
+        )
+      ),
+      CallSite(
+        DeclarationRef(TestExternalLocation, "scala/concurrent/Future#map()."),
+        ".map[scala/Int#]",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        List(
+          TypeRef(
+            DeclarationRef(
+              TestExternalLocation,
+              "scala/concurrent/ExecutionContext.Implicits.global."
+            ),
+            List()
+          )
+        )
+      ),
+      CallSite(
+        DeclarationRef(TestExternalLocation, "scala/concurrent/Future.apply()."),
+        ".apply[scala/Int#]",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        List(
+          TypeRef(
+            DeclarationRef(
+              TestExternalLocation,
+              "scala/concurrent/ExecutionContext.Implicits.global."
+            ),
+            List()
+          )
+        )
+      ),
+      CallSite(
+        DeclarationRef(TestExternalLocation, "scala/concurrent/Future#flatMap()."),
+        ".flatMap[scala/Int#]",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        List(
+          TypeRef(
+            DeclarationRef(
+              TestExternalLocation,
+              "scala/concurrent/ExecutionContext.Implicits.global."
+            ),
+            List()
+          )
+        )
+      )
+    )
+
+    checkElements(res.callSites, expected)
   }
 
   callSites(

@@ -78,15 +78,14 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       val syntheticLocation = Local(db.uri, synthetic.range.get)
 
       // TODO: it should be enough to have a flag, or maybe even not that
-      def convertInternal(tree: s.Tree, current: Option[Call]): List[Call] = tree match {
+      def convertInternal(tree: s.Tree, inCall: Boolean): List[Call] = tree match {
 
         case s.ApplyTree(fn, arguments) => {
-          val callSitesFromArguments = arguments.flatMap(x => convertInternal(x, None))
-          val cs = current.getOrElse(Call(null, location = syntheticLocation))
-          (convertInternal(fn, Some(cs)) match {
-            case cs1 :: css =>
+          val callSitesFromArguments = arguments.flatMap(x => convertInternal(x, false))
+          (convertInternal(fn, true) match {
+            case cs :: css =>
               val args = arguments.toList.flatMap(createArguments)
-              cs1.copy(arguments = args :: cs1.arguments) :: css
+              cs.copy(arguments = args :: cs.arguments) :: css
             case css => css
           }) ++ callSitesFromArguments
 
@@ -95,46 +94,47 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.SelectTree(qualifier, Some(s.IdTree(symbol))) => {
           val declaration = ctx.resolveDeclaration(symbol)
           val code = s".${declaration.name}"
-          val cs = current.map(_.copy(declaration = declaration, code = code)).getOrElse(Call(declaration, code))
+          val cs = Call(declaration, code, location = syntheticLocation)
 
           qualifier match {
             case s.OriginalTree(Some(range)) =>
               val location = m.Local(db.uri, range)
               cs.copy(location = location) :: Nil
             case _ =>
-              cs :: convertInternal(qualifier, None)
+              cs :: convertInternal(qualifier, false)
           }
         }
 
         case s.TypeApplyTree(fn, args) => {
-          val typeArguments = args.toList.map(ctx.createType)
-          val cs = current.map(
-            x =>
-                x.copy(
-                  code = x.code + typeArguments.map(_.asCode).mkString("[", ", ", "]"),
-                  typeArguments = typeArguments
-                ))
-            .getOrElse(Call(null, typeArguments = typeArguments))
-          convertInternal(fn, Some(cs))
+          convertInternal(fn, true) match {
+            case cs :: css =>
+              val typeArguments = args.toList.map(ctx.createType)
+              cs.copy(
+                code = cs.code + typeArguments.map(_.asCode).mkString("[", ", ", "]"),
+                typeArguments = typeArguments
+              ) :: css
+            case css => css
+          }
         }
 
-        case s.FunctionTree(_, body) => convertInternal(body, current)
+        case s.FunctionTree(_, body) => convertInternal(body, inCall)
 
         case s.OriginalTree(Some(range)) => {
           // TODO: refactor
-          val cs = for {
+          val csOpt = for {
             term <- terms.get(range)
             fnTerm <- findFunctionTerm(term)
           } yield {
             // check if there is some inferred method call e.g.
             // Future(1) ==> Future.apply(1)
             // we want ot get a reference to actual methods, not objects
-            db.synthetics.find(_.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, None).headOption)
+            db.synthetics.find(_.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, false).headOption)
               .getOrElse {
                 val symbol = db.occurrences.collectFirst {
                   case s.SymbolOccurrence(Some(sr), s, _) if sr == fnTerm.pos.toRange =>
                     s
-                }.getOrThrow(MissingSymbolException(s"Missing symbol for $term at $range in ${db.uri}"))
+                }.getOrThrow(
+                    MissingSymbolException(s"Missing symbol for $term at $range in ${db.uri}"))
 
                 val declaration = ctx.resolveDeclaration(symbol)
                 val location = m.Local(db.uri, range)
@@ -143,27 +143,20 @@ class CallSiteExtractor(ctx: ExtractionContext) {
               }
           }
 
-          {
-            for {
-              cs1 <- cs
-              current1 <- current
-            } yield
-              current1.copy(declaration = cs1.declaration, code = cs1.code, location = cs1.location)
-          }.toList
+          csOpt.toList
         }
 
-        case s.IdTree(symbol) => {
+        case s.IdTree(symbol) if inCall => {
           val declaration = ctx.resolveDeclaration(symbol)
           val code = declaration.name
-          val cs =
-            current.map(_.copy(declaration, code = code))
-          cs.toList
+
+          Call(declaration, code, location = syntheticLocation) :: Nil
         }
 
-        case _ => current.toList
+        case _ => Nil
       }
 
-      val intermediate = convertInternal(synthetic.tree, None)
+      val intermediate = convertInternal(synthetic.tree, false)
       intermediate.filter(_.isImplicit).map(_.toCallSite)
     }
   }
@@ -175,7 +168,8 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     }.toMap
 
     val converter = new Converter(db, terms)
-    db.synthetics.toList.map(x => x -> Try(converter.convert(x)))
+    db.synthetics.toList
+      .map(x => x -> Try(converter.convert(x)))
       .collect {
         case (_, Success(xs)) => xs.filter(_.isImplicit).map(Success(_))
         case (synthetic, Failure(x)) =>
