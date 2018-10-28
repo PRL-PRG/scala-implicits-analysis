@@ -24,6 +24,7 @@ endif
 
 SBT_MEM ?= 16000
 TIMEOUT ?= 30m
+MAX_MEM ?= 128000
 
 ANALYSIS_DIR := _analysis_
 IVY_DIR := .ivy
@@ -37,7 +38,7 @@ IMPLICITS := $(ANALYSIS_DIR)/implicits.bin
 IMPLICITS_STATUS := $(ANALYSIS_DIR)/implicits-status.csv
 IMPLICITS_LOG := $(ANALYSIS_DIR)/implicits.log
 
-AMM := JAVA_OPTS="-Xmx$(SBT_MEM)m" amm
+AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 
 $(IVY_DIR):
 	mkdir -p $(IVY_DIR)

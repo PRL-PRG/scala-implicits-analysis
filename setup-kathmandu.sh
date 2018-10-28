@@ -5,3 +5,4 @@ export GLOBAL_SBT_BOOT_DIR=~/.sbt/boot
 export N_JOBS=1
 export TIMEOUT=60m
 export SBT_MEM=8196
+export MAX_MEM=8196
