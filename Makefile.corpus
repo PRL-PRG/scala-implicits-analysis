@@ -118,8 +118,8 @@ merge-semanticdbs: $(bootstrap)
 merged-semanticdbs-stats: $(bootstrap)
 	$(AMM) $(SCRIPTS_DIR)/merged-semanticdbs-stats.sc $(PROJECTS_FILE)
 
-implicits: $(bootstrap)
-	$(parallel) $@
+extract-implicits: $(bootstrap)
+	$(AMM) $(SCRIPTS_DIR)/extract-implicits.sc $(PROJECTS_FILE) 2>&1 | tee extract-implicits.log
 
 metadata: $(bootstrap)
 	$(parallel) $@

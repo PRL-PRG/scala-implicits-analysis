@@ -3,6 +3,6 @@ import better.files._
 import cz.cvut.fit.prl.scala.implicits.tools.ExtractImplicits
 
 @main
-def main(projectPath: String) = {
-  ExtractImplicits.run(File(projectPath))
+def main(projectsFile: String) = {
+  ExtractImplicits.run(File(projectsFile), File("implicits.bin"), 64)
 }
