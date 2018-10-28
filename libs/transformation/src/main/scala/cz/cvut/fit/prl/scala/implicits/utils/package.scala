@@ -97,30 +97,4 @@ package object utils {
       that.groupBy(f).mapValues(x => x.size).toSeq.sortBy(-_._2)
     }
   }
-
-  implicit class XtensionType(that: m.Type) {
-
-    def asCode: String = that match {
-      case x: m.TypeRef          => x.asCode
-      case x: m.TypeParameterRef => x.asCode
-      case m.Type.Empty          => ""
-    }
-  }
-
-  implicit class XtensionTypeRef(that: m.TypeRef) {
-
-    def asCode: String = {
-      val args = that.typeArguments.map(_.asCode)
-      that.ref.fqn + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
-    }
-
-  }
-
-  implicit class XtensionTypeParameterRef(that: m.TypeParameterRef) {
-
-    def asCode: String = {
-      val args = that.typeArguments.map(_.asCode)
-      that.name + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
-    }
-  }
 }

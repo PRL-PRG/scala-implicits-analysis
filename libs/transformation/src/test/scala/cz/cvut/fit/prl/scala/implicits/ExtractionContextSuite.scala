@@ -14,12 +14,20 @@ import org.scalatest.{Inside, Matchers, OptionValues}
 import scala.language.implicitConversions
 import scala.meta.internal.{semanticdb => s}
 
-case class DeclarationsResult(declarations: Seq[Declaration], ctx: ExtractionContext, db: s.TextDocument)
+case class DeclarationsResult(
+    declarations: Seq[Declaration],
+    ctx: ExtractionContext,
+    db: s.TextDocument)
     extends TypeResolver {
   override def resolveType(tpe: Type): Declaration = ctx.resolveType(tpe)
 }
 
-case class CallSitesResult(callSites: Seq[CallSite], ctx: ExtractionContext, db: s.TextDocument)
+case class CallSitesResult(
+    callSites: Seq[CallSite],
+    originalcallSites: Seq[CallSite],
+    callSitesCount: Int,
+    ctx: ExtractionContext,
+    db: s.TextDocument)
     extends TypeResolver {
   override def resolveType(tpe: Type): Declaration = ctx.resolveType(tpe)
 }
@@ -32,6 +40,7 @@ abstract class ExtractionContextSuite
     with CaseClassAssertions {
 
   val TestLocalLocation = Local("test-location", Position(0, 0, 0, 0))
+  val TestExternalLocation = External(false, "test-path", "test-entry")
 
   def extraction(
       name: String,
@@ -72,11 +81,12 @@ abstract class ExtractionContextSuite
   )(fn: CallSitesResult => Unit): Unit = {
     extraction(name, code) { (ctx, db) =>
       val extractor = new CallSiteExtractor(ctx)
-      val result = extractor.extractCallSites(db)
+      val result = extractor.extractImplicitCallSites(db)
       val (callSites, failures) = result.split()
+      val count = extractor.callSiteCount(db)
 
       checkNoFailures(failures)
-      fn(CallSitesResult(callSites.map(_.simplify), ctx, db))
+      fn(CallSitesResult(callSites.map(_.simplify), callSites, count, ctx, db))
     }
   }
 
@@ -86,7 +96,13 @@ abstract class ExtractionContextSuite
   }
 
   implicit class SimplifyCallSite(that: CallSite) {
-    def simplify: CallSite = that
+
+    def simplify: CallSite = that.copy(
+      ref = that.ref.simplify,
+      location = that.location.simplify,
+      typeArguments = that.typeArguments.map(_.simplify),
+      implicitArgumentTypes = that.implicitArgumentTypes.map(_.simplify)
+    )
   }
 
   implicit class SimplifyDeclaration(that: Declaration) {
@@ -143,12 +159,20 @@ abstract class ExtractionContextSuite
   implicit class SimplifyType(that: Type) {
 
     def simplify: Type = that match {
-      case y: TypeRef =>
-        y.copy(ref = y.ref.simplify, typeArguments = y.typeArguments.map(_.simplify))
+      case y: TypeRef => y.simplify
       case y: TypeParameterRef =>
         y.copy(ref = y.ref.simplify, typeArguments = y.typeArguments.map(_.simplify))
       case y => y
     }
+  }
+
+  implicit class SimplifyTypeRef(that: TypeRef) {
+
+    def simplify: TypeRef =
+      that.copy(
+        ref = that.ref.simplify,
+        typeArguments = that.typeArguments.map(_.simplify))
+
   }
 
   implicit class SimplifyDeclarationRef(that: DeclarationRef) {
@@ -158,7 +182,7 @@ abstract class ExtractionContextSuite
   implicit class SimplifyLocation(that: Location) {
 
     def simplify: Location = that match {
-      case y: External => y.copy(path = "")
+      case y: External => TestExternalLocation
       case y: Local    => TestLocalLocation
       case y           => y
     }

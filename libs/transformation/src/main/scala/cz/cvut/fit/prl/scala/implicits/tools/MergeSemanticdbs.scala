@@ -4,14 +4,15 @@ import java.nio.file.FileVisitOption
 
 import better.files._
 import cats.instances.all._
+import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.mergedsdb._
-import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata}
+import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.utils.{MultiProjectExecutor, SdbLocator}
 
 object MergeSemanticdbs extends App {
 
   def run(projectsFile: File, outputFile: File, threads: Int = 10): Unit = {
-    val projects = projectsFile.lines.map(x => Constants.ProjectsDirname / x).toList
+    val projects = projectsFile.lines.map(x => ProjectsDirname / x).toList
     val result = outputFile.outputStream.apply { output =>
       new MultiProjectExecutor(new Task(output), threads).run(projects)
     }
@@ -43,5 +44,5 @@ object MergeSemanticdbs extends App {
     }
   }
 
-  run(File(args(0)), File("merged-semanticdbs.bin"))
+  run(File(args(0)), File(MergedSemanticdbFilename))
 }

@@ -95,6 +95,10 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     )
   }
 
+  private def createValueSignature(signature: s.ValueSignature): m.ValueSignature = {
+    m.ValueSignature(createType(signature.tpe))
+  }
+
   private def createSignature(signature: s.Signature): m.Declaration.Signature =
     signature match {
       case x: s.TypeSignature =>
@@ -103,6 +107,8 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         m.Declaration.Signature.Type(createTypeSignature(x))
       case x: s.MethodSignature =>
         m.Declaration.Signature.Method(createMethodSignature(x))
+      case x: s.ValueSignature =>
+        m.Declaration.Signature.Value(createValueSignature(x))
       case _ =>
         throw UnsupportedElementException("signature", signature.getClass.getSimpleName)
     }
@@ -125,6 +131,8 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       case x if x.isMethod        => DEF
       case x if x.isConstructor   => DEF
       case x if x.isTypeParameter => TYPE_PARAMETER
+      case x if x.isMacro         => MACRO
+      case x if x.isParameter     => PARAMETER
       case x                      => throw UnsupportedElementException("declaration symbol kind", x.kind)
     }
 
@@ -183,6 +191,8 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     case s.SingleType(prefix, symbol) =>
       val parent = resolveDeclaration(symbol)
       m.TypeRef(parent.ref)
+    case s.ByNameType(tpe) =>
+      createType(tpe)
     case s.RepeatedType(repeatedType) =>
       createTypeReference("scala/Array#", Seq(repeatedType))
     case s.Type.Empty => m.Type.Empty
@@ -202,8 +212,10 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       case x if x.isType || x.isClass || x.isTrait || x.isInterface =>
         val parent = resolveDeclaration(symbol)
         m.TypeRef(parent.ref, typeArguments.map(createType))
+      case x if x.symbol.isLocal =>
+        throw UnsupportedElementException("TypeRef type", "local")
       case x =>
-        throw UnsupportedElementException("TypeRef type", x.getClass.getSimpleName)
+        throw UnsupportedElementException("TypeRef type", x)
     }
   }
 }

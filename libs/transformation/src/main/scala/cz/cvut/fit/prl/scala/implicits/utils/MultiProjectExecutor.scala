@@ -32,7 +32,12 @@ object MultiProjectExecutor {
         println()
       }
 
-      println(status)
+      status match {
+        case x: Reporting =>
+          x.writeReport(new PrintWriter(System.out))
+        case x => println(x)
+      }
+      System.out.flush()
     }
   }
 }

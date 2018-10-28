@@ -7,6 +7,21 @@ import cz.cvut.fit.prl.scala.implicits.model._
 class DeclarationExtractorSuite extends ExtractionContextSuite {
 
   declarations(
+    "object",
+    """
+      | package p
+      | object o {
+      |   import scala.concurrent.ExecutionContext
+      |   import scala.concurrent.ExecutionContext.Implicits.global
+      |
+      |   case class B(implicit e: ExecutionContext)
+      | }
+    """.stripMargin
+  ) { implicit res =>
+    println(1 + 1)
+  }
+
+  declarations(
     "implicit var",
     """
       | package p
@@ -22,7 +37,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
       SCALA,
       true,
       MethodSignature(
-        returnType = TypeRef(DeclarationRef(External(true, "", "scala/Int.class"), "scala/Int#"))
+        returnType = TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"))
       )
     )
 
@@ -139,7 +154,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
         DEF,
         "p/o.XtensionJson().",
         "XtensionJson",
-        SyntheticLocation(),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(
@@ -150,7 +165,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
                 Parameter(
                   "x",
                   TypeParameterRef(
-                    DeclarationRef(SyntheticLocation(), "p/o.XtensionJson()."),
+                    DeclarationRef(TestLocalLocation, "p/o.XtensionJson()."),
                     "T"
                   ),
                   false
@@ -165,7 +180,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
                     DeclarationRef(TestLocalLocation, "p/o.Jsonable#"),
                     List(
                       TypeParameterRef(
-                        DeclarationRef(SyntheticLocation(), "p/o.XtensionJson()."),
+                        DeclarationRef(TestLocalLocation, "p/o.XtensionJson()."),
                         "T"
                       )
                     )
@@ -179,7 +194,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
             DeclarationRef(TestLocalLocation, "p/o.XtensionJson#"),
             List(
               TypeParameterRef(
-                DeclarationRef(SyntheticLocation(), "p/o.XtensionJson()."),
+                DeclarationRef(TestLocalLocation, "p/o.XtensionJson()."),
                 "T"
               )
             )
@@ -211,7 +226,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
         VAL,
         "p/o.XtensionJson#evidence$1.",
         "evidence$1",
-        SyntheticLocation(),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(
@@ -239,7 +254,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
         DEF,
         "p/o.XtensionJson().",
         "XtensionJson",
-        SyntheticLocation(),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(
@@ -250,7 +265,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
                 Parameter(
                   "x",
                   TypeParameterRef(
-                    DeclarationRef(SyntheticLocation(), "p/o.XtensionJson()."),
+                    DeclarationRef(TestLocalLocation, "p/o.XtensionJson()."),
                     "T"
                   ),
                   false
@@ -265,7 +280,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
                     DeclarationRef(TestLocalLocation, "p/o.Jsonable#"),
                     List(
                       TypeParameterRef(
-                        DeclarationRef(SyntheticLocation(), "p/o.XtensionJson()."),
+                        DeclarationRef(TestLocalLocation, "p/o.XtensionJson()."),
                         "T"
                       )
                     )
@@ -279,7 +294,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
             DeclarationRef(TestLocalLocation, "p/o.XtensionJson#"),
             List(
               TypeParameterRef(
-                DeclarationRef(SyntheticLocation(), "p/o.XtensionJson()."),
+                DeclarationRef(TestLocalLocation, "p/o.XtensionJson()."),
                 "T",
               )
             )

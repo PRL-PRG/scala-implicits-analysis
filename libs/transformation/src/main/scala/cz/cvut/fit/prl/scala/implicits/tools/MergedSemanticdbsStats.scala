@@ -6,7 +6,8 @@ import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.utils._
 
-import scala.meta.internal.semanticdb.TextDocument
+import scala.meta.internal.semanticdb.SymbolOccurrence.Role.REFERENCE
+import scala.meta.internal.semanticdb.{SymbolOccurrence, TextDocument}
 
 object MergedSemanticdbsStats extends App {
 
@@ -19,13 +20,15 @@ object MergedSemanticdbsStats extends App {
   object Task extends (File => (Int, Int, Int)) {
     override def apply(projectPath: File): (Int, Int, Int) = {
       val projectMetadata = new ProjectMetadata(projectPath)
-      val inputFile = projectMetadata.metadataFile(MergedSemanticdbFilename)
-      val outputFile = projectMetadata.metadataFile(MergedSemanticdbStatsFilename)
+      val inputFile = projectMetadata.metadataFile(PerProjectMergedSemanticdbFilename)
+      val outputFile = projectMetadata.metadataFile(PerProjectMergedSemanticdbStatsFilename)
 
       if (inputFile.exists) {
         val semanticdbs =
           inputFile.inputStream
             .apply(input => TextDocument.streamFromDelimitedInput(input).toList)
+
+        val resolver = projectMetadata.resolver
 
         val stats = (
           semanticdbs.map(x => x.occurrences.size).sum,
@@ -35,7 +38,7 @@ object MergedSemanticdbsStats extends App {
 
         val csv =
           s"""
-            |project,occurrencies,synthtics,symbols
+            |project,occurrences,synthetics,symbols
             |${projectPath.name},${stats._1},${stats._2},${stats._3}
             |""".stripMargin
 

@@ -20,13 +20,6 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
       .map(x => x -> Try(convert(x)))
       .collect {
         case (_, Success(Some(x))) => Success(x)
-        case (symbolInfo, Success(None)) =>
-          Failure(
-            DeclarationConversionException(
-              SkippedSymbolException(symbolInfo.kind.toString()),
-              db.uri,
-              position(symbolInfo),
-              symbolInfo))
         case (symbolInfo, Failure(x)) =>
           Failure(DeclarationConversionException(x, db.uri, position(symbolInfo), symbolInfo))
       }
@@ -36,7 +29,6 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
     symbolInfo match {
       case x if x.isClass || x.isMethod || x.isObject || x.isField || x.isMacro =>
         Some(ctx.resolveDeclaration(symbolInfo.symbol))
-
       case x if x.isParameter =>
         val parent = x.parent
 
@@ -45,8 +37,8 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
         } else {
           None
         }
-      case _ =>
-        None
+      case x =>
+        throw SkippedSymbolException(x.kind.toString())
     }
 
 }

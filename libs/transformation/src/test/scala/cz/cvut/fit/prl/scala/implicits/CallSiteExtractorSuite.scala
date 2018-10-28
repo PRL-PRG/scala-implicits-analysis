@@ -45,26 +45,27 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
-  callSites(
-    "implicit multi hop parameters",
-    """
-      | object o {
-      |   class A
-      |   class B
-      |   class C
-      |
-      |   implicit def a2b(implicit x: A) = new B
-      |   implicit def b2c(implicit x: B) = new C
-      |
-      |   implicit def a = new A
-      |
-      |   def f(x: Int)(implicit c: C) = "C"
-      |
-      |   f(1)
-      | }
-    """.stripMargin
-  ) { res => res.callSites.prettyPrint()
-  }
+//  callSites(
+//    "implicit multi hop parameters",
+//    """
+//      | object o {
+//      |   class A
+//      |   class B
+//      |   class C
+//      |
+//      |   implicit def a2b(implicit x: A) = new B
+//      |   implicit def b2c(implicit x: B) = new C
+//      |
+//      |   implicit def a = new A
+//      |
+//      |   def f(x: Int)(implicit c: C) = "C"
+//      |
+//      |   f(1)
+//      | }
+//    """.stripMargin
+//  ) { res =>
+//    res.callSites.prettyPrint()
+//  }
 
 //  callSites("implicit conversion with parameters",
 //    """
@@ -112,25 +113,108 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
+//  callSites(
+//    "for-comprehension with filter",
+//    """
+//      | object o {
+//      |   for {
+//      |     i <- 1 to 10 if i % 2 == 0
+//      |     j <- 1 until i
+//      |   } yield (i, j)
+//      | }
+//    """.stripMargin
+//  ) { res =>
+////    res.callSites.prettyPrint()
+//  }
+
   callSites(
-    "for-comprehension with filter",
+    "for-comprehension with features",
     """
       | object o {
+      |   import scala.concurrent.Future
+      |   import scala.concurrent.ExecutionContext.Implicits.global
+      |
       |   for {
-      |     i <- 1 to 10 if i % 2 == 0
-      |     j <- 1 until i
-      |   } yield (i, j)
+      |     a <- Future(1)
+      |     b <- Future(2)
+      |   } yield a + b
+      |
       | }
     """.stripMargin
   ) { res => res.callSites.prettyPrint()
   }
 
+  callSites(
+    "implicit argument in a constructor",
+    """
+      | object o {
+      |   import scala.concurrent.ExecutionContext
+      |   import scala.concurrent.ExecutionContext.Implicits.global
+      |
+      |   class A(x: Int)(implicit e: ExecutionContext)
+      |
+      |   new A(1)
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = CallSite(
+      DeclarationRef(TestLocalLocation, "_empty_/o.A#`<init>`()."),
+      "<init>",
+      TestLocalLocation,
+      List(),
+      List(
+        TypeRef(
+          DeclarationRef(
+            TestExternalLocation,
+            "scala/concurrent/ExecutionContext.Implicits.global."
+          )
+        )
+      )
+    )
+
+    checkElements(res.callSites, Seq(expected))
+  }
+
+  callSites(
+    "implicit argument in a case class",
+    """
+      | object o {
+      |   import scala.concurrent.ExecutionContext
+      |   import scala.concurrent.ExecutionContext.Implicits.global
+      |
+      |   case class B(x: Int)(implicit e: ExecutionContext)
+      |
+      |   B(1)
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = CallSite(
+      DeclarationRef(TestLocalLocation, "_empty_/o.B.apply()."),
+      ".apply",
+      TestLocalLocation,
+      List(),
+      List(
+        TypeRef(
+          DeclarationRef(
+            TestExternalLocation,
+            "scala/concurrent/ExecutionContext.Implicits.global."
+          )
+        )
+      )
+    )
+
+    checkElements(res.callSites, Seq(expected))
+  }
+
   object o {
-    (1 to 10).flatMap(x => (1 until x).map(y => (x, y)))
-    for {
-      i <- 1 to 10
-      j <- 1 until i
-    } yield (i, j)
+    import scala.concurrent.ExecutionContext
+    import scala.concurrent.ExecutionContext.Implicits.global
+
+    class A(x: Int)(implicit e: ExecutionContext)
+  //    case class B(x: Int)(implicit e: ExecutionContext)
+
+    new A(1)
+  //    b(1)
   }
 
 }

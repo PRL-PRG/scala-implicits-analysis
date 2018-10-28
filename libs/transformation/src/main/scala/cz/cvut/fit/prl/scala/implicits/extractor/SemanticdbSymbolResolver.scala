@@ -1,6 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{Local, SyntheticLocation}
+import cz.cvut.fit.prl.scala.implicits.model.{Local, Location, SyntheticLocation}
 import cz.cvut.fit.prl.scala.implicits.symtab.{ResolvedSymbol, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils._
 
@@ -26,11 +26,24 @@ object SemanticdbSymbolResolver {
       } yield symbol -> resolvedSymbol
     }.toMap
 
+    def findSymbolLocation(o: s.SymbolInformation): Location = {
+      def tryToFind(s: String): Location = localSymbols.get(s) match {
+        case Some(ResolvedSymbol(_, location)) =>
+          location
+        case _ if s.isNone =>
+          SyntheticLocation()
+        case _ =>
+          tryToFind(s.owner)
+      }
+
+      tryToFind(o.symbol.owner)
+    }
+
     val localSyntheticSymbols = {
       for {
         db <- dbs
         info <- db.symbols if !localSymbols.contains(info.symbol)
-        resolvedSymbol = ResolvedSymbol(info, SyntheticLocation())
+        resolvedSymbol = ResolvedSymbol(info, findSymbolLocation(info))
       } yield info.symbol -> resolvedSymbol
     }.toMap
 

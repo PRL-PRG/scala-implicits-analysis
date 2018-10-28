@@ -18,12 +18,36 @@ package object model {
 
   implicit class XtensionType(that: Type) {
 
+    def asCode: String = that match {
+      case x: TypeRef          => x.asCode
+      case x: TypeParameterRef => x.asCode
+      case Type.Empty          => ""
+    }
+
     def ref: DeclarationRef = that match {
       case TypeRef(r, _)             => r
       case TypeParameterRef(r, _, _) => r
     }
 
-    def declaration(implicit resolver: TypeResolver): Declaration = resolver.resolveType(that)
+    def declaration(implicit resolver: TypeResolver): Declaration =
+      resolver.resolveType(that)
+  }
+
+  implicit class XtensionTypeRef(that: TypeRef) {
+
+    def asCode: String = {
+      val args = that.typeArguments.map(_.asCode)
+      that.ref.fqn + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
+    }
+
+  }
+
+  implicit class XtensionTypeParameterRef(that: TypeParameterRef) {
+
+    def asCode: String = {
+      val args = that.typeArguments.map(_.asCode)
+      that.name + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
+    }
   }
 
   implicit class XtensionCallSite(that: CallSite) {
@@ -37,7 +61,9 @@ package object model {
   }
 
   implicit class XtensionDeclarationRef(that: DeclarationRef) {
-    def declaration(implicit resolver: DeclarationResolver): Declaration = resolver.resolveDeclaration(that.fqn)
+
+    def declaration(implicit resolver: DeclarationResolver): Declaration =
+      resolver.resolveDeclaration(that.fqn)
   }
 
   implicit class XtensionDeclaration(that: Declaration) {

@@ -1,57 +1,105 @@
 package cz.cvut.fit.prl.scala.implicits.tools
-import better.files.File
-import com.typesafe.scalalogging.LazyLogging
+import java.io.{OutputStream, PrintWriter}
+
+import better.files._
+import cats.kernel.Monoid
+import cz.cvut.fit.prl.scala.implicits.Constants._
+import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.extractor.{
-  DeclarationConversionException,
+  CallSiteExtractor,
+  ConversionException,
   DeclarationExtractor,
   ExtractionContext
 }
-import cz.cvut.fit.prl.scala.implicits.model.Project
-import cz.cvut.fit.prl.scala.implicits.utils._
-import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata}
+import cz.cvut.fit.prl.scala.implicits.model.{Project, SourcePath}
+import cz.cvut.fit.prl.scala.implicits.utils.{MultiProjectExecutor, _}
 
-object ExtractImplicits extends App with LazyLogging {
+object ExtractImplicits extends App {
 
-  val projectPath = File(args(0))
+  case class Result(
+      declarations: Int,
+      callsites: Int,
+      exceptions: List[ConversionException])
+      extends Reporting {
+    override def writeReport(writer: PrintWriter): Unit = {
+      if (exceptions.nonEmpty) {
+        exceptions.foreach { x =>
+          writer.println(x.longSummary)
+          x.getCause.printStackTrace(writer)
+          writer.println()
+        }
 
-  if (args.length != 1) {
-    sys.exit(1)
-  }
-
-  def run(projectPath: File): Unit = {
-    val metadata = new ProjectMetadata(projectPath)
-    val ctx = new ExtractionContext(metadata.resolver)
-    val extractor = new DeclarationExtractor(ctx)
-
-    val (declarations, exceptions) =
-      metadata.semanticdbs
-        .flatMap(extractor.extractImplicitDeclarations)
-        .split()
-
-    val project = Project(
-      projectId = metadata.projectId,
-      declarations = declarations
-    )
-
-    val resultFile = projectPath / Constants.AnalysisDirname / Constants.ExtractedImplicitsFilename
-    resultFile.outputStream.apply(project.writeTo)
-
-    if (exceptions.nonEmpty) {
-      val failures = exceptions.collect { case x: DeclarationConversionException => x }
-
-      failures.foreach { x =>
-        println(x.longSummary)
-        x.getCause.printStackTrace(System.out)
-        println
+        writer.println("Failure summary:")
+        exceptions.printGroups(_.summary, writer)
       }
 
-      println("Failure summary:")
-      failures.printGroups(_.summary)
+      writer.println()
+      writer.flush()
+      writer.println(s"Declarations: $declarations")
+      writer.println(s"Call sites: $callsites")
+      writer.println(s"Exception: ${exceptions.size}")
     }
 
-    println
-    println(s"Extracted ${declarations.size}/${declarations.size + exceptions.size} declarations into $resultFile.")
+    override def status: String = s"$declarations, $callsites, ${exceptions.size}"
   }
 
-  run(projectPath)
+  implicit val resultMonoid: Monoid[Result] = new Monoid[Result] {
+    override def empty: Result = Result(0, 0, Nil)
+    override def combine(x: Result, y: Result): Result =
+      Result(
+        x.declarations + y.declarations,
+        x.callsites + y.callsites,
+        x.exceptions ++ y.exceptions)
+  }
+
+  def run(projectsFile: File, outputFile: File, threads: Int = 1): Unit = {
+    val projects = projectsFile.lines.map(x => ProjectsDirname / x).toList
+    val result = outputFile.outputStream.apply { output =>
+      new MultiProjectExecutor(new Task(output), threads).run(projects)
+    }
+    result.printSummary()
+  }
+
+  class Task(output: OutputStream) extends (File => Result) {
+    override def apply(projectPath: File): Result = {
+      val metadata = new ProjectMetadata(projectPath)
+      val ctx = new ExtractionContext(metadata.resolver)
+      val declExtractor = new DeclarationExtractor(ctx)
+      val csExtractor = new CallSiteExtractor(ctx)
+
+      val (_, declExceptions) =
+        metadata.semanticdbs
+          .flatMap(declExtractor.extractImplicitDeclarations)
+          .split()
+
+      val (callSites, csExceptions) =
+        metadata.semanticdbs
+          .flatMap(csExtractor.extractImplicitCallSites)
+          .split()
+
+      val csCount = 0 //metadata.semanticdbs.map(csExtractor.callSiteCount).sum
+
+      val project = Project(
+        projectId = metadata.projectId,
+        declarations = ctx.declarations,
+        implicitCallSites = callSites,
+        allCallSitesCount = csCount,
+        scalaVersion = metadata.scalaVersion,
+        sbtVersion = metadata.sbtVersion,
+        classpaths = metadata.classpathEntries.map(_.path),
+        sourcepaths =
+          metadata.sourcepathEntries.map(x => SourcePath(x.path, x.kind, x.scope))
+      )
+
+      project.writeDelimitedTo(output)
+
+      val allExceptions = (declExceptions ++ csExceptions) collect {
+        case x: ConversionException => x
+      }
+
+      Result(project.declarations.size, callSites.size, allExceptions)
+    }
+  }
+
+  run(File(args(0)), File(ExtractedImplicitsFilename))
 }

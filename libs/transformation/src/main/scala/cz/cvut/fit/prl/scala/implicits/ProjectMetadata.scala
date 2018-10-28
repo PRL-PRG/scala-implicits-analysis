@@ -55,7 +55,7 @@ class ProjectMetadata(path: File) {
   val versionFile: File = metadataFile(VersionsFilename)
   val classpathsFile: File = metadataFile(ClasspathsFilename)
   val sourcepathsFile: File = metadataFile(SourcepathsFilename)
-  val mergedSemanticdbFile = metadataFile(MergedSemanticdbFilename)
+  val mergedSemanticdbFile = metadataFile(PerProjectMergedSemanticdbFilename)
 
   lazy val versionEntries: List[ProjectVersion] = {
     versionFile.path
@@ -76,6 +76,10 @@ class ProjectMetadata(path: File) {
   }
 
   lazy val semanticdbs: List[s.TextDocument] = {
+    if (!mergedSemanticdbFile.exists) {
+      mergeSemanticdbs()
+    }
+
     mergedSemanticdbFile.inputStream
       .apply(input => s.TextDocument.streamFromDelimitedInput(input).toList)
   }
@@ -91,6 +95,10 @@ class ProjectMetadata(path: File) {
   lazy val resolver = SemanticdbSymbolResolver(semanticdbs, symbolTable)
 
   lazy val projectId: String = versionEntries.head.projectId
+
+  lazy val scalaVersion: String = versionEntries.head.scalaVersion
+
+  lazy val sbtVersion: String = versionEntries.head.sbtVersion
 
   def metadataFile(filename: String): File = path / AnalysisDirname / filename
 }

@@ -38,10 +38,21 @@ message SyntheticLocation {
 
 }
 
+message SourcePath {
+    required string path = 1;
+    required string kind = 2;
+    required string scope = 3;
+}
+
 message Project {
     required string projectId = 1;
-    repeated Declaration declarations = 2;
-    repeated CallSite callSites = 5;
+    required string scalaVersion = 2;
+    required string sbtVersion = 3;
+    repeated string classpaths = 4;
+    repeated SourcePath sourcepaths = 5;
+    repeated Declaration declarations = 6;
+    repeated CallSite implicitCallSites = 7;
+    required int32 allCallSitesCount = 8;
 }
 
 message DeclarationRef {
@@ -62,6 +73,7 @@ message Declaration {
         ENUM = 8;
         MACRO = 9;
         TYPE_PARAMETER = 10;
+        PARAMETER = 11;
     };
 
     required Kind kind = 1;
@@ -74,6 +86,7 @@ message Declaration {
     oneof signature {
         TypeSignature type = 8;
         MethodSignature method = 9;
+        ValueSignature value = 10;
     }
 }
 
@@ -86,6 +99,10 @@ message MethodSignature {
 message TypeSignature {
     repeated TypeParameter type_parameters = 3;
     repeated Type parents = 4;
+}
+
+message ValueSignature {
+    required Type tpe = 1;
 }
 
 message TypeParameter {
