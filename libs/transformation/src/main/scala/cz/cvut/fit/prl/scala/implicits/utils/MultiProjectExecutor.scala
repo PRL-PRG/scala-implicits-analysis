@@ -17,7 +17,7 @@ trait Reporting {
 }
 
 object MultiProjectExecutor {
-  case class Result[R: Monoid](status: R, failures: List[Throwable]) {
+  case class Result[R](status: R, failures: List[Throwable]) {
 
     def printSummary() = {
       println()
@@ -42,7 +42,8 @@ object MultiProjectExecutor {
   }
 }
 
-class MultiProjectExecutor[R: Monoid](task: File => R, threads: Int = 5) {
+class MultiProjectExecutor[R](task: File => R, threads: Int = 5)(
+    implicit ev: Monoid[R]) {
 
   def run(projectsPaths: List[File]): Result[R] = {
     val completed = new AtomicInteger(0)
@@ -70,13 +71,10 @@ class MultiProjectExecutor[R: Monoid](task: File => R, threads: Int = 5) {
     val parProjectsPaths = projectsPaths.par
     parProjectsPaths.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(threads))
 
-    val e = Result(implicitly[Monoid[R]].empty, Nil)
-
-    val xx = parProjectsPaths
+    val taskResult = parProjectsPaths
       .map(x => x -> runOne(x))
-
-    val taskResult = xx.seq
-      .foldLeft(e) {
+      .seq
+      .foldLeft(Result(ev.empty, Nil)) {
         case (result, combined) =>
           combined match {
             case (_, Success(x)) =>

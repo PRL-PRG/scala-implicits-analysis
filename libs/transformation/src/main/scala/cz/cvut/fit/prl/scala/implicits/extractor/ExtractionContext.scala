@@ -207,6 +207,17 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       createType(tpe)
     case s.RepeatedType(repeatedType) =>
       createTypeReference("scala/Array#", Seq(repeatedType))
+    case s.ExistentialType(tpe, _) =>
+      // TODO: is this ok?
+      createType(tpe)
+    case s.UniversalType(_, tpe) =>
+      // TODO: is this ok?
+      createType(tpe)
+    case s.StructuralType(tpe, _) =>
+      createType(tpe)
+    case s.WithType(types) =>
+      // TODO: is this ok?
+      createType(types.head)
     case s.Type.Empty =>
       m.Type.Empty
     case x =>

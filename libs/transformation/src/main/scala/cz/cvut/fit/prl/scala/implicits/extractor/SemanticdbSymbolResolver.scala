@@ -19,8 +19,7 @@ object SemanticdbSymbolResolver {
           symbol,
           s.SymbolOccurrence.Role.DEFINITION
         ) <- db.occurrences if !symbol.isPackage && !symbol.isLocal
-        xx = db.symbols.find(_.symbol == symbol)
-        info = xx.get
+        info <- db.symbols.find(_.symbol == symbol)
         location = Local(db.uri, range)
         resolvedSymbol = ResolvedSymbol(info, location)
       } yield symbol -> resolvedSymbol

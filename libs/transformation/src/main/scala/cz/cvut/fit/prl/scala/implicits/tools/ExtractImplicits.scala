@@ -2,7 +2,7 @@ package cz.cvut.fit.prl.scala.implicits.tools
 import java.io.{OutputStream, PrintWriter}
 
 import better.files._
-import cats.kernel.Monoid
+import cats.Monoid
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.extractor.{
@@ -18,7 +18,7 @@ object ExtractImplicits extends App {
 
   case class Result(
       declarations: Int,
-      callsites: Int,
+      callSites: Int,
       exceptions: List[ConversionException])
       extends Reporting {
     override def writeReport(writer: PrintWriter): Unit = {
@@ -33,30 +33,35 @@ object ExtractImplicits extends App {
         exceptions.printGroups(_.summary, writer)
       }
 
-      writer.println()
-      writer.flush()
-      writer.println(s"Declarations: $declarations")
-      writer.println(s"Call sites: $callsites")
-      writer.println(s"Exception: ${exceptions.size}")
+      println()
+
+      println(s"Declarations: $declarations")
+      println(s"Call sites: $callSites")
+      println(s"Exception: ${exceptions.size}")
     }
 
-    override def status: String = s"$declarations, $callsites, ${exceptions.size}"
+    override def status: String = s"$declarations, $callSites, ${exceptions.size}"
   }
 
-  implicit val resultMonoid: Monoid[Result] = new Monoid[Result] {
-    override def empty: Result = Result(0, 0, Nil)
-    override def combine(x: Result, y: Result): Result =
-      Result(
-        x.declarations + y.declarations,
-        x.callsites + y.callsites,
-        x.exceptions ++ y.exceptions)
+  object Result {
+    implicit val resultMonoid: Monoid[Result] = new Monoid[Result] {
+      def empty: Result = Result(0, 0, Nil)
+
+      def combine(x: Result, y: Result): Result =
+        Result(
+          x.declarations + y.declarations,
+          x.callSites + y.callSites,
+          x.exceptions ++ y.exceptions)
+    }
   }
 
   def run(projectsFile: File, outputFile: File, threads: Int = 1): Unit = {
     val projects = projectsFile.lines.map(x => ProjectsDirname / x).toList
     val result = outputFile.outputStream.apply { output =>
-      new MultiProjectExecutor(new Task(output), threads).run(projects)
+      new MultiProjectExecutor(new Task(output), threads)(Result.resultMonoid)
+        .run(projects)
     }
+
     result.printSummary()
   }
 
@@ -93,7 +98,8 @@ object ExtractImplicits extends App {
       project.writeDelimitedTo(output)
 
       val allExceptions = (declExceptions ++ csExceptions) collect {
-        case x: ConversionException => x }
+        case x: ConversionException => x
+      }
 
       Result(project.declarations.size, callSites.size, allExceptions)
     }
