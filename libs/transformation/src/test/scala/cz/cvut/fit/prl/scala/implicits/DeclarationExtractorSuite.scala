@@ -3,23 +3,9 @@ package cz.cvut.fit.prl.scala.implicits
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import cz.cvut.fit.prl.scala.implicits.model._
+import cz.cvut.fit.prl.scala.implicits.utils._
 
 class DeclarationExtractorSuite extends ExtractionContextSuite {
-
-  declarations(
-    "object",
-    """
-      | package p
-      | object o {
-      |   import scala.concurrent.ExecutionContext
-      |   import scala.concurrent.ExecutionContext.Implicits.global
-      |
-      |   case class B(implicit e: ExecutionContext)
-      | }
-    """.stripMargin
-  ) { implicit res =>
-    println(1 + 1)
-  }
 
   declarations(
     "implicit var",

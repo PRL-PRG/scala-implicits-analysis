@@ -44,4 +44,4 @@ case class UnsupportedElementException[T](what: String, actual: T) extends Excep
 
 case class UnexpectedElementException[T](what: String, actual: T) extends Exception(s"Unexpected $what ($actual)")
 
-case class MissingSymbolException(message: String) extends Exception
+case class MissingSymbolException(message: String) extends Exception(message)

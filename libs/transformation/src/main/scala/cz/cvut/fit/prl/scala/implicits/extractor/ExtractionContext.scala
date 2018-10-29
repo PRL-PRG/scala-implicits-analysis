@@ -207,9 +207,18 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       createType(tpe)
     case s.RepeatedType(repeatedType) =>
       createTypeReference("scala/Array#", Seq(repeatedType))
-    case s.Type.Empty => m.Type.Empty
+    case s.Type.Empty =>
+      m.Type.Empty
     case x =>
       throw UnsupportedElementException("type", x.getClass.getSimpleName)
+  }
+
+  def createTypeArguments(typeArguments: Seq[s.Type]): List[m.Type] = {
+    // this one will silently ignore some type resolution errors
+    // TODO: log?
+    typeArguments.toList.map(x => Try(createType(x))).collect {
+      case scala.util.Success(x) => x
+    }
   }
 
   private def createTypeReference(symbol: String, typeArguments: Seq[s.Type]): m.Type = {
@@ -223,7 +232,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         )
       case x if x.isType || x.isClass || x.isTrait || x.isInterface =>
         val parent = resolveDeclaration(symbol)
-        m.TypeRef(parent.ref, typeArguments.map(createType))
+        m.TypeRef(parent.ref, createTypeArguments(typeArguments))
       case x if x.symbol.isLocal =>
         throw UnsupportedElementException("TypeRef type", "local")
       case x =>

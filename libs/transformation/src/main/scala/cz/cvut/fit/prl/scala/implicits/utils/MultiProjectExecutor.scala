@@ -65,15 +65,18 @@ class MultiProjectExecutor[R: Monoid](task: File => R, threads: Int = 5) {
       result
     }
 
-    println(s"Processing ${projectsPaths.size} projects...")
+    println(s"Processing ${projectsPaths.size} projects with $threads thread(s) ...")
 
     val parProjectsPaths = projectsPaths.par
     parProjectsPaths.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(threads))
 
-    val taskResult = parProjectsPaths
+    val e = Result(implicitly[Monoid[R]].empty, Nil)
+
+    val xx = parProjectsPaths
       .map(x => x -> runOne(x))
-      .seq
-      .foldLeft(Result(implicitly[Monoid[R]].empty, Nil)) {
+
+    val taskResult = xx.seq
+      .foldLeft(e) {
         case (result, combined) =>
           combined match {
             case (_, Success(x)) =>
@@ -81,8 +84,6 @@ class MultiProjectExecutor[R: Monoid](task: File => R, threads: Int = 5) {
             case (_, Failure(e)) => result.copy(failures = e :: result.failures)
           }
       }
-
-    taskResult.printSummary()
 
     taskResult
   }

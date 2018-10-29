@@ -2,10 +2,6 @@ package cz.cvut.fit.prl.scala.implicits
 
 import cz.cvut.fit.prl.scala.implicits.model._
 
-import org.scalatest.Matchers
-
-import scala.meta.internal.{semanticdb => s}
-
 import cz.cvut.fit.prl.scala.implicits.utils._
 
 class CallSiteExtractorSuite extends ExtractionContextSuite {
@@ -36,7 +32,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
-//  callSites("implicit paremeter on select",
+//  callSites("implicit parameter on select",
 //    """
 //      | object o {
 //      |   List(1).map(_.toString)
@@ -44,6 +40,153 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //    """.stripMargin) { res =>
 //      res.callSites.prettyPrint()
 //  }
+
+  callSites(
+    ".apply with implicit parameter",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   class B
+      |   object B {
+      |     implicit def apply(x: String)(implicit y: A)
+      |   }
+      |
+      |   implicit val a = new A
+      |
+      |   B("A")
+      | }
+    """.stripMargin
+  ) { res => res.callSites.prettyPrint()
+  }
+
+  callSites(
+    "implicit .apply with no implicit parameters",
+    """
+      | package p
+      | object o {
+      |   class B
+      |   object B {
+      |     implicit def apply(x: String)
+      |   }
+      |
+      |   B("A")
+      | }
+    """.stripMargin
+  ) { res => res.callSites shouldBe empty
+  }
+
+  // FIXME: this test is not correct, it is missing the type parameters and code should be pipe[Int]
+  callSites(
+    "explicit call of implicit def with implicit parameter",
+    """
+      | package p
+      | object o {
+      |   class A
+      |
+      |   implicit def pipe[T](x: T)(implicit y: A)
+      |   implicit val a = new A
+      |
+      |   pipe(1)
+      | }
+    """.stripMargin
+  ) { res =>
+    // There shall be only one call - adding the implicit arguments
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.pipe()."),
+        "pipe[scala/Int#]",
+        TestLocalLocation,
+        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        List(TypeRef(DeclarationRef(TestLocalLocation, "p/o.a."), List()))
+      )
+    )
+
+    checkElements(res.callSites, expected)
+  }
+
+  // FIXME: this test is not correct, it is missing the type parameters and code should be pipe[Int]
+  callSites(
+    "explicit call of implicit def with implicit parameter and types",
+    """
+      | package p
+      | object o {
+      |   class A
+      |
+      |   implicit def pipe[T](x: T)(implicit y: T)
+      |   implicit val a = new A
+      |
+      |   pipe(new A)
+      | }
+    """.stripMargin
+  ) { res =>
+    // There shall be only one call - adding the implicit arguments
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.pipe()."),
+        "pipe[p/o.A#]",
+        TestLocalLocation,
+        List(
+          TypeRef(DeclarationRef(Local("test-location", Position(0, 0, 0, 0)), "p/o.A#"), List())),
+        List(TypeRef(DeclarationRef(TestLocalLocation, "p/o.a."), List()))
+      )
+    )
+
+    checkElements(res.callSites, expected)
+  }
+
+  callSites(
+    "explicit call of implicit def with explicit parameter",
+    """
+      | package p
+      | object o {
+      |   class A
+      |
+      |   implicit def pipe[T](x: T)(implicit y: A)
+      |   implicit val a = new A
+      |
+      |   pipe(1)(a)
+      | }
+    """.stripMargin
+  ) { res => res.callSites.prettyPrint()
+  }
+
+  callSites(
+    "call with implicit parameter from def",
+    """
+      | package p
+      | object o {
+      |   class A
+      |
+      |   implicit def a: A = new A
+      |   def f(x: Int)(implicit y: A)
+      |   f(1)
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = List(
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.a()."),
+        "a",
+        TestLocalLocation,
+        List(),
+      ),
+      CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.f()."),
+        "f",
+        TestLocalLocation,
+        List(),
+        List(
+          TypeRef(
+            DeclarationRef(TestLocalLocation, "p/o.a()."),
+            List()
+          )
+        )
+      )
+    )
+
+    checkElements(res.callSites, expected)
+  }
 
   // inspired by ensimefile.scala:44
   callSites(
@@ -110,14 +253,19 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
+        DeclarationRef(TestLocalLocation, "p/o.a()."),
+        "a",
+        TestLocalLocation,
+        List()
+      ),
+      CallSite(
         DeclarationRef(TestLocalLocation, "p/o.a2b()."),
         "a2b",
         TestLocalLocation,
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.a()."),
-            List()
+            DeclarationRef(TestLocalLocation, "p/o.a().")
           )
         )
       ),
@@ -128,8 +276,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.a2b()."),
-            List()
+            DeclarationRef(TestLocalLocation, "p/o.a2b().")
           )
         )
       ),
@@ -140,8 +287,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.b2c()."),
-            List()
+            DeclarationRef(TestLocalLocation, "p/o.b2c().")
           )
         )
       )
@@ -184,7 +330,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   1.x
       | }
     """.stripMargin
-) { res =>
+  ) { res =>
     val expected = List(
       CallSite(
         DeclarationRef(TestLocalLocation, "p/o.a()."),
@@ -379,15 +525,36 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     checkElements(res.callSites, Seq(expected))
   }
 
-  object o {
-    import scala.concurrent.ExecutionContext
-    import scala.concurrent.ExecutionContext.Implicits.global
+  callSites(
+    ".apply with no implicit parameters",
+    """
+      | package p
+      | object o {
+      |   class B
+      |   object B {
+      |     def apply(x: String)
+      |   }
+      |
+      |   B("A")
+      | }
+    """.stripMargin
+  ) { res => res.callSites shouldBe empty
+  }
 
-    class A(x: Int)(implicit e: ExecutionContext)
-  //    case class B(x: Int)(implicit e: ExecutionContext)
-
-    new A(1)
-  //    b(1)
+  callSites(
+    ".apply with explicit implicit parameter",
+    """
+      | package p
+      | object o {
+      |   class B
+      |   object B {
+      |     def apply(x: String)(implicit y: Int)
+      |   }
+      |
+      |   B("A")(1)
+      | }
+    """.stripMargin
+  ) { res => res.callSites shouldBe empty
   }
 
 }

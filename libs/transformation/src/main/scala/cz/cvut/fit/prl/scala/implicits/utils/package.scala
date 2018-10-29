@@ -29,7 +29,7 @@ package object utils {
   }
   implicit class XtensionOptions[+A](that: Option[A]) {
 
-    def getOrThrow(e: Throwable): A = that match {
+    def getOrThrow(e: => Throwable): A = that match {
       case Some(x) => x
       case None    => throw e
     }

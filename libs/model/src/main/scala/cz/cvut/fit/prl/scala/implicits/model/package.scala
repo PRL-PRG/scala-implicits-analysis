@@ -84,6 +84,9 @@ package object model {
     def isMethodDeclaration: Boolean = that.signature.isMethod
     def isTypeDeclaration: Boolean = that.signature.isType
 
+    // TODO: also any MethodSignature that extends FunctionX
+    def isFunctionLike: Boolean = that.isMethod
+
     def typeParameters: Seq[TypeParameter] = that.signature.value match {
       case x: MethodSignature => x.typeParameters
       case x: TypeSignature   => x.typeParameters

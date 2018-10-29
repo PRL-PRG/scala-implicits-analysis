@@ -45,11 +45,11 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         declaration.isImplicit || arguments.flatten.exists(_.declaration.isImplicit)
 
       def toCallSite: m.CallSite = {
-        try {
-          declaration.hasImplicitParameters
-        } catch {
-          case e: Throwable => println(e)
-        }
+//        try {
+//          if (declaration.hasImplicitParameters) arguments.head
+//        } catch {
+//          case e: Throwable => println(e)
+//        }
         val implicitArgumentsTypes: Seq[m.TypeRef] =
           if (declaration.hasImplicitParameters) arguments.head.map(_.toTypeRef)
           else Seq()
@@ -67,7 +67,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     def createArguments(tree: s.Tree): Option[Argument] = tree match {
       case s.ApplyTree(fn, _) => createArguments(fn)
       case s.TypeApplyTree(fn, args) =>
-        createArguments(fn).map(_.copy(typeArguments = args.toList.map(ctx.createType)))
+        createArguments(fn).map(_.copy(typeArguments = ctx.createTypeArguments(args)))
       case s.FunctionTree(_, body) =>
         createArguments(body)
       case s.SelectTree(_, Some(id)) =>
@@ -82,7 +82,6 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
       val syntheticLocation = Local(db.uri, synthetic.range.get)
 
-      // TODO: it should be enough to have a flag, or maybe even not that
       def convertInternal(tree: s.Tree, inCall: Boolean): List[Call] = tree match {
 
         case s.ApplyTree(fn, arguments) => {
@@ -105,23 +104,30 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         }
 
         case s.SelectTree(qualifier, Some(s.IdTree(symbol))) => {
-          val declaration = ctx.resolveDeclaration(symbol)
-          val code = s".${declaration.name}"
-          val cs = Call(declaration, code, location = syntheticLocation)
+          if (!inCall && qualifier.isInstanceOf[s.OriginalTree]) {
+            // this hack is here because we do not want to create
+            // implicit calls from inferred method calls like .apply on
+            // companion objects
+            Nil
+          } else {
+            val declaration = ctx.resolveDeclaration(symbol)
+            val code = s".${declaration.name}"
+            val cs = Call(declaration, code, location = syntheticLocation)
 
-          qualifier match {
-            case s.OriginalTree(Some(range)) =>
-              val location = m.Local(db.uri, range)
-              cs.copy(location = location) :: Nil
-            case _ =>
-              cs :: convertInternal(qualifier, false)
+            qualifier match {
+              case s.OriginalTree(Some(range)) =>
+                val location = m.Local(db.uri, range)
+                cs.copy(location = location) :: Nil
+              case _ =>
+                cs :: convertInternal(qualifier, false)
+            }
           }
         }
 
         case s.TypeApplyTree(fn, args) => {
-          convertInternal(fn, true) match {
+          convertInternal(fn, inCall) match {
             case cs :: css =>
-              val typeArguments = args.toList.map(ctx.createType)
+              val typeArguments = ctx.createTypeArguments(args)
               cs.copy(
                 code = cs.code + typeArguments.map(_.asCode).mkString("[", ", ", "]"),
                 typeArguments = typeArguments
@@ -133,8 +139,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.FunctionTree(_, body) => convertInternal(body, inCall)
 
         case s.OriginalTree(Some(range)) if inCall => {
-//          def allSelects(x: Tree, qualifiers: List[Term.Name]): List[Term.Name] =>
-          // TODO: refactor
+          // TODO: refactor - what we need to is first resolve the inferred method calls and type parameters
           val csOpt = for {
             term <- terms.get(range)
             fnTerm <- findFunctionTerm(term)
@@ -142,7 +147,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // check if there is some inferred method call e.g.
             // Future(1) ==> Future.apply(1)
             // we want ot get a reference to actual methods, not objects
-            db.synthetics.find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, false).headOption)
+            db.synthetics.find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, true).headOption)
               .getOrElse {
 
                 val nestedTermsToTry = fnTerm :: fnTerm.collect {
@@ -160,9 +165,6 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                   }
 
                 val declaration = ctx.resolveDeclaration(symbol)
-                if (declaration.isObject) {
-                  println()
-                }
                 val location = m.Local(db.uri, range)
                 val code = declaration.name
                 Call(declaration, code, location)
@@ -172,14 +174,16 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           csOpt.toList
         }
 
-        case s.IdTree(symbol) if inCall => {
+        case s.IdTree(symbol) => {
           val declaration = ctx.resolveDeclaration(symbol)
-          if (declaration.isObject) {
-            println()
-          }
-          val code = declaration.name
+          // TODO: this should be only for the case of implicit parameters
+          if (inCall || (declaration.isImplicit && declaration.isFunctionLike)) {
+            val code = declaration.name
 
-          Call(declaration, code, location = syntheticLocation) :: Nil
+            Call(declaration, code, location = syntheticLocation) :: Nil
+          } else {
+            Nil
+          }
         }
 
         case _ => Nil
