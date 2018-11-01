@@ -42,7 +42,7 @@ object MultiProjectExecutor {
   }
 }
 
-class MultiProjectExecutor[R](task: File => R, threads: Int = 5)(
+class MultiProjectExecutor[R](task: File => R, threads: Int)(
     implicit ev: Monoid[R]) {
 
   def run(projectsPaths: List[File]): Result[R] = {

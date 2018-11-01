@@ -38,6 +38,7 @@ IMPLICITS := $(ANALYSIS_DIR)/implicits.bin
 IMPLICITS_STATUS := $(ANALYSIS_DIR)/implicits-status.csv
 IMPLICITS_LOG := $(ANALYSIS_DIR)/implicits.log
 
+#AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 
 $(IVY_DIR):

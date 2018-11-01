@@ -41,6 +41,37 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
 //      res.callSites.prettyPrint()
 //  }
 
+//  callSites(
+//    "orderingToOrdered",
+//    """
+//      |package p
+//      |
+//      |import scala.math.Ordered.orderingToOrdered
+//      |
+//      |case class Loc(row: Int, col: Int) {
+//      |  def compareTo(that: Loc): Int = {
+//      |    (row, col) compareTo(that.row, that.col)
+//      |  }
+//      |}
+//      |
+//    """.stripMargin
+//  ) { implicit res =>
+//    res.ctx.resolveSymbol("scala/math/Ordered.orderingToOrdered().").prettyPrint()
+//    res.ctx.resolveDeclaration("scala/math/Ordered.orderingToOrdered().").prettyPrint()
+//    res.callSites.prettyPrint()
+//    res.ctx.declarations.prettyPrint()
+//
+//    val css = res.callSites
+//
+//    val implicitConversion = (x: Declaration) => x.isImplicit && (
+//      x.parameterLists.size == 1 ||
+//        (x.parameterLists.size == 2 && x.parameterLists(1).isImplicit)
+//      )
+//
+//    css.filter(x => implicitConversion(x.declaration) && x.location.isLocal)
+//
+//  }
+
   callSites(
     ".apply with implicit parameter",
     """

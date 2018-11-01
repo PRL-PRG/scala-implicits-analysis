@@ -1,6 +1,7 @@
 package cz.cvut.fit.prl.scala.implicits.tools
 
 import better.files._
+import cats.Monoid
 import cats.instances.all._
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
@@ -13,7 +14,7 @@ object MergedSemanticdbsStats extends App {
 
   def run(projectsFile: File): Unit = {
     val projects = projectsFile.lines.map(x => ProjectsDirname / x).toList
-    val result = new MultiProjectExecutor(Task).run(projects)
+    val result = new MultiProjectExecutor(Task, System.getenv("N_JOBS").toInt).run(projects)
     result.printSummary()
   }
 

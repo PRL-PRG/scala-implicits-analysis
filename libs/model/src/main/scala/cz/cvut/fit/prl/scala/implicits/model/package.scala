@@ -58,6 +58,9 @@ package object model {
         declaration.isImplicit || declaration.hasImplicitParameters
       )
     }
+
+    def declaration(implicit resolver: DeclarationResolver): Declaration =
+      that.ref.declaration
   }
 
   implicit class XtensionDeclarationRef(that: DeclarationRef) {

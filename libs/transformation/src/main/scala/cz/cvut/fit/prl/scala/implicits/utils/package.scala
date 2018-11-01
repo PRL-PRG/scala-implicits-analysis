@@ -46,6 +46,8 @@ package object utils {
       s.Range(that.startLine, that.startColumn, that.endLine, that.endColumn)
   }
 
+
+
   implicit class XtensionRange(that: s.Range) {
 
     def toLocal: m.Position =

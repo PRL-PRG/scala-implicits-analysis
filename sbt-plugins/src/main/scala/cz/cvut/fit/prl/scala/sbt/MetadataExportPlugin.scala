@@ -67,25 +67,25 @@ object MetadataExportPlugin extends AutoPlugin {
       val projectName = name.value
       println(s"Processing: $projectName")
 
-//      val sources = Seq(
-//        ("managed", "compile") -> (managedSourceDirectories in Compile).value,
-//        ("managed", "test") -> (managedSourceDirectories in Test).value,
-//        ("unmanaged", "compile") -> (unmanagedSourceDirectories in Compile).value,
-//        ("unmanaged", "test") -> (unmanagedSourceDirectories in Test).value
-//      )
-//
-//      val directories = for {
-//        ((kind, scope), paths) <- sources
-//        path <- paths
-//        slocs <- computeSloc(path).toOption.toSeq
-//        sloc <- slocs
-//      } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
-//
-//      writeCSV(
-//        sourceDirectoriesFile,
-//        "project_id,project_name,scope,kind,path,files,language,blank,comment,code",
-//        directories
-//      )
+      val sources = Seq(
+        ("managed", "compile") -> (managedSourceDirectories in Compile).value,
+        ("managed", "test") -> (managedSourceDirectories in Test).value,
+        ("unmanaged", "compile") -> (unmanagedSourceDirectories in Compile).value,
+        ("unmanaged", "test") -> (unmanagedSourceDirectories in Test).value
+      )
+
+      val directories = for {
+        ((kind, scope), paths) <- sources
+        path <- paths
+        slocs <- computeSloc(path).toOption.toSeq
+        sloc <- slocs
+      } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
+
+      writeCSV(
+        sourceDirectoriesFile,
+        "project_id,project_name,scope,kind,path,files,language,blank,comment,code",
+        directories
+      )
 
       val versions = Seq(
         Version(
