@@ -5,5 +5,5 @@ import cz.cvut.fit.prl.scala.implicits.tools.ExtractImplicits
 
 @main
 def main(projectsFile: String) = {
-  ExtractImplicits.run(File(projectsFile), File("implicits.bin"), System.getenv("N_JOBS").toInt)
+  ExtractImplicits.run(File(projectsFile), File("implicits.bin"), File("implicits-exceptions.log"), System.getenv("N_JOBS").toInt)
 }
