@@ -76,6 +76,10 @@ class SemanticdbSymbolResolver(
     localSymbolIndex
       .get(name)
       .orElse(symtab.resolve(name))
-      .getOrThrow(MissingSymbolException(s"Unable to resolve: $name"))
+      .getOrThrow({
+
+        val e = MissingSymbolException(s"Unable to resolve: $name")
+        e
+      })
 
 }

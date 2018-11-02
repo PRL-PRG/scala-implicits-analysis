@@ -1,5 +1,5 @@
 package cz.cvut.fit.prl.scala.implicits.tools
-import java.io.{OutputStream, PrintWriter}
+import java.io.{OutputStream, PrintStream, PrintWriter}
 
 import better.files._
 import cats.Monoid
@@ -19,28 +19,22 @@ object ExtractImplicits extends App {
   case class Result(
       declarations: Int,
       callSites: Int,
-      exceptions: List[ConversionException])
+      failures: List[String])
       extends Reporting {
     override def writeReport(writer: PrintWriter): Unit = {
-      if (exceptions.nonEmpty) {
-        exceptions.foreach { x =>
-          writer.println(x.longSummary)
-          x.getCause.printStackTrace(writer)
-          writer.println()
-        }
-
+      if (failures.nonEmpty) {
         writer.println("Failure summary:")
-        exceptions.printGroups(_.summary, writer)
+        failures.printGroups(x => x, writer)
       }
 
       println()
 
       println(s"Declarations: $declarations")
       println(s"Call sites: $callSites")
-      println(s"Exception: ${exceptions.size}")
+      println(s"Failures: ${failures.size}")
     }
 
-    override def status: String = s"$declarations, $callSites, ${exceptions.size}"
+    override def status: String = s"$declarations, $callSites, ${failures.size}"
   }
 
   object Result {
@@ -51,21 +45,28 @@ object ExtractImplicits extends App {
         Result(
           x.declarations + y.declarations,
           x.callSites + y.callSites,
-          x.exceptions ++ y.exceptions)
+          x.failures ++ y.failures)
     }
   }
 
-  def run(projectsFile: File, outputFile: File, threads: Int = 1): Unit = {
+  def run(
+      projectsFile: File,
+      outputFile: File,
+      exceptionFile: File,
+      threads: Int = Runtime.getRuntime.availableProcessors()): Unit = {
     val projects = projectsFile.lines.map(x => ProjectsDirname / x).toList
-    val result = outputFile.outputStream.apply { output =>
-      new MultiProjectExecutor(new Task(output), threads)(Result.resultMonoid)
-        .run(projects)
-    }
+    val result = for {
+      messageOutput <- outputFile.newOutputStream.autoClosed
+      exceptionOutput <- exceptionFile.newOutputStream.autoClosed
+    } yield
+      new MultiProjectExecutor(new Task(messageOutput, exceptionOutput), threads)(
+        Result.resultMonoid).run(projects)
 
-    result.printSummary()
+    result.get().printSummary()
   }
 
-  class Task(output: OutputStream) extends (File => Result) {
+  class Task(messageOutput: OutputStream, exceptionWriter: OutputStream)
+      extends (File => Result) {
     override def apply(projectPath: File): Result = {
       val metadata = new ProjectMetadata(projectPath)
       val ctx = new ExtractionContext(metadata.resolver)
@@ -78,11 +79,11 @@ object ExtractImplicits extends App {
           .split()
 
       val (callSites, csExceptions) =
-        metadata.semanticdbs
-          .flatMap(csExtractor.extractImplicitCallSites)
+        metadata.semanticdbs.map(x => x -> metadata.ast(x.uri)).flatMap { case (db, ast) => csExtractor.extractImplicitCallSites(db, ast) }
           .split()
 
-      val csCount = metadata.semanticdbs.map(csExtractor.callSiteCount).sum
+      val csCount =
+        metadata.semanticdbs.map(x => metadata.ast(x.uri)).map(csExtractor.callSiteCount).sum
 
       val project = Project(
         projectId = metadata.projectId,
@@ -95,15 +96,18 @@ object ExtractImplicits extends App {
         sourcepaths = metadata.sourcepathEntries.map(x => SourcePath(x.path, x.kind, x.scope))
       )
 
-      project.writeDelimitedTo(output)
-
       val allExceptions = (declExceptions ++ csExceptions) collect {
         case x: ConversionException => x
       }
 
-      Result(project.declarations.size, callSites.size, allExceptions)
+      synchronized {
+        project.writeDelimitedTo(messageOutput)
+        allExceptions.foreach(_.printStackTrace(new PrintStream(exceptionWriter)))
+      }
+
+      Result(project.declarations.size, callSites.size, allExceptions.map(_.summary))
     }
   }
 
-  run(File(args(0)), File(ExtractedImplicitsFilename))
+  run(File(args(0)), File(ExtractedImplicitsFilename), File(ExtractionExceptionsFilename))
 }

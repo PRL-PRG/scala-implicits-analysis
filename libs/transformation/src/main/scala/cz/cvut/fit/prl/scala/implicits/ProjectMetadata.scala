@@ -11,6 +11,8 @@ import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
 
+import scala.collection.concurrent.TrieMap
+import scala.meta._
 import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
 
@@ -41,6 +43,7 @@ case class ProjectSourcepath(
 )
 
 class ProjectMetadata(path: File) {
+
   def mergeSemanticdbs(): Unit = {
     mergedSemanticdbFile.outputStream.apply { output =>
       new SdbLocator(path.path)
@@ -55,7 +58,8 @@ class ProjectMetadata(path: File) {
   val versionFile: File = metadataFile(VersionsFilename)
   val classpathsFile: File = metadataFile(ClasspathsFilename)
   val sourcepathsFile: File = metadataFile(SourcepathsFilename)
-  val mergedSemanticdbFile = metadataFile(PerProjectMergedSemanticdbFilename)
+  val mergedSemanticdbFile: File = metadataFile(PerProjectMergedSemanticdbFilename)
+  private val asts: TrieMap[String, Source] = TrieMap()
 
   lazy val versionEntries: List[ProjectVersion] = {
     versionFile.path
@@ -101,4 +105,9 @@ class ProjectMetadata(path: File) {
   lazy val sbtVersion: String = versionEntries.head.sbtVersion
 
   def metadataFile(filename: String): File = path / AnalysisDirname / filename
+
+  def ast(filename: String): Source =
+    asts.getOrElseUpdate(
+      filename,
+      semanticdbs.find(_.uri == filename).head.text.parse[Source].get)
 }

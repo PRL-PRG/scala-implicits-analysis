@@ -194,8 +194,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     }
   }
 
-  def extractImplicitCallSites(db: s.TextDocument): Seq[Try[m.CallSite]] = {
-    val ast = db.text.parse[Source].get
+  def extractImplicitCallSites(db: s.TextDocument, ast: Source): Seq[Try[m.CallSite]] = {
     val terms = ast.collect {
       case x: Term => x.pos.toRange -> x
     }.toMap
@@ -211,7 +210,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       .flatten
   }
 
-  def callSiteCount(db: s.TextDocument): Int = {
+  def callSiteCount(ast: Source): Int = {
     def process(n: Int)(tree: Tree): Int =
       tree match {
         case Term.Apply(_, args) =>
@@ -266,7 +265,6 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           n + t.children.map(process(0)).sum
       }
 
-    val ast = db.text.parse[Source].get
     process(0)(ast)
   }
 

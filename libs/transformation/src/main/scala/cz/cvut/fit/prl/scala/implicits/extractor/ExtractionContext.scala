@@ -1,11 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{
-  Declaration,
-  DeclarationResolver,
-  Type,
-  TypeResolver
-}
+import cz.cvut.fit.prl.scala.implicits.model.{DeclarationResolver, TypeResolver}
 import cz.cvut.fit.prl.scala.implicits.symtab.ResolvedSymbol
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
@@ -20,14 +15,14 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     with SymbolResolver
     with DeclarationResolver {
 
-  private val declarationIndex: mutable.Map[String, Declaration] = mutable.Map()
+  private val declarationIndex: mutable.Map[String, m.Declaration] = mutable.Map()
 
   def resolveDeclaration(symbol: String): m.Declaration =
     resolveDeclaration(resolveSymbol(symbol))
 
-  def declarations: Seq[Declaration] = declarationIndex.values.toSeq
+  def declarations: Seq[m.Declaration] = declarationIndex.values.toSeq
 
-  override def resolveType(tpe: Type): Declaration =
+  override def resolveType(tpe: m.Type): m.Declaration =
     declarationIndex(tpe.ref.fqn)
 
   override def resolveSymbol(symbol: String): ResolvedSymbol =
@@ -234,6 +229,8 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
 
   private def createTypeReference(symbol: String, typeArguments: Seq[s.Type]): m.Type = {
     resolveSymbolInfo(symbol) match {
+      case x if x.symbol.isLocal =>
+        throw UnsupportedElementException("TypeRef type", "local")
       case x if x.isTypeParameter =>
         val parent = resolveDeclaration(symbol.owner)
         m.TypeParameterRef(
@@ -244,8 +241,6 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       case x if x.isType || x.isClass || x.isTrait || x.isInterface =>
         val parent = resolveDeclaration(symbol)
         m.TypeRef(parent.ref, createTypeArguments(typeArguments))
-      case x if x.symbol.isLocal =>
-        throw UnsupportedElementException("TypeRef type", "local")
       case x =>
         throw UnsupportedElementException("TypeRef type", x)
     }

@@ -1,14 +1,13 @@
 package cz.cvut.fit.prl.scala.implicits.utils
 import java.io.PrintWriter
-import java.util.concurrent.ForkJoinPool
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.{CountDownLatch, Executors}
 
 import better.files._
 import cats.Monoid
 import cats.syntax.monoid._
 import cz.cvut.fit.prl.scala.implicits.utils.MultiProjectExecutor.Result
 
-import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 import scala.util.{Failure, Success, Try}
 
 trait Reporting {
@@ -19,7 +18,7 @@ trait Reporting {
 object MultiProjectExecutor {
   case class Result[R](status: R, failures: List[Throwable]) {
 
-    def printSummary() = {
+    def printSummary(): Unit = {
       println()
 
       if (failures.nonEmpty) {
@@ -42,47 +41,49 @@ object MultiProjectExecutor {
   }
 }
 
-class MultiProjectExecutor[R](task: File => R, threads: Int)(
-    implicit ev: Monoid[R]) {
+class MultiProjectExecutor[R](task: File => R, threads: Int)(implicit ev: Monoid[R]) {
 
   def run(projectsPaths: List[File]): Result[R] = {
-    val completed = new AtomicInteger(0)
+    var completed = 0
+    var summary = Result(ev.empty, Nil)
+    val latch = new CountDownLatch(projectsPaths.size)
+    implicit val ec: ExecutionContextExecutor =
+      ExecutionContext.fromExecutor(Executors.newWorkStealingPool(threads))
 
-    def printProgress(path: File, result: Try[R]): Unit = synchronized {
-      val progress = s"${path.name} [${completed.incrementAndGet()}/${projectsPaths.size}]"
+    def completeOne(path: File, result: Try[R]): Unit = synchronized {
+      completed = completed + 1
+      val progress = s"${path.name} [$completed/${projectsPaths.size}]"
       result match {
-        case Success(x: Reporting) =>
-          println(s"Success $progress : ${x.status}")
         case Success(x) =>
-          println(s"Success $progress : $x")
+          val status = x match {
+            case reporting: Reporting => reporting.status
+            case _                    => x.toString
+          }
+          println(s"Success $progress : $status")
+          summary = summary.copy(status = summary.status |+| x)
         case Failure(e) =>
           println(s"Failure $progress : ${e.getMessage}")
+          summary = summary.copy(failures = e :: summary.failures)
       }
     }
 
-    def runOne(path: File): Try[R] = {
+    def runOne(path: File): Future[R] = Future {
       val result = Try(task(path))
-      printProgress(path, result)
-      result
+      completeOne(path, result)
+      latch.countDown()
+      result.get
     }
+
+    val startTime = System.currentTimeMillis()
 
     println(s"Processing ${projectsPaths.size} projects with $threads thread(s) ...")
 
-    val parProjectsPaths = projectsPaths.par
-    parProjectsPaths.tasksupport = new ForkJoinTaskSupport(new ForkJoinPool(threads))
+    projectsPaths.foreach(runOne)
 
-    val taskResult = parProjectsPaths
-      .map(x => x -> runOne(x))
-      .seq
-      .foldLeft(Result(ev.empty, Nil)) {
-        case (result, combined) =>
-          combined match {
-            case (_, Success(x)) =>
-              result.copy(status = result.status |+| x)
-            case (_, Failure(e)) => result.copy(failures = e :: result.failures)
-          }
-      }
+    latch.await()
 
-    taskResult
+    println("Job took: " + (System.currentTimeMillis() - startTime) + " ms")
+
+    summary
   }
 }

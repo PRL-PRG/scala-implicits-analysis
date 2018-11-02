@@ -9,6 +9,7 @@ object Constants {
 
   lazy val ExcludedDirs: Seq[String] = Seq(".git", AnalysisDirname)
   val ExtractedImplicitsFilename = "implicits.bin"
+  val ExtractionExceptionsFilename = "implicits-exceptions.log"
   val ProjectsDirname = "projects"
   val AnalysisDirname = "_analysis_"
   val PerProjectMergedSemanticdbFilename = "semanticdbs-4.0.0.bin"
