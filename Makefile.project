@@ -16,7 +16,6 @@ bootstrap := $(ANALYSIS_DIR) $(IVY_DIR) $(SBT_BOOT_DIR)
 	clean-metadata \
 	clean-sbt \
 	clean-semanticdb \
-	implicits \
 	metadata \
 	semanticdb \
 	repo-metadata \
@@ -40,12 +39,6 @@ $(SEMANTICDB_STATUS): $(bootstrap)
     echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS); \
     exit $$exit_code
 
-$(IMPLICITS):
-	$(AMM) $(base_dir)/scripts/extract-implicits.sc . > $(IMPLICITS_LOG) ; \
-    exit_code=$$?; \
-    echo -e "$(notdir $(CURDIR)),$$exit_code,$$SECONDS" > $(IMPLICITS_STATUS); \
-    exit $$exit_code
-
 # removes the artifacts created by running tasks from this Makefile
 clean:
 	rm -fr $(ANALYSIS_DIR)
@@ -66,8 +59,6 @@ clean-sbt:
 
 clean-semanticdb:
 	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
-
-implicits: $(IMPLICITS)
 
 metadata: $(METADATA_STATUS)
 
