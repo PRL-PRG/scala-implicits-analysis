@@ -222,9 +222,16 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
   def createTypeArguments(typeArguments: Seq[s.Type]): List[m.Type] = {
     // this one will silently ignore some type resolution errors
     // TODO: log?
-    typeArguments.toList.map(x => Try(createType(x))).collect {
-      case scala.util.Success(x) => x
+    typeArguments
+      .filter {
+      case s.TypeRef(_, symbol, _) if symbol.isLocal => false
+      case _                                         => true
     }
+      .map(x => Try(createType(x)))
+      .collect {
+        case scala.util.Success(x) => x
+      }
+      .toList
   }
 
   private def createTypeReference(symbol: String, typeArguments: Seq[s.Type]): m.Type = {

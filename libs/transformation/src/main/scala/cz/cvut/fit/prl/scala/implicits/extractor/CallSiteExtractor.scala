@@ -1,15 +1,12 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import com.typesafe.scalalogging.LazyLogging
+import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
-import cz.cvut.fit.prl.scala.implicits.model._
 
+import scala.meta._
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
-import scala.meta._
-import scala.meta.internal.semanticdb.SymbolOccurrence.Role.REFERENCE
-import scala.meta.internal.semanticdb.TreeMessage.SealedValue.OriginalTree
 import scala.util.{Failure, Success, Try}
 
 class CallSiteExtractor(ctx: ExtractionContext) {
@@ -39,20 +36,20 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         code: String = "",
         location: m.Location = m.Location.Empty,
         typeArguments: List[m.Type] = Nil,
-        arguments: List[List[Argument]] = Nil) {
+        argumentss: List[List[Argument]] = Nil) {
 
       def isImplicit: Boolean =
-        declaration.isImplicit || arguments.flatten.exists(_.declaration.isImplicit)
+        declaration.isImplicit || argumentss.flatten.exists(_.declaration.isImplicit)
 
       def toCallSite: m.CallSite = {
-//        try {
-//          if (declaration.hasImplicitParameters) arguments.head
-//        } catch {
-//          case e: Throwable => println(e)
-//        }
-        val implicitArgumentsTypes: Seq[m.TypeRef] =
-          if (declaration.hasImplicitParameters) arguments.head.map(_.toTypeRef)
-          else Seq()
+        val implicitArgumentsTypes: Seq[m.TypeRef] = {
+          try {
+            if (declaration.hasImplicitParameters) argumentss.head.map(_.toTypeRef) else Seq()
+          } catch {
+            case _: Throwable =>
+              throw UnexpectedElementException("Callsite declaration", s"$code -- $declaration")
+          }
+        }
 
         m.CallSite(
           declaration.ref,
@@ -96,7 +93,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                     code = cs.code + terms.get(range).map(x => s"($x)").getOrElse("")) :: css
                 case _ =>
                   val args = arguments.toList.flatMap(createArguments)
-                  cs.copy(arguments = args :: cs.arguments) :: css
+                  cs.copy(argumentss = args :: cs.argumentss) :: css
               }
             case css => css
           }) ++ callSitesFromArguments
@@ -161,8 +158,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                   } yield y
 
                 val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
-                  MissingSymbolException(s"Missing symbol for $term at $range in ${db.uri}")
-                  }
+                  val e = MissingSymbolException(s"Missing function for $term at $range in ${db.uri}")
+                  e
+                }
 
                 val declaration = ctx.resolveDeclaration(symbol)
                 val location = m.Local(db.uri, range)
