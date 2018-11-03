@@ -238,7 +238,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
           x.displayName,
           typeArguments.map(createType)
         )
-      case x if x.isType || x.isClass || x.isTrait || x.isInterface =>
+      case x if x.isType || x.isClass || x.isTrait || x.isInterface || x.isObject =>
         val parent = resolveDeclaration(symbol)
         m.TypeRef(parent.ref, createTypeArguments(typeArguments))
       case x =>
