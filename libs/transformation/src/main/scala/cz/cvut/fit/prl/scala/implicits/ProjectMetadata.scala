@@ -89,7 +89,16 @@ class ProjectMetadata(path: File) {
   }
 
   lazy val classpath: Classpath = {
-    val absolutePaths = classpathEntries.map(_.path).map(AbsolutePath(_))
+    val absolutePaths = classpathEntries.map(_.path).distinct.map(AbsolutePath(_))
+    val missing = absolutePaths.filter { x =>
+      val file = x.toFile
+      file.getName.endsWith(".jar") && !file.exists()
+    }
+
+    // TODO: should return Try[Classpath]
+    if (missing.nonEmpty) {
+      throw new Exception(s"Missing classpath entries: ${missing.mkString(":")}")
+    }
 
     Libraries.JvmBootClasspath ++ Classpath(absolutePaths)
   }
