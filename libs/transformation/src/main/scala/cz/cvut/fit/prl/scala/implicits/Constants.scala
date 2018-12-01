@@ -12,7 +12,7 @@ object Constants {
   val ExtractionExceptionsFilename = "implicits-exceptions.log"
   val ProjectsDirname = "projects"
   val AnalysisDirname = "_analysis_"
-  val PerProjectMergedSemanticdbFilename = "semanticdbs-4.0.0.bin"
-  val PerProjectMergedSemanticdbStatsFilename = "semanticdbs-4.0.0.csv"
+  val PerProjectMergedSemanticdbFilename = "semanticdbs-4.1.0.bin"
+  val PerProjectMergedSemanticdbStatsFilename = "semanticdbs-4.1.0.csv"
   val MergedSemanticdbFilename = "merged-semanticdbs.bin"
 }

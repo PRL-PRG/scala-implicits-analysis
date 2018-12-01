@@ -1,6 +1,6 @@
-val ScalametaVersion = "4.0.0"
+val ScalametaVersion = "4.1.0"
 
-ThisBuild / scalaVersion := "2.12.6"
+ThisBuild / scalaVersion := "2.12.7"
 ThisBuild / organization := "cz.cvut.fit.prl.scala.implicits"
 ThisBuild / version := "1.0-SNAPSHOT"
 

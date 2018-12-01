@@ -1,4 +1,4 @@
-scalaVersion := "2.12.6"
+scalaVersion := "2.12.7"
 organization := "cz.cvut.fit.prl.scala.corpus"
 version := "1.0-SNAPSHOT"
 name := "scripts"
