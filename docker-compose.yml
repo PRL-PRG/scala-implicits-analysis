@@ -1,0 +1,25 @@
+version: '3'
+services:
+  jupyter:
+    image: fikovnik/jupyter-scala-212
+    ports:
+      # prl4 specific - can be only 8000-8009 facing the host
+      - 8004:8888
+    environment:
+      #- NB_USER=jupyter
+      - NB_UID=1000 # this should be your user ID
+      - NB_GID=1000 # this should be your user group ID
+      - CHOWN_HOME_OPTS='' # make sure it is not recursive
+    user: root
+    volumes:
+      # default mounts
+      - "~/.ivy2:/home/jovyan/.ivy2"
+      - "~/.m2:/home/jovyan/.m2"
+      - ".:/home/jovyan/work"
+      - "~:/mnt/home"
+      # prl4 specific
+      #- "/mnt/nvme0/scala-oopsla18/scala:/var/lib/scala" # this is the important one - where the data are
+      #- "/mnt/array:/mnt/array"
+      #- "/mnt/nvme0:/mnt/nvme0"
+      #- "/mnt/nvme1:/mnt/nvme1"
+    #command: start-notebook.sh --port=8889
