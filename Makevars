@@ -29,6 +29,7 @@ MAX_MEM ?= 128000
 ANALYSIS_DIR := _analysis_
 IVY_DIR := .ivy
 SBT_BOOT_DIR := .sbt-boot
+SCALAMETA_VERSION := 4.1.0
 SEMANTICDB_STATUS := $(ANALYSIS_DIR)/semanticdb-status.csv
 SEMANTICDB_LOG := $(ANALYSIS_DIR)/semanticdb.log
 METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv

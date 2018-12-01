@@ -59,6 +59,8 @@ clean-sbt:
 
 clean-semanticdb:
 	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
+	rm -f $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).bin
+	rm -f $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).csv
 
 metadata: $(METADATA_STATUS)
 
