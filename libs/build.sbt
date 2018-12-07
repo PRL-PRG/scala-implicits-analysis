@@ -68,7 +68,8 @@ lazy val transformation = (project in file("transformation"))
     libraryDependencies ++= Seq(
       "org.scalameta" %% "testkit" % ScalametaVersion % Test,
     ),
-
+    // neo4j
+    libraryDependencies += "org.neo4j" % "neo4j" % "3.5",
     // Support for ammonites
     libraryDependencies += "com.lihaoyi" % "ammonite" % "1.3.2" % "test" cross CrossVersion.full,
     sourceGenerators in Test += Def.task {
