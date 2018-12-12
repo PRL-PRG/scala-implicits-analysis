@@ -65,7 +65,6 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	download-projects \
 	implicits \
 	merge-semanticdbs \
-	merged-semanticdbs-stats \
 	metadata \
 	link-projects \
 	report-metadata \
@@ -80,13 +79,14 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-download-projects: $(PROJECTS_FILE)
-	-mkdir -p $(PROJECTS_DIR)
-	cat $(PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
-        parallel -C, --bar -j4 git clone "https://github.com/{1}/{2}" $(PROJECTS_DIR)/"{1}--{2}"
+all: metadata report-metadata merge-semanticdbs report-semanticdb
 
 clean: $(bootstrap)
 	$(parallel) $@
+	-rm -f extract-implicits.log
+	-rm -f implicits.bin
+	-rm -f implicits-exceptions.log
+	-rm -fr logs
 
 clean-classes: $(bootstrap)
 	$(parallel) $@
@@ -103,6 +103,14 @@ clean-sbt: $(bootstrap)
 clean-semanticdb: $(bootstrap)
 	$(parallel) $@
 
+download-projects: $(PROJECTS_FILE)
+	-mkdir -p $(PROJECTS_DIR)
+	cat $(PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
+        parallel -C, --bar -j4 git clone "https://github.com/{1}/{2}" $(PROJECTS_DIR)/"{1}--{2}"
+
+extract-implicits: $(bootstrap)
+	$(AMM) $(SCRIPTS_DIR)/extract-implicits.sc $(PROJECTS_FILE) 2>&1 | tee extract-implicits.log
+
 link-projects: $(PROJECTS_CSV_FILE)
 	-mkdir -p $(PROJECTS_DIR)
 	cat $(PROJECTS_CSV_FILE) | \
@@ -112,13 +120,7 @@ link-projects: $(PROJECTS_CSV_FILE)
 	cat $(PROJECTS_CSV_FILE) | csvcut -c project_id | csvformat -K 1 > $(PROJECTS_FILE)
 
 merge-semanticdbs: $(bootstrap)
-	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc $(PROJECTS_FILE) 2>&1 | tee merge-semanticdbs.log
-
-merged-semanticdbs-stats: $(bootstrap)
-	$(AMM) $(SCRIPTS_DIR)/merged-semanticdbs-stats.sc $(PROJECTS_FILE)
-
-extract-implicits: $(bootstrap)
-	$(AMM) $(SCRIPTS_DIR)/extract-implicits.sc $(PROJECTS_FILE) 2>&1 | tee extract-implicits.log
+	$(parallel) $@
 
 metadata: $(bootstrap)
 	$(parallel) $@
@@ -126,16 +128,12 @@ metadata: $(bootstrap)
 repo-metadata: $(bootstrap)
 	$(parallel) $@
 
-report:
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/task-report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/report.html"), knit_root_dir="$(CURDIR)", params=list(taskname=readLines("$(CURDIR)/$(LOG_DIR_LATEST)/task"), output_dir="$(CURDIR)/$(LOG_DIR_LATEST)"))'
-	@echo ">> Report is in $(LOG_DIR_LATEST)/report.html"
-
 report-metadata:
 	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/task-report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/metadata-report.html"), knit_root_dir="$(CURDIR)", params=list(taskname="metadata", output_dir="$(CURDIR)/$(LOG_DIR_LATEST)"))'
 	@echo ">> Report is in $(LOG_DIR_LATEST)/metadata-report.html"
 
 report-semanticdb:
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/task-report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/semanticdb-report.html"), knit_root_dir="$(CURDIR)", params=list(taskname="semanticdb",  output_dir="$(CURDIR)/$(LOG_DIR_LATEST)"))'
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/task-report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/semanticdb-report.html"), knit_root_dir="$(CURDIR)", params=list(taskname="semanticdb", output_dir="$(CURDIR)/$(LOG_DIR_LATEST)"))'
 	@echo ">> Report is in $(LOG_DIR_LATEST)/semanticdb-report.html"
 
 reset: $(bootstrap)
@@ -146,4 +144,3 @@ semanticdb: $(bootstrap)
 
 tail-log: $(LOG_DIR_LATEST)
 	tail -f $(LOG_DIR_LATEST)/parallel.log
-
