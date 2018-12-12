@@ -39,6 +39,9 @@ $(SEMANTICDB_STATUS): $(bootstrap)
     echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS); \
     exit $$exit_code
 
+$(MERGED_SEMANTICDB_FILE): $(SEMANTICDB_STATUS)
+	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc
+
 # removes the artifacts created by running tasks from this Makefile
 clean:
 	rm -fr $(ANALYSIS_DIR)
@@ -59,10 +62,12 @@ clean-sbt:
 
 clean-semanticdb:
 	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
-	rm -f $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).bin
-	rm -f $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).csv
+	rm -f $(MERGED_SEMANTICDB_FILE)
+	rm -f $(MERGED_SEMANTICDB_STATS_FILE)
 
 metadata: $(METADATA_STATUS)
+
+merge-semanticdbs: $(MERGED_SEMANTICDB_FILE)
 
 repo-metadata:
 	$(base_dir)/scripts/generate-repo-metadata.sh .

@@ -27,11 +27,14 @@ TIMEOUT ?= 30m
 MAX_MEM ?= 128000
 
 ANALYSIS_DIR := _analysis_
+SCRIPTS_DIR := $(base_dir)scripts
 IVY_DIR := .ivy
 SBT_BOOT_DIR := .sbt-boot
 SCALAMETA_VERSION := 4.1.0
 SEMANTICDB_STATUS := $(ANALYSIS_DIR)/semanticdb-status.csv
 SEMANTICDB_LOG := $(ANALYSIS_DIR)/semanticdb.log
+MERGED_SEMANTICDB_FILE := $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).bin
+MERGED_SEMANTICDB_STATS_FILE := $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).csv
 METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv
 METADATA_LOG := $(ANALYSIS_DIR)/metadata.log
 REPO_METADATA := $(ANALYSIS_DIR)/repo-metadata.csv

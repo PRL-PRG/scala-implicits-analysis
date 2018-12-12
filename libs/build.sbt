@@ -7,7 +7,6 @@ ThisBuild / version := "1.0-SNAPSHOT"
 // this is for the sbt-buildinfo plugin
 resolvers += Resolver.sbtPluginRepo("releases")
 
-
 val TestLibraries = Seq(
   "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
   "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
@@ -105,7 +104,7 @@ lazy val transformation = (project in file("transformation"))
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   )
 
-lazy val root = (project in file(".")).aggregate(model, transformation)
+lazy val root = (project in file(".")).aggregate(model, transformation).settings(name := "libs")
 
 // this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
 // the semanticdb jar does not include the proto file so we cannot use the standard mechanism

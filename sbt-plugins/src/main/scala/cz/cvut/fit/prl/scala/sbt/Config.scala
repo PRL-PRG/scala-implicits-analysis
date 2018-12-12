@@ -1,7 +1,8 @@
 package cz.cvut.fit.prl.scala.sbt
 
 object Config {
-  // TODO: use buildInfo to get the value
+  val AnalysisDir = "_analysis_"
+
   val ScalametaVersion: String = System.getenv.getOrDefault("SCALAMETA_VERSION", "4.1.0")
   val SemanticdbScalacOptions: Seq[String] = Seq(
     "-Yrangepos",

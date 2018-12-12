@@ -1,12 +1,10 @@
 package cz.cvut.fit.prl.scala.implicits
 
-import java.nio.file.FileVisitOption
-
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.extractor.SemanticdbSymbolResolver
 import cz.cvut.fit.prl.scala.implicits.symtab.GlobalSymbolTable
-import cz.cvut.fit.prl.scala.implicits.utils.{Libraries, SdbLocator}
+import cz.cvut.fit.prl.scala.implicits.utils.Libraries
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
@@ -19,12 +17,14 @@ import scala.meta.io.{AbsolutePath, Classpath}
 case class ProjectClasspath(
     projectId: String,
     projectName: String,
-    path: String
+    path: String,
+    scope: String
 )
 
 case class ProjectVersion(
     projectId: String,
     projectName: String,
+    commit: String,
     scalaVersion: String,
     sbtVersion: String
 )
@@ -44,21 +44,10 @@ case class ProjectSourcepath(
 
 class ProjectMetadata(path: File) {
 
-  def mergeSemanticdbs(): Unit = {
-    mergedSemanticdbFile.outputStream.apply { output =>
-      new SdbLocator(path.path)
-        .exclude(Constants.ExcludedDirs)
-        .options(FileVisitOption.FOLLOW_LINKS)
-        .run {
-          case (_, db) => db.documents.foreach(_.writeDelimitedTo(output))
-        }
-    }
-  }
-
   val versionFile: File = metadataFile(VersionsFilename)
-  val classpathsFile: File = metadataFile(ClasspathsFilename)
-  val sourcepathsFile: File = metadataFile(SourcepathsFilename)
-  val mergedSemanticdbFile: File = metadataFile(PerProjectMergedSemanticdbFilename)
+  val classpathFile: File = metadataFile(ClasspathFilename)
+  val sourcepathFile: File = metadataFile(SourcepathFilename)
+  val mergedSemanticdbFile: File = metadataFile(MergedSemanticdbFilename)
   private val asts: TrieMap[String, Source] = TrieMap()
 
   lazy val versionEntries: List[ProjectVersion] = {
@@ -68,22 +57,18 @@ class ProjectMetadata(path: File) {
   }
 
   lazy val classpathEntries: List[ProjectClasspath] = {
-    classpathsFile.path
+    classpathFile.path
       .asUnsafeCsvReader[ProjectClasspath](rfc.withHeader)
       .toList
   }
 
   lazy val sourcepathEntries: List[ProjectSourcepath] = {
-    sourcepathsFile.path
+    sourcepathFile.path
       .asUnsafeCsvReader[ProjectSourcepath](rfc.withHeader)
       .toList
   }
 
   lazy val semanticdbs: List[s.TextDocument] = {
-    if (!mergedSemanticdbFile.exists) {
-      mergeSemanticdbs()
-    }
-
     mergedSemanticdbFile.inputStream
       .apply(input => s.TextDocument.streamFromDelimitedInput(input).toList)
   }
@@ -113,7 +98,7 @@ class ProjectMetadata(path: File) {
 
   lazy val sbtVersion: String = versionEntries.head.sbtVersion
 
-  def metadataFile(filename: String): File = path / AnalysisDirname / filename
+  def metadataFile(filename: String): File = path / filename
 
   def ast(filename: String): Source =
     asts.getOrElseUpdate(

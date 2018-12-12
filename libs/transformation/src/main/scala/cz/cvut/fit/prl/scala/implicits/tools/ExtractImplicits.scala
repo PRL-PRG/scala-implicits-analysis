@@ -5,21 +5,13 @@ import better.files._
 import cats.Monoid
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
-import cz.cvut.fit.prl.scala.implicits.extractor.{
-  CallSiteExtractor,
-  ConversionException,
-  DeclarationExtractor,
-  ExtractionContext
-}
-import cz.cvut.fit.prl.scala.implicits.model.{Project, SourcePath}
+import cz.cvut.fit.prl.scala.implicits.extractor.{CallSiteExtractor, ConversionException, DeclarationExtractor, ExtractionContext}
+import cz.cvut.fit.prl.scala.implicits.model.{Path, Project}
 import cz.cvut.fit.prl.scala.implicits.utils.{MultiProjectExecutor, _}
 
 object ExtractImplicits extends App {
 
-  case class Result(
-      declarations: Int,
-      callSites: Int,
-      failures: List[String])
+  case class Result(declarations: Int, callSites: Int, failures: List[String])
       extends Reporting {
     override def writeReport(writer: PrintWriter): Unit = {
       if (failures.nonEmpty) {
@@ -79,11 +71,23 @@ object ExtractImplicits extends App {
           .split()
 
       val (callSites, csExceptions) =
-        metadata.semanticdbs.map(x => x -> metadata.ast(x.uri)).flatMap { case (db, ast) => csExtractor.extractImplicitCallSites(db, ast) }
+        metadata.semanticdbs
+          .map(x => x -> metadata.ast(x.uri))
+          .flatMap { case (db, ast) => csExtractor.extractImplicitCallSites(db, ast) }
           .split()
 
       val csCount =
-        metadata.semanticdbs.map(x => metadata.ast(x.uri)).map(csExtractor.callSiteCount).sum
+        metadata.semanticdbs
+          .map(x => metadata.ast(x.uri))
+          .map(csExtractor.callSiteCount)
+          .sum
+
+      val classpath =
+        metadata.classpathEntries.map(x =>
+          Path(x.path, Path.Kind.CLASSPATH, x.scope, false))
+      val sourcepath =
+        metadata.sourcepathEntries.map(x =>
+          Path(x.path, Path.Kind.SOURCEPATH, x.scope, x.kind == "managed"))
 
       val project = Project(
         projectId = metadata.projectId,
@@ -92,8 +96,7 @@ object ExtractImplicits extends App {
         allCallSitesCount = csCount,
         scalaVersion = metadata.scalaVersion,
         sbtVersion = metadata.sbtVersion,
-        classpaths = metadata.classpathEntries.map(_.path),
-        sourcepaths = metadata.sourcepathEntries.map(x => SourcePath(x.path, x.kind, x.scope))
+        paths = classpath ++ sourcepath
       )
 
       val allExceptions = (declExceptions ++ csExceptions) collect {

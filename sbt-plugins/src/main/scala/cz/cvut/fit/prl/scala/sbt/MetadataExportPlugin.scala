@@ -10,8 +10,6 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  val AnalysisDir = "_analysis_"
-
   val GHOrigin: Regex = "^http[s]?://github.com/([^/]+)/([^.]+)(\\.git)?$".r
 
   case class SLOC(files: String, language: String, blank: String, comment: String, code: String) {
@@ -50,7 +48,7 @@ object MetadataExportPlugin extends AutoPlugin {
   }
 
   lazy val analysisDir = {
-    val tmp = new File(AnalysisDir)
+    val tmp = new File(Config.AnalysisDir)
     if (!tmp.exists()) {
       if (!tmp.mkdir()) throw new Exception("Unable to create " + tmp.getAbsolutePath)
     }

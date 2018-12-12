@@ -5,7 +5,6 @@ base_dir := $(dir $(abspath $(shell readlink $(lastword $(MAKEFILE_LIST)))))
 include $(base_dir)/Makevars
 
 PROJECTS_DIR := projects
-SCRIPTS_DIR := $(base_dir)scripts
 LOG_DIR_BASE := logs
 TIMESTAMP := $(shell LC_LOCALE=C date)
 LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
