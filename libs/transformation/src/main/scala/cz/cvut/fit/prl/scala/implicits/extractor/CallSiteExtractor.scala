@@ -15,6 +15,8 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
   class Converter(db: s.TextDocument, terms: Map[s.Range, Term]) {
 
+    "a".isRootPackage
+
     def findFunctionTerm(t: Term): Option[Tree] = t match {
       case Term.Select(_, name)       => Some(t)
       case Term.Name(_)               => Some(t)
@@ -27,14 +29,14 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case class Argument(declaration: m.Declaration, typeArguments: List[m.Type]) {
 
       def toTypeRef: m.TypeRef =
-        m.TypeRef(declaration.ref, typeArguments)
+        m.TypeRef(declaration.fqn, typeArguments)
     }
 
     // arguments are inversed - the implicit ones are on top
     case class Call(
         declaration: m.Declaration,
         code: String = "",
-        location: m.Location = m.Location.Empty,
+        location: Option[m.Location] = None,
         typeArguments: List[m.Type] = Nil,
         argumentss: List[List[Argument]] = Nil) {
 
@@ -52,7 +54,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         }
 
         m.CallSite(
-          declaration.ref,
+          declaration.fqn,
           code,
           location,
           typeArguments,
@@ -77,7 +79,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
     def convert(synthetic: s.Synthetic): List[m.CallSite] = {
 
-      val syntheticLocation = Local(db.uri, synthetic.range.get)
+      val syntheticLocation = Location(db.uri, Some(synthetic.range.get))
 
       def convertInternal(tree: s.Tree, inCall: Boolean): List[Call] = tree match {
 
@@ -109,12 +111,12 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           } else {
             val declaration = ctx.resolveDeclaration(symbol)
             val code = s".${declaration.name}"
-            val cs = Call(declaration, code, location = syntheticLocation)
+            val cs = Call(declaration, code, location = Some(syntheticLocation))
 
             qualifier match {
               case s.OriginalTree(Some(range)) =>
-                val location = m.Local(db.uri, range)
-                cs.copy(location = location) :: Nil
+                val location = m.Location(db.uri, Some(range))
+                cs.copy(location = Some(location)) :: Nil
               case _ =>
                 cs :: convertInternal(qualifier, false)
             }
@@ -163,9 +165,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                 }
 
                 val declaration = ctx.resolveDeclaration(symbol)
-                val location = m.Local(db.uri, range)
+                val location = m.Location(db.uri, Some(range))
                 val code = declaration.name
-                Call(declaration, code, location)
+                Call(declaration, code, Some(location))
               }
           }
 
@@ -178,7 +180,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           if (inCall || (declaration.isImplicit && declaration.isFunctionLike)) {
             val code = declaration.name
 
-            Call(declaration, code, location = syntheticLocation) :: Nil
+            Call(declaration, code, location = Some(syntheticLocation)) :: Nil
           } else {
             Nil
           }

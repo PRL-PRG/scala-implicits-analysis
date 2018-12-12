@@ -16,48 +16,30 @@ message Position {
 }
 
 message Location {
-    oneof sealed_value {
-        Local local = 1;
-        External external = 2;
-        SyntheticLocation synthetic = 3;
+    required string uri = 1;
+    // position, in case it is a source path
+    optional Position position = 2;
+}
+
+message Path {
+    enum Kind {
+        CLASSPATH = 0;
+        SOURCEPATH = 1;
     }
-}
-
-message Local {
     required string path = 1;
-    required Position position = 2;
-}
-
-message External {
-    required bool compressed = 1;
-    required string path = 2;
-    required string entry = 3;
-}
-
-message SyntheticLocation {
-
-}
-
-message SourcePath {
-    required string path = 1;
-    required string kind = 2;
+    required Kind kind = 2;
     required string scope = 3;
+    required bool managed = 4;
 }
 
 message Project {
     required string projectId = 1;
     required string scalaVersion = 2;
     required string sbtVersion = 3;
-    repeated string classpaths = 4;
-    repeated SourcePath sourcepaths = 5;
-    repeated Declaration declarations = 6;
-    repeated CallSite implicitCallSites = 7;
-    required int32 allCallSitesCount = 8;
-}
-
-message DeclarationRef {
-    required Location location = 1;
-    required string fqn = 2;
+    repeated Path paths = 4;
+    repeated Declaration declarations = 5;
+    repeated CallSite implicitCallSites = 6;
+    required int32 allCallSitesCount = 7;
 }
 
 message Declaration {
@@ -79,7 +61,7 @@ message Declaration {
     required Kind kind = 1;
     required string fqn = 2;
     required string name = 3;
-    required Location location = 4;
+    optional Location location = 4;
     required Language language = 5;
     required bool isImplicit = 6;
 
@@ -130,25 +112,21 @@ message Type {
 }
 
 message TypeRef {
-    required DeclarationRef ref = 1;
+    required string declaration_ref = 1;
     repeated Type type_arguments = 2;
 }
 
 message TypeParameterRef {
-    required DeclarationRef ref = 1;
+    required string declaration_ref = 1;
     required string name = 2;
     repeated Type type_arguments = 3;
 }
 
 message CallSite {
-    required DeclarationRef ref = 1;
+    required string declaration_ref = 1;
     required string code = 3;
-    required Location location = 4;
+    optional Location location = 4;
     repeated Type type_arguments = 5;
     repeated TypeRef implicit_argument_types = 6;
 }
-
-//message ArgumentLists {
-//    repeated Argument arguments = 1;
-//}
 

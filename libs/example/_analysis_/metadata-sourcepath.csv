@@ -1,0 +1,2 @@
+project_id,project_name,scope,kind,path,files,language,blank,comment,code
+"PRL-PRG--scala-corpus","example","compile",false,"/home/krikava/Research/Projects/scala-corpus/libs/example/src/main/scala",5,Scala,20,0,42

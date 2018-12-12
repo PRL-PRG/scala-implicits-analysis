@@ -1,5 +1,4 @@
 package cz.cvut.fit.prl.scala.implicits.symtab
-import cz.cvut.fit.prl.scala.implicits.model.External
 import cz.cvut.fit.prl.scala.implicits.utils.{BuildInfo, Libraries}
 import org.scalatest.{FunSuite, Inside, Matchers, OptionValues}
 
@@ -30,22 +29,24 @@ class GlobalSymbolTableTest extends FunSuite with Matchers with OptionValues wit
     val tab = GlobalSymbolTable(ExternalClasspath)
     val symbol = tab.resolve("scala/Int#")
 
-    inside(symbol.value.location) {
-      case External(true, path, entry) =>
-        path should include("scala-library")
-        entry should be("scala/Int.class")
-    }
+    symbol.value.location shouldBe defined
+
+    val location = symbol.value.location.get
+
+    location.uri should endWith("scala-library-2.12.7.jar!scala/Int.class")
+    location.position should not be defined
   }
 
-  test("Resolves project name") {
+  test("Resolves project local name") {
     val tab = GlobalSymbolTable(FullClasspath)
     val symbol =
       tab.resolve("cz/cvut/fit/prl/scala/implicits/symtab/SymbolTable#")
 
-    inside(symbol.value.location) {
-      case External(false, path, entry) =>
-        path should endWith("classes")
-        entry should endWith(classOf[SymbolTable].getSimpleName + ".class")
-    }
+    symbol.value.location shouldBe defined
+
+    val location = symbol.value.location.get
+
+    location.uri should endWith("target/scala-2.12/classes/cz/cvut/fit/prl/scala/implicits/symtab/SymbolTable.class")
+    location.position should not be defined
   }
 }

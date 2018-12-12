@@ -1,7 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits
 
 import cz.cvut.fit.prl.scala.implicits.model._
-
 import cz.cvut.fit.prl.scala.implicits.utils._
 
 class CallSiteExtractorSuite extends ExtractionContextSuite {
@@ -88,7 +87,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   B("A")
       | }
     """.stripMargin
-  ) { res => res.callSites.prettyPrint()
+  ) { res =>
+    res.callSites.prettyPrint()
   }
 
   callSites(
@@ -104,7 +104,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   B("A")
       | }
     """.stripMargin
-  ) { res => res.callSites shouldBe empty
+  ) { res =>
+    res.callSites shouldBe empty
   }
 
   // FIXME: this test is not correct, it is missing the type parameters and code should be pipe[Int]
@@ -125,11 +126,11 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     // There shall be only one call - adding the implicit arguments
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.pipe()."),
+        "p/o.pipe().",
         "pipe[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
-        List(TypeRef(DeclarationRef(TestLocalLocation, "p/o.a."), List()))
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
+        List(TypeRef("p/o.a.", List()))
       )
     )
 
@@ -154,12 +155,11 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     // There shall be only one call - adding the implicit arguments
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.pipe()."),
+        "p/o.pipe().",
         "pipe[p/o.A#]",
-        TestLocalLocation,
-        List(
-          TypeRef(DeclarationRef(Local("test-location", Position(0, 0, 0, 0)), "p/o.A#"), List())),
-        List(TypeRef(DeclarationRef(TestLocalLocation, "p/o.a."), List()))
+        Some(TestLocalLocation),
+        List(TypeRef("p/o.A#", List())),
+        List(TypeRef("p/o.a.", List()))
       )
     )
 
@@ -179,7 +179,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   pipe(1)(a)
       | }
     """.stripMargin
-  ) { res => res.callSites.prettyPrint()
+  ) { res =>
+    res.callSites.prettyPrint()
   }
 
   callSites(
@@ -197,19 +198,19 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.a()."),
+        "p/o.a().",
         "a",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List(),
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.f()."),
+        "p/o.f().",
         "f",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.a()."),
+            "p/o.a().",
             List()
           )
         )
@@ -242,18 +243,18 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.RichPath()."),
+        "p/o.RichPath().",
         "RichPath(raw.file)",
-        TestLocalLocation
+        Some(TestLocalLocation)
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.RichPath#readString()."),
+        "p/o.RichPath#readString().",
         "readString",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.utf.")
+            "p/o.utf."
           )
         )
       )
@@ -284,41 +285,41 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.a()."),
+        "p/o.a().",
         "a",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List()
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.a2b()."),
+        "p/o.a2b().",
         "a2b",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.a().")
+            "p/o.a()."
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.b2c()."),
+        "p/o.b2c().",
         "b2c",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.a2b().")
+            "p/o.a2b()."
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.f()."),
+        "p/o.f().",
         "f",
-        TestLocalLocation,
+        Some(TestLocalLocation),
         List(),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.b2c().")
+            "p/o.b2c()."
           )
         )
       )
@@ -364,21 +365,21 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.a()."),
+        "p/o.a().",
         "a[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
       ),
       CallSite(
-        DeclarationRef(TestLocalLocation, "p/o.c()."),
+        "p/o.c().",
         "c[scala/Int#](1)",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
-            DeclarationRef(TestLocalLocation, "p/o.a()."),
+            "p/o.a().",
             List(
-              TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())
+              TypeRef("scala/Int#", List())
             )
           )
         )
@@ -428,61 +429,49 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
   ) { res =>
     val expected = List(
       CallSite(
-        DeclarationRef(TestExternalLocation, "scala/concurrent/Future.apply()."),
+        "scala/concurrent/Future.apply().",
         ".apply[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
-            DeclarationRef(
-              TestExternalLocation,
-              "scala/concurrent/ExecutionContext.Implicits.global."
-            ),
+            "scala/concurrent/ExecutionContext.Implicits.global.",
             List()
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestExternalLocation, "scala/concurrent/Future#map()."),
+        "scala/concurrent/Future#map().",
         ".map[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
-            DeclarationRef(
-              TestExternalLocation,
-              "scala/concurrent/ExecutionContext.Implicits.global."
-            ),
+            "scala/concurrent/ExecutionContext.Implicits.global.",
             List()
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestExternalLocation, "scala/concurrent/Future.apply()."),
+        "scala/concurrent/Future.apply().",
         ".apply[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
-            DeclarationRef(
-              TestExternalLocation,
-              "scala/concurrent/ExecutionContext.Implicits.global."
-            ),
+            "scala/concurrent/ExecutionContext.Implicits.global.",
             List()
           )
         )
       ),
       CallSite(
-        DeclarationRef(TestExternalLocation, "scala/concurrent/Future#flatMap()."),
+        "scala/concurrent/Future#flatMap().",
         ".flatMap[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef(DeclarationRef(TestExternalLocation, "scala/Int#"), List())),
+        Some(TestLocalLocation),
+        List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
-            DeclarationRef(
-              TestExternalLocation,
-              "scala/concurrent/ExecutionContext.Implicits.global."
-            ),
+            "scala/concurrent/ExecutionContext.Implicits.global.",
             List()
           )
         )
@@ -507,16 +496,13 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     """.stripMargin
   ) { res =>
     val expected = CallSite(
-      DeclarationRef(TestLocalLocation, "p/o.A#`<init>`()."),
+      "p/o.A#`<init>`().",
       "<init>",
-      TestLocalLocation,
+      Some(TestLocalLocation),
       List(),
       List(
         TypeRef(
-          DeclarationRef(
-            TestExternalLocation,
-            "scala/concurrent/ExecutionContext.Implicits.global."
-          )
+          "scala/concurrent/ExecutionContext.Implicits.global."
         )
       )
     )
@@ -539,16 +525,13 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
     """.stripMargin
   ) { res =>
     val expected = CallSite(
-      DeclarationRef(TestLocalLocation, "p/o.B.apply()."),
+      "p/o.B.apply().",
       ".apply",
-      TestLocalLocation,
+      Some(TestLocalLocation),
       List(),
       List(
         TypeRef(
-          DeclarationRef(
-            TestExternalLocation,
-            "scala/concurrent/ExecutionContext.Implicits.global."
-          )
+          "scala/concurrent/ExecutionContext.Implicits.global."
         )
       )
     )
@@ -569,7 +552,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   B("A")
       | }
     """.stripMargin
-  ) { res => res.callSites shouldBe empty
+  ) { res =>
+    res.callSites shouldBe empty
   }
 
   callSites(
@@ -585,7 +569,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   B("A")(1)
       | }
     """.stripMargin
-  ) { res => res.callSites shouldBe empty
+  ) { res =>
+    res.callSites shouldBe empty
   }
 
 }

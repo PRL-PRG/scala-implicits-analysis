@@ -23,7 +23,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
   def declarations: Seq[m.Declaration] = declarationIndex.values.toSeq
 
   override def resolveType(tpe: m.Type): m.Declaration =
-    declarationIndex(tpe.ref.fqn)
+    declarationIndex(tpe.declarationRef)
 
   override def resolveSymbol(symbol: String): ResolvedSymbol =
     resolver.resolveSymbol(symbol)
@@ -47,7 +47,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         // fixed from the symbol
         try {
           val prototype =
-            createDeclaration(symbolInfo).withLocation(resolvedSymbol.location)
+            createDeclaration(symbolInfo).copy(location = resolvedSymbol.location)
 
           declarationIndex += symbolInfo.symbol -> prototype
 
@@ -197,7 +197,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       createType(t)
     case s.SingleType(prefix, symbol) =>
       val parent = resolveDeclaration(symbol)
-      m.TypeRef(parent.ref)
+      m.TypeRef(parent.fqn)
     case s.ByNameType(tpe) =>
       createType(tpe)
     case s.RepeatedType(repeatedType) =>
@@ -224,9 +224,9 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     // TODO: log?
     typeArguments
       .filter {
-      case s.TypeRef(_, symbol, _) if symbol.isLocal => false
-      case _                                         => true
-    }
+        case s.TypeRef(_, symbol, _) if symbol.isLocal => false
+        case _                                         => true
+      }
       .map(x => Try(createType(x)))
       .collect {
         case scala.util.Success(x) => x
@@ -241,13 +241,13 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       case x if x.isTypeParameter =>
         val parent = resolveDeclaration(symbol.owner)
         m.TypeParameterRef(
-          parent.ref,
+          parent.fqn,
           x.displayName,
           typeArguments.map(createType)
         )
       case x if x.isType || x.isClass || x.isTrait || x.isInterface || x.isObject =>
         val parent = resolveDeclaration(symbol)
-        m.TypeRef(parent.ref, createTypeArguments(typeArguments))
+        m.TypeRef(parent.fqn, createTypeArguments(typeArguments))
       case x =>
         throw UnsupportedElementException("TypeRef type", x)
     }

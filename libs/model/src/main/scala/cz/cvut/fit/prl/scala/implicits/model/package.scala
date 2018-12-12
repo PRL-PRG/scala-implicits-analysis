@@ -9,11 +9,17 @@ package object model {
   }
 
   implicit class XtensionLocation(that: Location) {
+//    def
+//    def scope(implicit index: Index): String = that match {
+//      case Local(path, _) =>
+//      case _: External =>
+//      case _ => ""
+//    }
 
-    def isLocal: Boolean = that match {
-      case _: Local => true
-      case _        => false
-    }
+//    def isLocal: Boolean = that match {
+//      case _: Local => true
+//      case _        => false
+//    }
   }
 
   implicit class XtensionType(that: Type) {
@@ -24,7 +30,7 @@ package object model {
       case Type.Empty          => ""
     }
 
-    def ref: DeclarationRef = that match {
+    def declarationRef: String = that match {
       case TypeRef(r, _)             => r
       case TypeParameterRef(r, _, _) => r
     }
@@ -37,7 +43,7 @@ package object model {
 
     def asCode: String = {
       val args = that.typeArguments.map(_.asCode)
-      that.ref.fqn + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
+      that.declarationRef + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
     }
 
   }
@@ -53,26 +59,23 @@ package object model {
   implicit class XtensionCallSite(that: CallSite) {
 
     def isImplicit(implicit resolver: DeclarationResolver): Boolean = {
-      val declaration = that.ref.declaration
+      val declaration = that.declaration
       declaration.signature.isMethod && (
         declaration.isImplicit || declaration.hasImplicitParameters
       )
     }
 
     def declaration(implicit resolver: DeclarationResolver): Declaration =
-      that.ref.declaration
+      that.declarationRef.declaration
   }
 
-  implicit class XtensionDeclarationRef(that: DeclarationRef) {
-
+  implicit class DeclarationRefOPs(that: String) {
     def declaration(implicit resolver: DeclarationResolver): Declaration =
-      resolver.resolveDeclaration(that.fqn)
+      resolver.resolveDeclaration(that)
   }
 
   implicit class XtensionDeclaration(that: Declaration) {
     import Declaration.Kind._
-
-    def ref: DeclarationRef = DeclarationRef(that.location, that.fqn)
 
     def isMethod: Boolean = that.kind == DEF
     def isVal: Boolean = that.kind == VAL

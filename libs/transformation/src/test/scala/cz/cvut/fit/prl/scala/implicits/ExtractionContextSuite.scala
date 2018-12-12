@@ -25,7 +25,7 @@ case class DeclarationsResult(
 
 case class CallSitesResult(
     callSites: Seq[m.CallSite],
-    originalcallSites: Seq[m.CallSite],
+    originalCallSites: Seq[m.CallSite],
     callSitesCount: Int,
     ctx: ExtractionContext,
     db: s.TextDocument)
@@ -40,8 +40,8 @@ abstract class ExtractionContextSuite
     with Inside
     with CaseClassAssertions {
 
-  val TestLocalLocation = m.Local("test-location", m.Position(0, 0, 0, 0))
-  val TestExternalLocation = m.External(false, "test-path", "test-entry")
+  val TestLocalLocation = m.Location("test-location", Some(m.Position(0, 0, 0, 0)))
+  val TestExternalLocation = m.Location("test-external-location", None)
 
   def extraction(
       name: String,
@@ -100,8 +100,7 @@ abstract class ExtractionContextSuite
   implicit class SimplifyCallSite(that: m.CallSite) {
 
     def simplify: m.CallSite = that.copy(
-      ref = that.ref.simplify,
-      location = that.location.simplify,
+      location = that.location.map(_.simplify),
       typeArguments = that.typeArguments.map(_.simplify),
       implicitArgumentTypes = that.implicitArgumentTypes.map(_.simplify)
     )
@@ -111,7 +110,7 @@ abstract class ExtractionContextSuite
 
     def simplify: m.Declaration =
       that.copy(
-        location = that.location.simplify,
+        location = that.location.map(_.simplify),
         signature = that.signature.simplify
       )
   }
@@ -164,7 +163,7 @@ abstract class ExtractionContextSuite
     def simplify: m.Type = that match {
       case y: m.TypeRef => y.simplify
       case y: m.TypeParameterRef =>
-        y.copy(ref = y.ref.simplify, typeArguments = y.typeArguments.map(_.simplify))
+        y.copy(typeArguments = y.typeArguments.map(_.simplify))
       case y => y
     }
   }
@@ -173,21 +172,15 @@ abstract class ExtractionContextSuite
 
     def simplify: m.TypeRef =
       that.copy(
-        ref = that.ref.simplify,
-        typeArguments = that.typeArguments.map(_.simplify))
-
-  }
-
-  implicit class SimplifyDeclarationRef(that: m.DeclarationRef) {
-    def simplify: m.DeclarationRef = that.copy(location = that.location.simplify)
+        typeArguments = that.typeArguments.map(_.simplify)
+      )
   }
 
   implicit class SimplifyLocation(that: m.Location) {
 
     def simplify: m.Location = that match {
-      case y: m.External => TestExternalLocation
-      case y: m.Local    => TestLocalLocation
-      case y           => y
+      case m.Location(_, Some(_)) => TestLocalLocation
+      case m.Location(_, None)    => TestExternalLocation
     }
   }
 

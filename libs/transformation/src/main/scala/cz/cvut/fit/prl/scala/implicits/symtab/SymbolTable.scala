@@ -1,6 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.symtab
 
-import cz.cvut.fit.prl.scala.implicits.model.{External, Location, SyntheticLocation}
+import cz.cvut.fit.prl.scala.implicits.model.Location
 
 import scala.collection.concurrent.TrieMap
 import scala.meta.cli._
@@ -13,7 +13,7 @@ import scala.meta.io._
 import scala.meta.metacp._
 import scala.reflect.NameTransformer
 
-case class ResolvedSymbol(symbolInfo: SymbolInformation, location: Location)
+case class ResolvedSymbol(symbolInfo: SymbolInformation, location: Option[Location])
 
 trait SymbolTable {
   def resolve(symbol: String): Option[ResolvedSymbol]
@@ -26,7 +26,7 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
   private val classpathIndex = ClasspathIndex(classpath)
   private val symbolCache = TrieMap.empty[String, ResolvedSymbol]
   Scalalib.synthetics.foreach(
-    x => enter(x, SyntheticLocation())
+    x => enter(x, None)
   )
 
   override def resolve(symbol: String): Option[ResolvedSymbol] = {
@@ -39,7 +39,7 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
           kind = SymbolInformation.Kind.PACKAGE,
           displayName = symbol.desc.value
         )
-        Some(ResolvedSymbol(info, SyntheticLocation()))
+        Some(ResolvedSymbol(info, None))
       } else {
         None
       }
@@ -65,7 +65,7 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
         ClassfileInfos.fromClassNode(node, classpathIndex, settings, reporter) match {
           case Some(infos) =>
             val location = createLocation(classfile)
-            enter(infos, location)
+            enter(infos, Some(location))
           case _ =>
             ()
         }
@@ -74,7 +74,7 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
     }
   }
 
-  private def enter(infos: ClassfileInfos, location: Location): Unit =
+  private def enter(infos: ClassfileInfos, location: Option[Location]): Unit =
     infos.infos.foreach { info => symbolCache(info.symbol) = ResolvedSymbol(info, location)
     }
 
@@ -84,9 +84,9 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
         val fullpath = path.toFile.getAbsolutePath
         val dir =
           fullpath.substring(0, fullpath.length - relativeUri.length - 1)
-        External(false, dir, relativeUri)
+        Location(dir + System.getProperty("file.separator") + relativeUri)
       case CompressedClassfile(entry, zipFile) =>
-        External(true, zipFile.getAbsolutePath, entry.getName)
+        Location(zipFile.getAbsolutePath + "!" + entry.getName)
     }
 }
 

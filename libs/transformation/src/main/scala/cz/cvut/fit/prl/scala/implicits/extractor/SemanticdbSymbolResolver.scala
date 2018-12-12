@@ -1,6 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{Local, Location, SyntheticLocation}
+import cz.cvut.fit.prl.scala.implicits.model.Location
 import cz.cvut.fit.prl.scala.implicits.symtab.{ResolvedSymbol, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils._
 
@@ -20,17 +20,17 @@ object SemanticdbSymbolResolver {
           s.SymbolOccurrence.Role.DEFINITION
         ) <- db.occurrences if !symbol.isPackage && !symbol.isLocal
         info <- db.symbols.find(_.symbol == symbol)
-        location = Local(db.uri, range)
-        resolvedSymbol = ResolvedSymbol(info, location)
+        location = Location(db.uri, Some(range))
+        resolvedSymbol = ResolvedSymbol(info, Some(location))
       } yield symbol -> resolvedSymbol
     }.toMap
 
-    def findSymbolLocation(o: s.SymbolInformation): Location = {
-      def tryToFind(s: String): Location = localSymbols.get(s) match {
+    def findSymbolLocation(o: s.SymbolInformation): Option[Location] = {
+      def tryToFind(s: String): Option[Location] = localSymbols.get(s) match {
         case Some(ResolvedSymbol(_, location)) =>
           location
         case _ if s.isNone =>
-          SyntheticLocation()
+          None
         case _ =>
           tryToFind(s.owner)
       }

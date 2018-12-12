@@ -1,6 +1,8 @@
 package com.example
+
 import scala.concurrent.ExecutionContext
 import scala.language.implicitConversions
+import com.example.auxiliary._
 
 object Example {
 
