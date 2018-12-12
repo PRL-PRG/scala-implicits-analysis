@@ -10,17 +10,20 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  val GHOrigin: Regex = "http[s]?://github.com/(.*)/(.*)[\n]?".r
+  val AnalysisDir = "_analysis_"
 
-  case class SourceDir(projectId: String, projectName: String, scope: String, kind: String, path: String, sloc: SLOC)
-
-  case class Version(projectId: String, projectName: String, commit: String, scalaVersion: String, sbtVersion: String)
+  val GHOrigin: Regex = "^http[s]?://github.com/([^/]+)/([^.]+)(\\.git)?$".r
 
   case class SLOC(files: String, language: String, blank: String, comment: String, code: String) {
     override def toString = s"$files,$language,$blank,$comment,$code"
   }
 
+  case class SourceDir(projectId: String, projectName: String, scope: String, managed: Boolean, path: String, sloc: SLOC)
+
+  case class Version(projectId: String, projectName: String, commit: String, scalaVersion: String, sbtVersion: String)
+
   case class ProjectClasspath(projectId: String, projectName: String, path: String, scope: String)
+
   case class ProjectPath(projectId: String, projectName: String, path: String)
 
   object autoImport {
@@ -34,20 +37,20 @@ object MetadataExportPlugin extends AutoPlugin {
   override def requires = JvmPlugin
 
   lazy val origin: String = {
-    runCommand("git remote get-url origin").get
+    runCommand("git remote get-url origin").get.trim
   }
 
   lazy val commit: String = {
-    runCommand("git log --pretty=format:%h -n 1").get
+    runCommand("git log --pretty=format:%h -n 1").get.trim
   }
 
-  lazy val projectId: String = origin.replaceAll("\\.git$", "") match {
-    case GHOrigin(user, repo) => user + "--" + repo
+  lazy val projectId: String = origin match {
+    case GHOrigin(user, repo, _) => user + "--" + repo
     case _ => throw new Exception("Unable to get projectId")
   }
 
   lazy val analysisDir = {
-    val tmp = new File("_analysis_")
+    val tmp = new File(AnalysisDir)
     if (!tmp.exists()) {
       if (!tmp.mkdir()) throw new Exception("Unable to create " + tmp.getAbsolutePath)
     }
@@ -55,17 +58,17 @@ object MetadataExportPlugin extends AutoPlugin {
     tmp
   }
 
-  lazy val sourceDirectoriesFile =
-    deleteIfExists(new File(analysisDir, "metadata-sourcepaths.csv"))
+  val sourceDirectoriesFile =
+    new File(analysisDir, "metadata-sourcepath.csv")
 
-  lazy val versionsFile =
-    deleteIfExists(new File(analysisDir, "metadata-versions.csv"))
+  val versionsFile =
+    new File(analysisDir, "metadata-versions.csv")
 
-  lazy val classpathFile =
-    deleteIfExists(new File(analysisDir, "metadata-classpaths.csv"))
+  val classpathFile =
+    new File(analysisDir, "metadata-classpath.csv")
 
-  lazy val cleanpathsFile =
-    deleteIfExists(new File(analysisDir, "metadata-cleanpaths.csv"))
+  val cleanpathFile =
+    new File(analysisDir, "metadata-cleanpath.csv")
 
   override lazy val projectSettings = Seq(
     metadata := {
@@ -80,23 +83,23 @@ object MetadataExportPlugin extends AutoPlugin {
       val forcedCleanFiles = cleanFiles.value
 
       val sources = Seq(
-        ("managed", "compile") -> (managedSourceDirectories in Compile).value,
-        ("managed", "test") -> (managedSourceDirectories in Test).value,
-        ("unmanaged", "compile") -> (unmanagedSourceDirectories in Compile).value,
-        ("unmanaged", "test") -> (unmanagedSourceDirectories in Test).value
+        (true, "compile") -> (managedSourceDirectories in Compile).value,
+        (true, "test") -> (managedSourceDirectories in Test).value,
+        (false, "compile") -> (unmanagedSourceDirectories in Compile).value,
+        (false, "test") -> (unmanagedSourceDirectories in Test).value
       )
 
       if (!sourceDirectoriesFile.exists()) {
         val directories = for {
           ((kind, scope), paths) <- sources
           path <- paths
-          slocs <- computeSloc(path).toOption.toSeq
+          slocs <- computeSLOC(path).toOption.toSeq
           sloc <- slocs
         } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
 
         writeCSV(
           sourceDirectoriesFile,
-          "project_id,project_name,scope,kind,path,files,language,blank,comment,code",
+          Seq("project_id", "project_name", "scope", "kind", "path", "files", "language", "blank", "comment", "code"),
           directories
         )
       }
@@ -112,36 +115,39 @@ object MetadataExportPlugin extends AutoPlugin {
           )
         )
 
-        writeCSV(versionsFile, "project_id,project_name,commit,scala_version,sbt_version", versions)
+        writeCSV(versionsFile, Seq("project_id", "project_name", "commit", "scala_version", "sbt_version"), versions)
       }
 
 
       if (!classpathFile.exists()) {
         val classpath =
-          forcedClasspathCompile.map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "compile")) ++
+          forcedClasspathCompile
+            .map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "compile")) ++
             forcedClasspathTest
               .diff(forcedClasspathCompile)
               .map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "test"))
 
-        writeCSV(classpathFile, "project_id,project_name,path", classpath)
+        writeCSV(classpathFile, Seq("project_id", "project_name", "path", "scope"), classpath)
       }
 
-      if (!cleanpathsFile.exists()) {
+      if (!cleanpathFile.exists()) {
         val cleanpaths = for (path <- forcedCleanFiles) yield ProjectPath(projectId, projectName, path.getAbsolutePath)
 
-        writeCSV(cleanpathsFile, "project_id,project_name,path", cleanpaths)
+        writeCSV(cleanpathFile, Seq("project_id", "project_name", "path"), cleanpaths)
       }
     }
   )
 
-  def computeSloc(path: File): Try[Seq[SLOC]] = {
+  private val NL = System.getProperty("line.separator")
+
+  def computeSLOC(path: File): Try[Seq[SLOC]] = {
     if (path.exists()) {
       val cmd = s"cloc --quiet --csv ${path.getAbsolutePath}"
+      val output = runCommand(cmd)
 
-      runCommand(cmd) map { out =>
-        // cloc CSV output starts with a new line followed by a header with a new line
-        // we ignore both, getting right to the data
-        out.split("\n").drop(2) map { line =>
+      output map { out =>
+        // cloc CSV output starts with a header with a new line
+        out.split(NL).drop(1) map { line =>
           val x = line.split(",")
           SLOC(x(0), x(1), x(2), x(3), x(4))
         }
@@ -157,17 +163,23 @@ object MetadataExportPlugin extends AutoPlugin {
 
     // we have to use FQN since sbt 0.13 also defines stringToProcess and ProcessLogger
     // both deprecated in sbt 1.0
-    val status =
-    sys.process.stringToProcess(cmd) ! sys.process.ProcessLogger(x => stdout append x + "\n", x => stderr append x + "\n")
+    val exitcode =
+    sys.process.stringToProcess(cmd) ! sys.process.ProcessLogger(
+      x => stdout append x + NL,
+      x => stderr append x + NL
+    )
 
-    if (status == 0) {
-      Success(stdout.toString().trim)
-    } else {
-      Failure(new Exception(s"Command: $cmd failed with status $status\n$stderr"))
-    }
+    val status =
+      if (exitcode == 0) {
+        Success(stdout.toString().trim)
+      } else {
+        Failure(new Exception(s"Command: $cmd failed with status $exitcode\n$stderr"))
+      }
+
+    status
   }
 
-  def writeCSV(filename: File, header: String, data: Seq[Product], append: Boolean = true): Unit = {
+  def writeCSV(filename: File, columnNames: Seq[String], data: Seq[Product], append: Boolean = true): Unit = {
     def escape(x: Any): Any = x match {
       case y: String => '"' + y + '"'
       case y => y
@@ -180,13 +192,13 @@ object MetadataExportPlugin extends AutoPlugin {
         w = new FileWriter(filename, append)
 
         if (addHeader) {
-          w.write(header + "\n")
+          w.write(columnNames.mkString(",") + NL)
         }
 
-        w.write(data.map(_.productIterator.map(escape).mkString(",")).mkString("\n"))
+        w.write(data.map(_.productIterator.map(escape).mkString(",")).mkString(NL))
 
         if (data.nonEmpty) {
-          w.write("\n")
+          w.write(NL)
         }
 
       } finally {
@@ -195,13 +207,5 @@ object MetadataExportPlugin extends AutoPlugin {
         }
       }
     }
-  }
-
-  def deleteIfExists(x: File): File = {
-    if (x.exists()) {
-      x.delete()
-    }
-
-    x
   }
 }
