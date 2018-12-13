@@ -36,6 +36,7 @@ object MultiProjectExecutor {
           x.writeReport(new PrintWriter(System.out))
         case x => println(x)
       }
+
       System.out.flush()
     }
   }
@@ -67,18 +68,16 @@ class MultiProjectExecutor[R](task: File => R, threads: Int)(implicit ev: Monoid
       }
     }
 
-    def runOne(path: File): Future[R] = Future {
-      val result = Try(task(path))
-      completeOne(path, result)
-      latch.countDown()
-      result.get
-    }
-
     val startTime = System.currentTimeMillis()
 
     println(s"Processing ${projectsPaths.size} projects with $threads thread(s) ...")
 
-    projectsPaths.foreach(runOne)
+    projectsPaths.foreach { path =>
+      Future(task(path)).onComplete { result =>
+        Try(completeOne(path, result))
+        latch.countDown()
+      }
+    }
 
     latch.await()
 

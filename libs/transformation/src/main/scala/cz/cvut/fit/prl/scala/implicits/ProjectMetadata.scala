@@ -14,7 +14,7 @@ import scala.meta._
 import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
 
-case class ProjectClasspath(
+case class ClasspathEntry(
     projectId: String,
     projectName: String,
     path: String,
@@ -28,12 +28,12 @@ case class ProjectVersion(
     scalaVersion: String,
     sbtVersion: String
 )
-//project_id,project_name,scope,kind,path,files,language,blank,comment,code
-case class ProjectSourcepath(
+
+case class SourcepathEntry(
     projectId: String,
     projectName: String,
     scope: String,
-    kind: String,
+    managed: Boolean,
     path: String,
     files: Int,
     language: String,
@@ -44,10 +44,10 @@ case class ProjectSourcepath(
 
 class ProjectMetadata(path: File) {
 
-  val versionFile: File = metadataFile(VersionsFilename)
-  val classpathFile: File = metadataFile(ClasspathFilename)
-  val sourcepathFile: File = metadataFile(SourcepathFilename)
-  val mergedSemanticdbFile: File = metadataFile(MergedSemanticdbFilename)
+  private val versionFile = metadataFile(VersionsFilename)
+  private val classpathFile = metadataFile(ClasspathFilename)
+  private val sourcepathFile = metadataFile(SourcepathFilename)
+  private val mergedSemanticdbFile = metadataFile(MergedSemanticdbFilename)
   private val asts: TrieMap[String, Source] = TrieMap()
 
   lazy val versionEntries: List[ProjectVersion] = {
@@ -56,15 +56,15 @@ class ProjectMetadata(path: File) {
       .toList
   }
 
-  lazy val classpathEntries: List[ProjectClasspath] = {
+  lazy val classpathEntries: List[ClasspathEntry] = {
     classpathFile.path
-      .asUnsafeCsvReader[ProjectClasspath](rfc.withHeader)
+      .asUnsafeCsvReader[ClasspathEntry](rfc.withHeader)
       .toList
   }
 
-  lazy val sourcepathEntries: List[ProjectSourcepath] = {
+  lazy val sourcepathEntries: List[SourcepathEntry] = {
     sourcepathFile.path
-      .asUnsafeCsvReader[ProjectSourcepath](rfc.withHeader)
+      .asUnsafeCsvReader[SourcepathEntry](rfc.withHeader)
       .toList
   }
 
@@ -98,7 +98,7 @@ class ProjectMetadata(path: File) {
 
   lazy val sbtVersion: String = versionEntries.head.sbtVersion
 
-  def metadataFile(filename: String): File = path / filename
+  private def metadataFile(filename: String): File = path / filename
 
   def ast(filename: String): Source =
     asts.getOrElseUpdate(

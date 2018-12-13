@@ -13,6 +13,7 @@ object ExtractImplicits extends App {
 
   case class Result(declarations: Int, callSites: Int, failures: List[String])
       extends Reporting {
+
     override def writeReport(writer: PrintWriter): Unit = {
       if (failures.nonEmpty) {
         writer.println("Failure summary:")
@@ -59,6 +60,7 @@ object ExtractImplicits extends App {
 
   class Task(messageOutput: OutputStream, exceptionWriter: OutputStream)
       extends (File => Result) {
+
     override def apply(projectPath: File): Result = {
       val metadata = new ProjectMetadata(projectPath)
       val ctx = new ExtractionContext(metadata.resolver)
@@ -84,10 +86,11 @@ object ExtractImplicits extends App {
 
       val classpath =
         metadata.classpathEntries.map(x =>
-          Path(x.path, Path.Kind.CLASSPATH, x.scope, false))
+          Path(x.path, Path.Kind.CLASSPATH, x.scope, managed = false))
+
       val sourcepath =
         metadata.sourcepathEntries.map(x =>
-          Path(x.path, Path.Kind.SOURCEPATH, x.scope, x.kind == "managed"))
+          Path(x.path, Path.Kind.SOURCEPATH, x.scope, x.managed))
 
       val project = Project(
         projectId = metadata.projectId,
@@ -104,8 +107,10 @@ object ExtractImplicits extends App {
       }
 
       synchronized {
+        val pstream = new PrintStream(exceptionWriter)
+        pstream.println(s"** ${project.projectId}\n")
         project.writeDelimitedTo(messageOutput)
-        allExceptions.foreach(_.printStackTrace(new PrintStream(exceptionWriter)))
+        allExceptions.foreach(_.printStackTrace(pstream))
       }
 
       Result(project.declarations.size, callSites.size, allExceptions.map(_.summary))
