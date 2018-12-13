@@ -20,7 +20,7 @@ trait CaseClassAssertions extends DiffAssertions with Matchers {
     val actualText =
       pprint.apply(actual, height = Integer.MAX_VALUE, indent = 2).plainText
 
-    assertNoDiffOrPrintExpected(actualText, expectedText)
+    assertNoDiffOrPrintExpected(expectedText, actualText)
   }
 
 }
