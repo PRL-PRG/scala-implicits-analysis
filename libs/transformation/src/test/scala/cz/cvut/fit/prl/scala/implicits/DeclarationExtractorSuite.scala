@@ -3,9 +3,33 @@ package cz.cvut.fit.prl.scala.implicits
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import cz.cvut.fit.prl.scala.implicits.model._
-import cz.cvut.fit.prl.scala.implicits.utils._
 
 class DeclarationExtractorSuite extends ExtractionContextSuite {
+
+  declarations(
+    "this.type",
+    """
+      | package p
+      | object o {
+      |   class C[T] {
+      |     implicit def x: this.type = ???
+      |   }
+      | }
+    """.stripMargin) { implicit res =>
+    val expected = Declaration(
+      DEF,
+      "p/o.C#x().",
+      "x",
+      Some(TestLocalLocation),
+      SCALA,
+      true,
+      MethodSignature(
+        returnType = TypeRef("p/o.C#")
+      )
+    )
+
+    checkElements(res.declarations, Seq(expected))
+  }
 
   declarations(
     "implicit var",

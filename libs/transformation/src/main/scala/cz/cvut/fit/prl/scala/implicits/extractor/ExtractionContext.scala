@@ -213,6 +213,8 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     case s.WithType(types) =>
       // TODO: is this ok?
       createType(types.head)
+    case s.ThisType(symbol) =>
+      m.TypeRef(resolveDeclaration(symbol).fqn)
     case s.Type.Empty =>
       m.Type.Empty
     case x =>
