@@ -4,7 +4,6 @@ import java.io.FileWriter
 
 import sbt.Keys._
 import sbt._
-import sbt.plugins.JvmPlugin
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
@@ -32,7 +31,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
   override def trigger = allRequirements
 
-  override def requires = JvmPlugin
+  override def requires = empty
 
   lazy val origin: String = {
     runCommand("git remote get-url origin").get.trim
@@ -87,52 +86,44 @@ object MetadataExportPlugin extends AutoPlugin {
         (false, "test") -> (unmanagedSourceDirectories in Test).value
       )
 
-      if (!sourceDirectoriesFile.exists()) {
-        val directories = for {
-          ((kind, scope), paths) <- sources
-          path <- paths
-          slocs <- computeSLOC(path).toOption.toSeq
-          sloc <- slocs
-        } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
+      val directories = for {
+        ((kind, scope), paths) <- sources
+        path <- paths
+        slocs <- computeSLOC(path).toOption.toSeq
+        sloc <- slocs
+      } yield SourceDir(projectId, projectName, scope, kind, path.getAbsolutePath, sloc)
 
-        writeCSV(
-          sourceDirectoriesFile,
-          Seq("project_id", "project_name", "scope", "kind", "path", "files", "language", "blank", "comment", "code"),
-          directories
+      writeCSV(
+        sourceDirectoriesFile,
+        Seq("project_id", "project_name", "scope", "kind", "path", "files", "language", "blank", "comment", "code"),
+        directories
+      )
+
+      val versions = Seq(
+        Version(
+          projectId,
+          projectName,
+          commit,
+          forcedScalaVersion,
+          forcedSbtVersion
         )
-      }
+      )
 
-      if (!versionsFile.exists()) {
-        val versions = Seq(
-          Version(
-            projectId,
-            projectName,
-            commit,
-            forcedScalaVersion,
-            forcedSbtVersion
-          )
-        )
-
-        writeCSV(versionsFile, Seq("project_id", "project_name", "commit", "scala_version", "sbt_version"), versions)
-      }
+      writeCSV(versionsFile, Seq("project_id", "project_name", "commit", "scala_version", "sbt_version"), versions)
 
 
-      if (!classpathFile.exists()) {
-        val classpath =
-          forcedClasspathCompile
-            .map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "compile")) ++
-            forcedClasspathTest
-              .diff(forcedClasspathCompile)
-              .map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "test"))
+      val classpath =
+        forcedClasspathCompile
+          .map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "compile")) ++
+          forcedClasspathTest
+            .diff(forcedClasspathCompile)
+            .map(x => ProjectClasspath(projectId, projectName, x.data.getAbsolutePath, "test"))
 
-        writeCSV(classpathFile, Seq("project_id", "project_name", "path", "scope"), classpath)
-      }
+      writeCSV(classpathFile, Seq("project_id", "project_name", "path", "scope"), classpath)
 
-      if (!cleanpathFile.exists()) {
-        val cleanpaths = for (path <- forcedCleanFiles) yield ProjectPath(projectId, projectName, path.getAbsolutePath)
+      val cleanpaths = for (path <- forcedCleanFiles) yield ProjectPath(projectId, projectName, path.getAbsolutePath)
 
-        writeCSV(cleanpathFile, Seq("project_id", "project_name", "path"), cleanpaths)
-      }
+      writeCSV(cleanpathFile, Seq("project_id", "project_name", "path"), cleanpaths)
     }
   )
 
