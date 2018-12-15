@@ -15,8 +15,6 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
   class Converter(db: s.TextDocument, terms: Map[s.Range, Term]) {
 
-    "a".isRootPackage
-
     def findFunctionTerm(t: Term): Option[Tree] = t match {
       case Term.Select(_, name)       => Some(t)
       case Term.Name(_)               => Some(t)
@@ -49,7 +47,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             if (declaration.hasImplicitParameters) argumentss.head.map(_.toTypeRef) else Seq()
           } catch {
             case _: Throwable =>
-              throw UnexpectedElementException("Callsite declaration", s"$code -- $declaration")
+              throw new UnexpectedElementException("Callsite declaration", s"$code -- $declaration")
           }
         }
 
@@ -205,7 +203,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       .collect {
         case (_, Success(xs)) => xs.filter(_.isImplicit).map(Success(_))
         case (synthetic, Failure(x)) =>
-          List(Failure(CallSiteConversionException(x, db.uri, synthetic)))
+          List(Failure(new CallSiteConversionException(x, db.uri, synthetic)))
       }
       .flatten
   }

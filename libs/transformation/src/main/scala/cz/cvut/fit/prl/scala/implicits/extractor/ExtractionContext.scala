@@ -20,7 +20,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
   def resolveDeclaration(symbol: String): m.Declaration =
     resolveDeclaration(resolveSymbol(symbol))
 
-  def declarations: Seq[m.Declaration] = declarationIndex.values.toSeq
+  def declarations: List[m.Declaration] = declarationIndex.values.toList
 
   override def resolveType(tpe: m.Type): m.Declaration =
     declarationIndex(tpe.declarationRef)
@@ -115,7 +115,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       case x: s.ValueSignature =>
         m.Declaration.Signature.Value(createValueSignature(x))
       case _ =>
-        throw UnsupportedElementException("signature", signature.getClass.getSimpleName)
+        throw new UnsupportedElementException("signature", signature.getClass.getSimpleName)
     }
 
   private def createDeclaration(
@@ -138,7 +138,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       case x if x.isTypeParameter => TYPE_PARAMETER
       case x if x.isMacro         => MACRO
       case x if x.isParameter     => PARAMETER
-      case x                      => throw UnsupportedElementException("declaration symbol kind", x.kind)
+      case x                      => throw new UnsupportedElementException("declaration symbol kind", x.kind)
     }
 
     m.Declaration(
@@ -165,7 +165,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
           symbolInfo.isImplicit
         )
       case x =>
-        throw UnexpectedElementException("parameter signature", x.getClass.getSimpleName)
+        throw new UnexpectedElementException("parameter signature", x.getClass.getSimpleName)
     }
 
   private def createTypeParameter(symbol: String): m.TypeParameter =
@@ -182,7 +182,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         upperBound = Try(createType(upperBound)).getOrElse(m.Type.Empty)
       )
     case x =>
-      throw UnexpectedElementException(
+      throw new UnexpectedElementException(
         "type parameter signature",
         x.getClass.getSimpleName)
   }
@@ -218,7 +218,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     case s.Type.Empty =>
       m.Type.Empty
     case x =>
-      throw UnsupportedElementException("type", x.getClass.getSimpleName)
+      throw new UnsupportedElementException("type", x.getClass.getSimpleName)
   }
 
   def createTypeArguments(typeArguments: Seq[s.Type]): List[m.Type] = {
@@ -239,7 +239,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
   private def createTypeReference(symbol: String, typeArguments: Seq[s.Type]): m.Type = {
     resolveSymbolInfo(symbol) match {
       case x if x.symbol.isLocal =>
-        throw UnsupportedElementException("TypeRef type", "local")
+        throw new UnsupportedElementException("TypeRef type", "local")
       case x if x.isTypeParameter =>
         val parent = resolveDeclaration(symbol.owner)
         m.TypeParameterRef(
@@ -251,7 +251,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         val parent = resolveDeclaration(symbol)
         m.TypeRef(parent.fqn, createTypeArguments(typeArguments))
       case x =>
-        throw UnsupportedElementException("TypeRef type", x)
+        throw new UnsupportedElementException("TypeRef type", x)
     }
   }
 }

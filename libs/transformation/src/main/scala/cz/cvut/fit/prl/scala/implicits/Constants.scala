@@ -12,7 +12,8 @@ object Constants {
   val MergedSemanticdbStatsFilename = s"$AnalysisDirname/semanticdbs-${BuildInfo.scalametaVersion}.csv"
 
   val ExtractedImplicitsFilename = "implicits.bin"
-  val ExtractionExceptionsFilename = "implicits-exceptions.log"
+  val ExtractionExceptionsFilename = "implicits-exceptions.csv"
+  val ExtractionStatusFilename = "implicits-status.csv"
 
   lazy val ExcludedDirs: Seq[String] = Seq(".git", AnalysisDirname)
 

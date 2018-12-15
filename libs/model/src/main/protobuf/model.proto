@@ -129,4 +129,3 @@ message CallSite {
     repeated Type type_arguments = 5;
     repeated TypeRef implicit_argument_types = 6;
 }
-

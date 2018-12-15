@@ -21,7 +21,7 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
       .collect {
         case (_, Success(Some(x))) => Success(x)
         case (symbolInfo, Failure(x)) =>
-          Failure(DeclarationConversionException(x, db.uri, position(symbolInfo), symbolInfo))
+          Failure(new DeclarationConversionException(x, db.uri, position(symbolInfo), symbolInfo))
       }
   }
 
@@ -38,7 +38,7 @@ class DeclarationExtractor(ctx: ExtractionContext) extends LazyLogging {
           None
         }
       case x =>
-        throw SkippedSymbolException(x.kind.toString())
+        throw new SkippedSymbolException(x.kind.toString())
     }
 
 }

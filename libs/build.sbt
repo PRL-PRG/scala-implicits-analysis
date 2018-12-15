@@ -15,6 +15,7 @@ val LoggingLibraries = Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
 )
+val BetterFilesLibrary = "com.github.pathikrit" %% "better-files" % "3.4.0"
 
 // the reason, why we split the project is that there is some bug in either scalapb or buildinfo
 // and they do not work well together
@@ -25,9 +26,10 @@ lazy val model = (project in file("model")).settings(
   name := "model",
   libraryDependencies ++= Seq(
     "org.scalameta" %% "semanticdb" % ScalametaVersion,
-    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
+    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
   ),
   libraryDependencies ++= TestLibraries,
+  libraryDependencies += BetterFilesLibrary,
   PB.targets in Compile := Seq(
     scalapb.gen(
       flatPackage = true // Don't append filename to package
@@ -48,8 +50,8 @@ lazy val transformation = (project in file("transformation"))
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
       "com.lihaoyi" %% "pprint" % "0.5.3",
       "com.nrinaudo" %% "kantan.csv-generic" % "0.4.0",
-      "org.typelevel" %% "cats-core" % "1.4.0",
-      "com.github.pathikrit" %% "better-files" % "3.4.0",
+      "org.typelevel" %% "cats-core" % "1.5.0",
+      "org.typelevel" %% "kittens" % "1.2.0"
     ),
     libraryDependencies ++= Seq(
       "org.scalameta" %% "scalameta",
@@ -62,6 +64,7 @@ lazy val transformation = (project in file("transformation"))
       "org.scalameta" % ("semanticdb-scalac_" + scalaVersion.value),
     ).map(_ % ScalametaVersion),
     libraryDependencies ++= LoggingLibraries,
+    libraryDependencies += BetterFilesLibrary,
     // testing dependnecies
     libraryDependencies ++= TestLibraries,
     libraryDependencies ++= Seq(

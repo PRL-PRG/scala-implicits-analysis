@@ -7,6 +7,29 @@ import cz.cvut.fit.prl.scala.implicits.model._
 class DeclarationExtractorSuite extends ExtractionContextSuite {
 
   declarations(
+    "java reference",
+    """
+      | package p
+      | object o {
+      |   implicit def x: java.util.List[String] = ???
+      | }
+    """.stripMargin) { implicit res =>
+    val expected = Declaration(
+      DEF,
+      "p/o.x().",
+      "x",
+      Some(TestLocalLocation),
+      SCALA,
+      true,
+      MethodSignature(
+        returnType = TypeRef("java/util/List#", List(TypeRef("scala/Predef.String#", List())))
+      )
+    )
+
+    checkElements(res.declarations, Seq(expected))
+  }
+
+  declarations(
     "this.type",
     """
       | package p
