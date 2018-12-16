@@ -5,12 +5,15 @@ import java.nio.file.Path
 
 import sbt.Keys._
 import sbt._
+import sbt.plugins.JvmPlugin
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  val GHOrigin: Regex = "^http[s]?://github.com/([^/]+)/([^.]+)(\\.git)?$".r
+  private val GHOrigin: Regex =
+    "^http[s]?://github.com/([^/]+)/([^.]+)(\\.git)?$".r
+  private val NL = System.getProperty("line.separator")
 
   case class SLOC(files: String,
                   language: String,
@@ -48,7 +51,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
   override def trigger = allRequirements
 
-  override def requires = empty
+  override def requires = JvmPlugin
 
   lazy val origin: String = {
     runCommand("git remote get-url origin").get.trim
@@ -78,30 +81,31 @@ object MetadataExportPlugin extends AutoPlugin {
     tmp
   }
 
-  val sourceDirectoriesFile =
+  lazy val sourcepathsFile =
     deleteIfExists(new File(analysisDir, "metadata-sourcepath.csv"))
 
-  val versionsFile =
+  lazy val versionsFile =
     deleteIfExists(new File(analysisDir, "metadata-versions.csv"))
 
-  val classpathFile =
+  lazy val classpathFile =
     deleteIfExists(new File(analysisDir, "metadata-classpath.csv"))
 
-  val cleanpathFile =
+  lazy val cleanpathFile =
     deleteIfExists(new File(analysisDir, "metadata-cleanpath.csv"))
 
   override lazy val projectSettings = Seq(
     metadata := {
       val projectName = name.value
 
-      println(s"Processing: $projectName in $repositoryRoot")
+      println(
+        s"Processing: $projectName in $repositoryRoot on ${Thread.currentThread().getName}")
 
       // we need to force this here so it does not complain that it is in the loop
       val forcedScalaVersion = (scalaVersion in Compile).value
       val forcedSbtVersion = (sbtVersion in Compile).value
-      val forcedClasspathCompile = (fullClasspath in Compile).value
-      val forcedClasspathTest = (fullClasspath in Test).value
-      val forcedCleanFiles = cleanFiles.value
+      val forcedCompileDependencies = (externalDependencyClasspath in Compile).value
+      val forcedTestDependencies = (externalDependencyClasspath in Test).value
+      val forcedCleanDirectories = (classDirectory in Compile).value :: (classDirectory in Test).value :: Nil
 
       val sources = Seq(
         (true, "compile") -> (managedSourceDirectories in Compile).value,
@@ -124,7 +128,7 @@ object MetadataExportPlugin extends AutoPlugin {
                   sloc)
 
       writeCSV(
-        sourceDirectoriesFile,
+        sourcepathsFile,
         Seq("project_id",
             "project_name",
             "scope",
@@ -157,15 +161,15 @@ object MetadataExportPlugin extends AutoPlugin {
                versions)
 
       val classpath =
-        forcedClasspathCompile
+        forcedCompileDependencies
           .map(
             x =>
               ProjectClasspath(projectId,
                                projectName,
                                x.data.getAbsolutePath,
                                "compile")) ++
-          forcedClasspathTest
-            .diff(forcedClasspathCompile)
+          forcedTestDependencies
+            .diff(forcedCompileDependencies)
             .map(
               x =>
                 ProjectClasspath(projectId,
@@ -177,7 +181,7 @@ object MetadataExportPlugin extends AutoPlugin {
                Seq("project_id", "project_name", "path", "scope"),
                classpath)
 
-      val cleanpaths = for (path <- forcedCleanFiles)
+      val cleanpaths = for (path <- forcedCleanDirectories)
         yield ProjectPath(projectId, projectName, path.getAbsolutePath)
 
       writeCSV(cleanpathFile,
@@ -185,8 +189,6 @@ object MetadataExportPlugin extends AutoPlugin {
                cleanpaths)
     }
   )
-
-  private val NL = System.getProperty("line.separator")
 
   def computeSLOC(path: Path): Try[Seq[SLOC]] = {
     if (path.toFile.exists()) {
