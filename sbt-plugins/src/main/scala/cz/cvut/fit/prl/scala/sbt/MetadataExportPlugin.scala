@@ -14,6 +14,7 @@ object MetadataExportPlugin extends AutoPlugin {
   private val GHOrigin: Regex =
     "^http[s]?://github.com/([^/]+)/([^.]+)(\\.git)?$".r
   private val NL = System.getProperty("line.separator")
+  private val NA = "NA"
 
   case class SLOC(files: String,
                   language: String,
@@ -34,20 +35,45 @@ object MetadataExportPlugin extends AutoPlugin {
                      projectName: String,
                      commit: String,
                      scalaVersion: String,
-                     sbtVersion: String)
+                     sbtVersion: String, compileTarget: String, testTarget: String)
 
   case class ProjectClasspath(projectId: String,
                               projectName: String,
                               path: String,
-                              scope: String)
+                              scope: String,
+                              groupId: String,
+                              artifactId: String,
+                              version: String)
+
+  object ProjectClasspath {
+    def apply(projectId: String,
+              projectName: String,
+              scope: String): Attributed[File] => ProjectClasspath = { entry =>
+      val path = entry.data.getAbsolutePath
+      val (groupId, artifactId, version) = entry
+        .get(moduleID.key)
+        .map { module =>
+          (module.organization, module.name, module.revision)
+        }
+        .getOrElse((NA, NA, NA))
+
+      ProjectClasspath(projectId,
+        projectName,
+        path,
+        scope,
+        groupId,
+        artifactId,
+        version)
+    }
+  }
 
   case class ProjectPath(projectId: String, projectName: String, path: String)
 
-  object autoImport {
+  final val autoImport = MyKeys
+
+  object MyKeys {
     val metadata = taskKey[Unit]("dumps project metadata")
   }
-
-  import autoImport._
 
   override def trigger = allRequirements
 
@@ -68,7 +94,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
   lazy val projectId: String = origin match {
     case GHOrigin(user, repo, _) => user + "--" + repo
-    case _                       => throw new Exception("Unable to get projectId")
+    case _ => throw new Exception("Unable to get projectId")
   }
 
   lazy val analysisDir = {
@@ -93,43 +119,46 @@ object MetadataExportPlugin extends AutoPlugin {
   lazy val cleanpathFile =
     deleteIfExists(new File(analysisDir, "metadata-cleanpath.csv"))
 
-  override lazy val projectSettings = Seq(
-    metadata := {
-      val projectName = name.value
+  override lazy val projectSettings =
+    Seq(
+      MyKeys.metadata := {
+        val projectName = name.value
 
-      println(
-        s"Processing: $projectName in $repositoryRoot on ${Thread.currentThread().getName}")
+        println(
+          s"Processing: $projectName in $repositoryRoot on ${Thread.currentThread().getName}")
 
-      // we need to force this here so it does not complain that it is in the loop
-      val forcedScalaVersion = (scalaVersion in Compile).value
-      val forcedSbtVersion = (sbtVersion in Compile).value
-      val forcedCompileDependencies = (externalDependencyClasspath in Compile).value
-      val forcedTestDependencies = (externalDependencyClasspath in Test).value
-      val forcedCleanDirectories = (classDirectory in Compile).value :: (classDirectory in Test).value :: Nil
+        // we need to force this here so it does not complain that it is in the loop
+        val forcedScalaVersion = (scalaVersion in Compile).value
+        val forcedSbtVersion = (sbtVersion in Compile).value
+        val forcedCompileDependencies = (dependencyClasspath in Compile).value
+        val forcedTestDependencies = (dependencyClasspath in Test).value
+        val forcedCleanDirectories = (classDirectory in Compile).value :: (classDirectory in Test).value :: Nil
+        val forcedCompileTarget = (target in Compile).value
+        val forcedTestTarget = (target in Test).value
 
-      val sources = Seq(
-        (true, "compile") -> (managedSourceDirectories in Compile).value,
-        (true, "test") -> (managedSourceDirectories in Test).value,
-        (false, "compile") -> (unmanagedSourceDirectories in Compile).value,
-        (false, "test") -> (unmanagedSourceDirectories in Test).value
-      )
+        val sources = Seq(
+          (true, "compile") -> (managedSourceDirectories in Compile).value,
+          (true, "test") -> (managedSourceDirectories in Test).value,
+          (false, "compile") -> (unmanagedSourceDirectories in Compile).value,
+          (false, "test") -> (unmanagedSourceDirectories in Test).value
+        )
 
-      val directories = for {
-        ((kind, scope), paths) <- sources
-        path <- paths.map(_.toPath.toAbsolutePath)
-        slocs <- computeSLOC(path).toOption.toSeq
-        sloc <- slocs
-      } yield
-        SourceDir(projectId,
-                  projectName,
-                  scope,
-                  kind,
-                  repositoryRoot.relativize(path).toString,
-                  sloc)
+        val directories = for {
+          ((kind, scope), paths) <- sources
+          path <- paths.map(_.toPath.toAbsolutePath)
+          slocs <- computeSLOC(path).toOption.toSeq
+          sloc <- slocs
+        } yield
+          SourceDir(projectId,
+            projectName,
+            scope,
+            kind,
+            repositoryRoot.relativize(path).toString,
+            sloc)
 
-      writeCSV(
-        sourcepathsFile,
-        Seq("project_id",
+        writeCSV(
+          sourcepathsFile,
+          Seq("project_id",
             "project_name",
             "scope",
             "kind",
@@ -139,56 +168,50 @@ object MetadataExportPlugin extends AutoPlugin {
             "blank",
             "comment",
             "code"),
-        directories
-      )
-
-      val versions = Seq(
-        Version(
-          projectId,
-          projectName,
-          commit,
-          forcedScalaVersion,
-          forcedSbtVersion
+          directories
         )
-      )
 
-      writeCSV(versionsFile,
-               Seq("project_id",
-                   "project_name",
-                   "commit",
-                   "scala_version",
-                   "sbt_version"),
-               versions)
+        val versions = Seq(
+          Version(
+            projectId,
+            projectName,
+            commit,
+            forcedScalaVersion,
+            forcedSbtVersion,
+            forcedCompileTarget.getAbsolutePath,
+            forcedTestTarget.getAbsolutePath
+          )
+        )
 
-      val classpath =
-        forcedCompileDependencies
-          .map(
-            x =>
-              ProjectClasspath(projectId,
-                               projectName,
-                               x.data.getAbsolutePath,
-                               "compile")) ++
-          forcedTestDependencies
-            .diff(forcedCompileDependencies)
-            .map(
-              x =>
-                ProjectClasspath(projectId,
-                                 projectName,
-                                 x.data.getAbsolutePath,
-                                 "test"))
+        writeCSV(versionsFile,
+          Seq("project_id",
+            "project_name",
+            "commit",
+            "scala_version",
+            "sbt_version",
+            "compile_target",
+            "test_target"),
+          versions)
 
-      writeCSV(classpathFile,
-               Seq("project_id", "project_name", "path", "scope"),
-               classpath)
+        val classpath =
+          forcedCompileDependencies
+            .map(ProjectClasspath(projectId, projectName, "compile")) ++
+            forcedTestDependencies
+              .diff(forcedCompileDependencies)
+              .map(ProjectClasspath(projectId, projectName, "test"))
 
-      val cleanpaths = for (path <- forcedCleanDirectories)
-        yield ProjectPath(projectId, projectName, path.getAbsolutePath)
+        writeCSV(classpathFile,
+          Seq("project_id", "project_name", "path", "scope", "group_id", "artifact_id", "version"),
+          classpath)
 
-      writeCSV(cleanpathFile,
-               Seq("project_id", "project_name", "path"),
-               cleanpaths)
-    }
-  )
+        val cleanpaths = for (path <- forcedCleanDirectories)
+          yield ProjectPath(projectId, projectName, path.getAbsolutePath)
+
+        writeCSV(cleanpathFile,
+          Seq("project_id", "project_name", "path"),
+          cleanpaths)
+      }
+    )
 
   def computeSLOC(path: Path): Try[Seq[SLOC]] = {
     if (path.toFile.exists()) {
@@ -214,10 +237,10 @@ object MetadataExportPlugin extends AutoPlugin {
     // we have to use FQN since sbt 0.13 also defines stringToProcess and ProcessLogger
     // both deprecated in sbt 1.0
     val exitcode =
-      sys.process.stringToProcess(cmd) ! sys.process.ProcessLogger(
-        x => stdout append x + NL,
-        x => stderr append x + NL
-      )
+    sys.process.stringToProcess(cmd) ! sys.process.ProcessLogger(
+      x => stdout append x + NL,
+      x => stderr append x + NL
+    )
 
     val status =
       if (exitcode == 0) {
@@ -236,7 +259,7 @@ object MetadataExportPlugin extends AutoPlugin {
                append: Boolean = true): Unit = {
     def escape(x: Any): Any = x match {
       case y: String => '"' + y + '"'
-      case y         => y
+      case y => y
     }
 
     synchronized {
