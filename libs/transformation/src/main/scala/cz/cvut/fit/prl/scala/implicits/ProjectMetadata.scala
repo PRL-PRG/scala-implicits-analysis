@@ -1,16 +1,17 @@
 package cz.cvut.fit.prl.scala.implicits
 
 import better.files._
+import cats.instances.list._
+import cats.instances.map._
+import cats.syntax.semigroup._
 import cz.cvut.fit.prl.scala.implicits.extractor.{LoadingMetadataException, SemanticdbSymbolResolver}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
+import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
 import cz.cvut.fit.prl.scala.implicits.symtab.{GlobalSymbolTable, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
 import kantan.csv._
 import kantan.csv.generic._
-import cats.instances.map._
-import cats.instances.list._
-import cats.syntax.semigroup._
 
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
@@ -19,19 +20,10 @@ import scala.meta._
 import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
 
-case class ClasspathEntry(
-    internal: Boolean,
-    groupId: String,
-    artifactId: String,
-    version: String,
-    path: String,
-    scope: String
-)
-
 case class SubProjectMetadata(
     modulesId: String,
     classpathEntries: List[ClasspathEntry],
-    sourcepathEntries: List[SourcePath],
+    sourcepathEntries: List[SourcepathEntry],
     classpath: Classpath,
     semanticdbs: List[s.TextDocument]
 ) {
@@ -57,7 +49,7 @@ object ProjectMetadata {
 
     val warnings = mutable.Buffer[Throwable]()
 
-    def readCSV[T : HeaderDecoder](file: File): List[T] = {
+    def readCSV[T: HeaderDecoder](file: File): List[T] = {
       import kantan.csv.ops._
       file.path.asUnsafeCsvReader(rfc.withHeader).toList
     }
@@ -75,16 +67,17 @@ object ProjectMetadata {
       readCSV[SourcePath](path / AnalysisDirname / SourcePathsFilename)
 
     val versionsMap = versions
-    .groupBy(_.moduleId)
-    .mapValues {
-      case v :: Nil => v
-      case x @ vs =>
-        throw new Exception(s"Wrong number of projects associated with $x: $vs")
-    }
+      .groupBy(_.moduleId)
+      .mapValues {
+        case v :: Nil => v
+        case x @ vs =>
+          throw new Exception(s"Wrong number of projects associated with $x: $vs")
+      }
 
     val sourcepathEntriesMap =
       sourcepathEntries
         .groupBy(_.moduleId)
+        .mapValues(xs => xs.map(x => SourcepathEntry(x.path, x.scope, x.managed)))
         .withDefaultValue(Nil)
 
     val internalClasspathEntriesMap: Map[String, List[ClasspathEntry]] = {
@@ -102,30 +95,32 @@ object ProjectMetadata {
       val transitiveDependencies = dependencyMap.mapValues(xs => transitive(xs, Nil))
 
       transitiveDependencies
-      .mapValues { dependencies =>
-        dependencies.flatMap { dependency =>
-          versionsMap.get(dependency) match {
-            case Some(version) =>
-              val paths =
-                version.outputClasspaths.map(_ -> "compile") ++
-                  version.outputTestClasspaths.map(_ -> "test")
+        .mapValues { dependencies =>
+          dependencies.flatMap { dependency =>
+            versionsMap.get(dependency) match {
+              case Some(version) =>
+                val paths =
+                  version.outputClasspaths.map(_ -> "compile") ++
+                    version.outputTestClasspaths.map(_ -> "test")
 
-              paths.map {
-                case (classpath, scope) =>
-                  ClasspathEntry(
-                    internal = true,
-                    version.groupId,
-                    version.artifactId,
-                    version.version,
-                    classpath,
-                    scope)
-              }
-            case None =>
-              warnings += new Exception(s"Missing internal dependency $dependency")
-              Seq()
+                paths.map {
+                  case (classpath, scope) =>
+                    ClasspathEntry(
+                      classpath,
+                      version.groupId,
+                      version.artifactId,
+                      version.version,
+                      scope,
+                      internal = true,
+                      managed = true
+                    )
+                }
+              case None =>
+                warnings += new Exception(s"Missing internal dependency $dependency")
+                Seq()
+            }
           }
         }
-      }
     }
 
     val externalClasspathEntriesMap: Map[String, List[ClasspathEntry]] =
@@ -134,12 +129,14 @@ object ProjectMetadata {
         .mapValues { dependencies =>
           dependencies.map { dependency =>
             ClasspathEntry(
-              internal = false,
+              dependency.path,
               dependency.groupId,
               dependency.artifactId,
               dependency.version,
-              dependency.path,
-              dependency.scope)
+              dependency.scope,
+              internal = false,
+              managed = true
+            )
           }
         }
 

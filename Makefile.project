@@ -7,34 +7,44 @@ SHELL := /bin/bash
 
 SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem $(SBT_MEM) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
 
-bootstrap := $(ANALYSIS_DIR) $(IVY_DIR) $(SBT_BOOT_DIR)
-
 .PHONY: \
+	bootstrap \
 	clean \
 	clean-classes \
 	clean-implicits \
 	clean-metadata \
 	clean-sbt \
 	clean-semanticdb \
+	compile \
 	merge-semanticdbs \
 	metadata \
 	semanticdb \
 	repo-metadata \
 	reset \
 
-$(ANALYSIS_DIR):
-	mkdir -p $(ANALYSIS_DIR)
+bootstrap: $(IVY_DIR) $(SBT_BOOT_DIR)
+	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 
-$(METADATA_STATUS): $(bootstrap)
+$(COMPILE_STATUS): $(METADATA_STATUS)
+	echo "exit_code,duration" > $(COMPILE_STATUS)
+	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+      $(SBT) test:compile > $(COMPILE_LOG) 2>&1; \
+      exit_code=$$?; \
+    else \
+      exit_code=-1; \
+    fi; \
+    echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
+
+$(METADATA_STATUS): bootstrap
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
 
 # runs the semanticdb task on a clean project
-$(SEMANTICDB_STATUS): $(METADATA_STATUS)
+$(SEMANTICDB_STATUS): $(COMPILE_STATUS)
 	echo "exit_code,duration" > $(SEMANTICDB_STATUS)
-	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+	if [ $$(Rscript -e 'cat(read.csv("$(COMPILE_STATUS)")$$exit_code[1])') -eq '0' ]; then \
       $(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
       exit_code=$$?; \
     else \
@@ -67,6 +77,8 @@ clean-semanticdb:
 	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
 	rm -f $(MERGED_SEMANTICDB_FILE)
 	rm -f $(MERGED_SEMANTICDB_STATS_FILE)
+
+compile: $(COMPILE_STATUS)
 
 metadata: $(METADATA_STATUS)
 

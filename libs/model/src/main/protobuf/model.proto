@@ -21,22 +21,34 @@ message Location {
     optional Position position = 2;
 }
 
-message Path {
-    enum Kind {
-        CLASSPATH = 0;
-        SOURCEPATH = 1;
+message PathEntry {
+    oneof sealed_value {
+        SourcepathEntry source_path = 1;
+        ClasspathEntry class_path = 2;
     }
+}
+
+message SourcepathEntry {
     required string path = 1;
-    required Kind kind = 2;
-    required string scope = 3;
-    required bool managed = 4;
+    required string scope = 2;
+    required bool managed = 3;
+}
+
+message ClasspathEntry {
+    required string path = 1;
+    required string groupId = 2;
+    required string artifactId = 3;
+    required string version = 4;
+    required string scope = 5;
+    required bool internal = 6;
+    required bool managed = 7;
 }
 
 message Project {
     required string projectId = 1;
     required string scalaVersion = 2;
     required string sbtVersion = 3;
-    repeated Path paths = 4;
+    map<string, PathEntry> paths = 4;
     repeated Declaration declarations = 5;
     repeated CallSite implicitCallSites = 6;
     required int32 allCallSitesCount = 7;

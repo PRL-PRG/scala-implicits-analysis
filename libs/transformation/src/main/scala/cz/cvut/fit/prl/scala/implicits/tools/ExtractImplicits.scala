@@ -6,12 +6,8 @@ import cats.implicits._
 import cats.derived
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata, SubProjectMetadata}
-import cz.cvut.fit.prl.scala.implicits.extractor.{
-  CallSiteExtractor,
-  DeclarationExtractor,
-  ExtractionContext
-}
-import cz.cvut.fit.prl.scala.implicits.model.{CallSite, Declaration, Path, Project}
+import cz.cvut.fit.prl.scala.implicits.extractor.{CallSiteExtractor, DeclarationExtractor, ExtractionContext}
+import cz.cvut.fit.prl.scala.implicits.model.{CallSite, Declaration, PathEntry, Project}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import kantan.csv._
 import kantan.csv.ops._
@@ -112,7 +108,7 @@ object ExtractImplicits extends App {
         declarations: List[Declaration],
         implicitCallSites: List[CallSite],
         allCallSitesCount: Int,
-        paths: List[Path],
+        paths: List[PathEntry],
         exceptions: List[Throwable]
     )
 
@@ -134,7 +130,7 @@ object ExtractImplicits extends App {
         metadata.projectId,
         metadata.scalaVersion,
         metadata.sbtVersion,
-        subProjectResult.paths,
+        subProjectResult.paths.map(x => x.path -> x).toMap,
         subProjectResult.declarations,
         subProjectResult.implicitCallSites,
         subProjectResult.allCallSitesCount
@@ -165,19 +161,13 @@ object ExtractImplicits extends App {
           .map(csExtractor.callSiteCount)
           .sum
 
-      val classpath =
-        metadata.classpathEntries
-          .map(x => Path(x.path, Path.Kind.CLASSPATH, x.scope, managed = false))
-
-      val sourcepath =
-        metadata.sourcepathEntries
-          .map(x => Path(x.path, Path.Kind.SOURCEPATH, x.scope, x.managed))
+      val classpath = metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
 
       SubProjectResult(
         declarations = ctx.declarations,
         implicitCallSites = callSites,
         allCallSitesCount = csCount,
-        paths = classpath ++ sourcepath,
+        paths = classpath ++ metadata.sourcepathEntries,
         declExceptions ++ csExceptions
       )
     }

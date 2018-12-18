@@ -8,6 +8,14 @@ package object model {
     def isImplicit: Boolean = that.parameters.exists(_.isImplicit)
   }
 
+  implicit class XtenstionPathEntry(that: PathEntry) {
+    def path: String = that match {
+      case x:SourcepathEntry => x.path
+      case x:ClasspathEntry => x.path
+      case _ => throw new Exception(s"Trying to get path on $that")
+    }
+  }
+
   implicit class XtensionLocation(that: Location) {
 //    def
 //    def scope(implicit index: Index): String = that match {
@@ -33,6 +41,7 @@ package object model {
     def declarationRef: String = that match {
       case TypeRef(r, _)             => r
       case TypeParameterRef(r, _, _) => r
+      case _ => throw new Exception(s"Trying to get declarationRef on $that")
     }
 
     def declaration(implicit resolver: TypeResolver): Declaration =

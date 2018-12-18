@@ -55,6 +55,7 @@ endef
 bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 
 .PHONY: \
+  all \
 	clean \
 	clean-classes \
 	clean-implicits \
@@ -62,11 +63,13 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	clean-sbt \
 	clean-semanticdb \
 	clean-classes \
+	compile \
 	download-projects \
 	implicits \
 	merge-semanticdbs \
 	metadata \
 	link-projects \
+	report-compile \
 	report-metadata \
 	report-semanticdb \
 	reset \
@@ -79,7 +82,7 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-all: metadata report-metadata merge-semanticdbs report-semanticdb
+all: metadata report-metadata compile report-compile  merge-semanticdbs report-semanticdb extract-implicits
 
 clean: $(bootstrap)
 	$(parallel) $@
@@ -101,6 +104,9 @@ clean-sbt: $(bootstrap)
 	$(parallel) $@
 
 clean-semanticdb: $(bootstrap)
+	$(parallel) $@
+
+compile: $(bootstrap)
 	$(parallel) $@
 
 download-projects: $(PROJECTS_FILE)
@@ -127,6 +133,10 @@ metadata: $(bootstrap)
 
 repo-metadata: $(bootstrap)
 	$(parallel) $@
+
+report-compile:
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/task-report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/compile-report.html"), knit_root_dir="$(CURDIR)", params=list(taskname="compile", output_dir="$(CURDIR)/$(LOG_DIR_LATEST)"))'
+	@echo ">> Report is in $(LOG_DIR_LATEST)/compile-report.html"
 
 report-metadata:
 	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/task-report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/metadata-report.html"), knit_root_dir="$(CURDIR)", params=list(taskname="metadata", output_dir="$(CURDIR)/$(LOG_DIR_LATEST)"))'
