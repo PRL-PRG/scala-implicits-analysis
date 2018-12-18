@@ -5,9 +5,6 @@ object Constants {
   val ProjectsDirname = "projects"
 
   val AnalysisDirname = "_analysis_"
-  val VersionsFilename = s"$AnalysisDirname/metadata-versions.csv"
-  val ClasspathFilename = s"$AnalysisDirname/metadata-classpath.csv"
-  val SourcepathFilename = s"$AnalysisDirname/metadata-sourcepath.csv"
   val MergedSemanticdbFilename = s"$AnalysisDirname/semanticdbs-${BuildInfo.scalametaVersion}.bin"
   val MergedSemanticdbStatsFilename = s"$AnalysisDirname/semanticdbs-${BuildInfo.scalametaVersion}.csv"
 

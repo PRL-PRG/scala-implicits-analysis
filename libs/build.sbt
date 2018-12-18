@@ -25,6 +25,9 @@ val BetterFilesLibrary = "com.github.pathikrit" %% "better-files" % "3.4.0"
 lazy val model = (project in file("model")).settings(
   name := "model",
   libraryDependencies ++= Seq(
+    "cz.cvut.fit.prl.scala.implicits" %% "metadata" % "1.0-SNAPSHOT",
+    "org.typelevel" %% "cats-core" % "1.5.0",
+    "org.typelevel" %% "kittens" % "1.2.0",
     "org.scalameta" %% "semanticdb" % ScalametaVersion,
     "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
   ),
