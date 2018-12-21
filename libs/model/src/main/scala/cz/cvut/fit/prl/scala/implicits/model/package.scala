@@ -10,36 +10,21 @@ package object model {
 
   implicit class XtenstionPathEntry(that: PathEntry) {
     def path: String = that match {
-      case x:SourcepathEntry => x.path
-      case x:ClasspathEntry => x.path
+      case x: SourcepathEntry => x.path
+      case x: ClasspathEntry => x.path
       case _ => throw new Exception(s"Trying to get path on $that")
     }
   }
 
-  implicit class XtensionLocation(that: Location) {
-//    def
-//    def scope(implicit index: Index): String = that match {
-//      case Local(path, _) =>
-//      case _: External =>
-//      case _ => ""
-//    }
-
-//    def isLocal: Boolean = that match {
-//      case _: Local => true
-//      case _        => false
-//    }
-  }
-
   implicit class XtensionType(that: Type) {
-
     def asCode: String = that match {
-      case x: TypeRef          => x.asCode
+      case x: TypeRef => x.asCode
       case x: TypeParameterRef => x.asCode
-      case Type.Empty          => ""
+      case Type.Empty => ""
     }
 
     def declarationRef: String = that match {
-      case TypeRef(r, _)             => r
+      case TypeRef(r, _) => r
       case TypeParameterRef(r, _, _) => r
       case _ => throw new Exception(s"Trying to get declarationRef on $that")
     }
@@ -103,7 +88,7 @@ package object model {
 
     def typeParameters: Seq[TypeParameter] = that.signature.value match {
       case x: MethodSignature => x.typeParameters
-      case x: TypeSignature   => x.typeParameters
+      case x: TypeSignature => x.typeParameters
     }
 
     def parameterLists: Seq[ParameterList] =
@@ -138,7 +123,5 @@ package object model {
         case _ =>
           throw new Exception(s"Trying to get parents on ${that.signature}")
       }
-
   }
-
 }

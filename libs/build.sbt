@@ -1,30 +1,23 @@
-val ScalametaVersion = "4.1.0"
+// this is for the sbt-buildinfo plugin
+resolvers += Resolver.sbtPluginRepo("releases")
 
 lazy val commonSettings = Seq(
   scalaVersion := "2.12.7",
   organization := "cz.cvut.fit.prl.scala.implicits",
-  version := "1.0-SNAPSHOT"
+  version := "1.0-SNAPSHOT",
 )
 
-// this is for the sbt-buildinfo plugin
-resolvers += Resolver.sbtPluginRepo("releases")
-
-val TestLibraries = Seq(
-  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
-  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
-)
-val LoggingLibraries = Seq(
-  "ch.qos.logback" % "logback-classic" % "1.2.3",
-  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
-)
-val BetterFilesLibrary = "com.github.pathikrit" %% "better-files" % "3.4.0"
+lazy val root = (project in file("."))
+  .aggregate(metadata, model, transformation)
+  .settings(commonSettings)
+  .settings(name := "libs")
 
 lazy val metadata = (project in file("metadata"))
   .settings(commonSettings)
   .settings(
-  name := "metadata",
-  crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.7"),
-)
+    name := "metadata",
+    crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.7")
+  )
 
 // the reason, why we split the project is that there is some bug in either scalapb or buildinfo
 // and they do not work well together
@@ -35,21 +28,21 @@ lazy val model = (project in file("model"))
   .dependsOn(metadata)
   .settings(commonSettings)
   .settings(
-  name := "model",
-  libraryDependencies ++= Seq(
-    "org.typelevel" %% "cats-core" % "1.5.0",
-    "org.typelevel" %% "kittens" % "1.2.0",
-    "org.scalameta" %% "semanticdb" % ScalametaVersion,
-    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-  ),
-  libraryDependencies ++= TestLibraries,
-  libraryDependencies += BetterFilesLibrary,
-  PB.targets in Compile := Seq(
-    scalapb.gen(
-      flatPackage = true // Don't append filename to package
-    ) -> sourceManaged.in(Compile).value
-  ),
-)
+    name := "model",
+    libraryDependencies ++= Seq(
+      TypeLevelCats,
+      TypeLevelKittens,
+      Semanticdb,
+      ScalaProtocolBuffers,
+      BetterFiles,
+      ScalaTest
+    ),
+    PB.targets in Compile := Seq(
+      scalapb.gen(
+        flatPackage = true // Don't append filename to package
+      ) -> sourceManaged.in(Compile).value
+    )
+  )
 
 lazy val transformation = (project in file("transformation"))
   .enablePlugins(BuildInfoPlugin)
@@ -57,43 +50,37 @@ lazy val transformation = (project in file("transformation"))
   .settings(commonSettings)
   .settings(
     name := "transformation",
-    // Cats relies on improved type inference via the fix for SI-2712,
-    // which is not enabled by default.
-    scalacOptions += "-Ypartial-unification",
-
+    scalacOptions ++= Seq(
+      // Cats relies on improved type inference via the fix for SI-2712,
+      // which is not enabled by default.
+      "-Ypartial-unification",
+      "-deprecation",
+      "-feature",
+      "-unchecked",
+      "-Xfatal-warnings"
+    ),
+    libraryDependencies ++= Seq(
+      PPrint,
+      KantanCsv,
+      TypeLevelCats,
+      TypeLevelKittens,
+      ScalaTest,
+      ScalaCheck
+    ),
+    // do not know how to extract at the bottom, the scalaVersion.value needs ot be in :=
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-      "com.lihaoyi" %% "pprint" % "0.5.3",
-      "com.nrinaudo" %% "kantan.csv-generic" % "0.4.0",
-      "org.typelevel" %% "cats-core" % "1.5.0",
-      "org.typelevel" %% "kittens" % "1.2.0"
-    ),
-    libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta",
-      "org.scalameta" %% "metacp",
-      "org.scalameta" %% "metap",
-      "org.scalameta" %% "symtab",
-      "org.scalameta" %% "semanticdb",
-      "org.scalameta" % ("metac_" + scalaVersion.value),
-      "org.scalameta" % ("interactive_" + scalaVersion.value),
-      "org.scalameta" % ("semanticdb-scalac_" + scalaVersion.value),
-    ).map(_ % ScalametaVersion),
-    libraryDependencies ++= LoggingLibraries,
-    libraryDependencies += BetterFilesLibrary,
-    // testing dependnecies
-    libraryDependencies ++= TestLibraries,
-    libraryDependencies ++= Seq(
+      "org.scalameta" %% "scalameta" % ScalametaVersion,
+      "org.scalameta" %% "metacp" % ScalametaVersion,
+      "org.scalameta" %% "metap" % ScalametaVersion,
+      "org.scalameta" %% "symtab" % ScalametaVersion,
+      "org.scalameta" %% "semanticdb" % ScalametaVersion,
       "org.scalameta" %% "testkit" % ScalametaVersion % Test,
+      "org.scalameta" % ("metac_" + scalaVersion.value) % ScalametaVersion,
+      "org.scalameta" % ("interactive_" + scalaVersion.value) % ScalametaVersion,
+      "org.scalameta" % ("semanticdb-scalac_" + scalaVersion.value) % ScalametaVersion
     ),
-
-    // Support for ammonites
-    libraryDependencies += "com.lihaoyi" % "ammonite" % "1.3.2" % "test" cross CrossVersion.full,
-    sourceGenerators in Test += Def.task {
-      val file = (sourceManaged in Test).value / "amm.scala"
-      IO.write(file, """object amm extends App { ammonite.Main.main(args) }""")
-      Seq(file)
-    }.taskValue,
-
+    libraryDependencies += BetterFiles,
     buildInfoPackage := "cz.cvut.fit.prl.scala.implicits.utils",
     buildInfoKeys := Seq[BuildInfoKey](
       name,
@@ -102,7 +89,6 @@ lazy val transformation = (project in file("transformation"))
       sbtVersion,
       "scalametaVersion" -> ScalametaVersion,
       scalacOptions.in(Test),
-      // fullClasspath is impossible since it will need also to recompile the actual BuildInfo
       productDirectories.in(Compile),
       externalDependencyClasspath.in(Test),
       "semanticdbScalacPluginJar" -> (
@@ -110,34 +96,25 @@ lazy val transformation = (project in file("transformation"))
           "/.ivy2/cache/org.scalameta/semanticdb-scalac_" + scalaVersion.value +
           "/jars/" +
           "semanticdb-scalac_" + scalaVersion.value + "-" + ScalametaVersion + ".jar"
-        )
+      )
     ),
-
-    scalacOptions ++= Seq(
-      "-deprecation", "-feature", "-unchecked", "-Xfatal-warnings"
-    ),
-
     parallelExecution.in(Test) := false, // hello, reflection sync!!
-
-    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
-
-lazy val root = (project in file("."))
-  .aggregate(metadata, model, transformation)
-  .settings(commonSettings)
-  .settings(name := "libs")
 
 // this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
 // the semanticdb jar does not include the proto file so we cannot use the standard mechanism
 // this has to be run manually, I do not know how to make it a dependency for the PB.generate
 lazy val downloadSemanticdbProto = taskKey[Unit]("Download semanticdb proto file")
+
 downloadSemanticdbProto := {
   val outputFile = new java.io.File("model/target/protobuf_external/semanticdb.proto")
   if (!outputFile.exists()) {
     if (!outputFile.getParentFile.exists()) {
       outputFile.getParentFile.mkdirs()
     }
-    val src = scala.io.Source.fromURL("https://raw.githubusercontent.com/scalameta/scalameta/master/semanticdb/semanticdb/semanticdb.proto")
+    val src = scala.io.Source.fromURL(
+      "https://raw.githubusercontent.com/scalameta/scalameta/master/semanticdb/semanticdb/semanticdb.proto")
     val out = new java.io.FileWriter(outputFile)
     out.write(src.mkString)
     out.close()
@@ -146,3 +123,18 @@ downloadSemanticdbProto := {
     println(s"$outputFile has been already downloaded")
   }
 }
+
+// Libraries
+lazy val ScalametaVersion = "4.1.0"
+
+lazy val TypeLevelCats = "org.typelevel" %% "cats-core" % "1.5.0"
+lazy val TypeLevelKittens = "org.typelevel" %% "kittens" % "1.2.0"
+lazy val Semanticdb = "org.scalameta" %% "semanticdb" % ScalametaVersion
+lazy val ScalaProtocolBuffers = "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
+lazy val BetterFiles = "com.github.pathikrit" %% "better-files" % "3.4.0"
+lazy val KantanCsv = "com.nrinaudo" %% "kantan.csv-generic" % "0.4.0"
+lazy val PPrint = "com.lihaoyi" %% "pprint" % "0.5.3"
+
+lazy val ScalaTest = "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test
+// ScalaTest missing dependency
+lazy val ScalaCheck = "org.scalacheck" %% "scalacheck" % "1.13.5" % Test

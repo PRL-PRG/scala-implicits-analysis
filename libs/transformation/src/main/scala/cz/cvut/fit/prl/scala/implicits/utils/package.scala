@@ -21,17 +21,17 @@ package object utils {
   implicit class XtensionSDBType(that: s.Type) {
 
     def isTopOrBottom: Boolean = that match {
-      case s.TypeRef(_, "scala/AnyRef#", _)  => true
-      case s.TypeRef(_, "scala/Any#", _)     => true
+      case s.TypeRef(_, "scala/AnyRef#", _) => true
+      case s.TypeRef(_, "scala/Any#", _) => true
       case s.TypeRef(_, "scala/Nothing#", _) => true
-      case _                                 => false
+      case _ => false
     }
   }
   implicit class XtensionOptions[+A](that: Option[A]) {
 
     def getOrThrow(e: => Throwable): A = that match {
       case Some(x) => x
-      case None    => throw e
+      case None => throw e
     }
   }
 
@@ -45,8 +45,6 @@ package object utils {
     def toRange: s.Range =
       s.Range(that.startLine, that.startColumn, that.endLine, that.endColumn)
   }
-
-
 
   implicit class XtensionRange(that: s.Range) {
 
@@ -62,9 +60,9 @@ package object utils {
 
   implicit def language2language(that: s.Language): m.Language = that match {
     case s.Language.UNKNOWN_LANGUAGE => m.Language.UNKNOWN_LANGUAGE
-    case s.Language.SCALA            => m.Language.SCALA
-    case s.Language.JAVA             => m.Language.JAVA
-    case _                           => throw new Exception(s"SDB Language `$that` is not supported yet")
+    case s.Language.SCALA => m.Language.SCALA
+    case s.Language.JAVA => m.Language.JAVA
+    case _ => throw new Exception(s"SDB Language `$that` is not supported yet")
   }
 
   implicit class XtensionTraversable[T](that: Traversable[T]) {

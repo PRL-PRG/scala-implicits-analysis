@@ -1,5 +1,4 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
-import cz.cvut.fit.prl.scala.implicits.symtab.ResolvedSymbol
 
 import scala.meta.internal.{semanticdb => s}
 

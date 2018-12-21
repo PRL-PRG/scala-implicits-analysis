@@ -23,7 +23,7 @@ class SdbLocator(path: Path, filter: Path => Boolean, options: Seq[FileVisitOpti
     if (Files.exists(path)) {
       if (Files.isDirectory(path)) {
         Files
-          .walk(path, options:_*)
+          .walk(path, options: _*)
           .filter(_.toString.endsWith(".semanticdb"))
           .forEach { path =>
             val stream = Files.newInputStream(path)

@@ -6,7 +6,8 @@ object JsonExample extends App {
     e.toJson(x)
   }
 
-  implicit val int2jsonable: Jsonable[Int] = { x: Int => x.toString
+  implicit val int2jsonable: Jsonable[Int] = { x: Int =>
+    x.toString
   }
 
   implicit def traversable2jsonable[T: Jsonable]: Jsonable[Traversable[T]] =

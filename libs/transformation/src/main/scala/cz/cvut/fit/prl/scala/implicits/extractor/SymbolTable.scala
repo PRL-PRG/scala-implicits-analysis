@@ -1,4 +1,4 @@
-package cz.cvut.fit.prl.scala.implicits.symtab
+package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model.Location
 
@@ -19,12 +19,14 @@ trait SymbolTable {
   def resolve(symbol: String): Option[ResolvedSymbol]
 }
 
+// based on the scalameta semtab
 class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
 
   private val settings = Settings()
   private val reporter = Reporter().withSilentOut().withSilentErr()
   private val classpathIndex = ClasspathIndex(classpath)
   private val symbolCache = TrieMap.empty[String, ResolvedSymbol]
+
   Scalalib.synthetics.foreach(
     x => enter(x, None)
   )
@@ -75,7 +77,8 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
   }
 
   private def enter(infos: ClassfileInfos, location: Option[Location]): Unit =
-    infos.infos.foreach { info => symbolCache(info.symbol) = ResolvedSymbol(info, location)
+    infos.infos.foreach { info =>
+      symbolCache(info.symbol) = ResolvedSymbol(info, location)
     }
 
   def createLocation(classfile: Classfile): Location =
@@ -91,7 +94,6 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
 }
 
 object GlobalSymbolTable {
-
   def apply(classpath: Classpath): GlobalSymbolTable = {
     new GlobalSymbolTable(classpath)
   }

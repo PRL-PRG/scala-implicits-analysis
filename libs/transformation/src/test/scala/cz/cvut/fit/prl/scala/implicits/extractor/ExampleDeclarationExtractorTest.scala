@@ -1,7 +1,7 @@
-package cz.cvut.fit.prl.scala.implicits
+package cz.cvut.fit.prl.scala.implicits.extractor
 
 import better.files._
-import cz.cvut.fit.prl.scala.implicits.extractor.{DeclarationExtractor, ExtractionContext}
+import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.scalatest.{FunSuite, Matchers}
 

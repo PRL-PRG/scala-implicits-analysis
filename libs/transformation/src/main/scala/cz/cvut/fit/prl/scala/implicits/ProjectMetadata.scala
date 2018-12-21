@@ -11,7 +11,7 @@ import cz.cvut.fit.prl.scala.implicits.extractor.{
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
-import cz.cvut.fit.prl.scala.implicits.symtab.{GlobalSymbolTable, SymbolTable}
+import cz.cvut.fit.prl.scala.implicits.extractor.{GlobalSymbolTable, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
 import kantan.csv._
 import kantan.csv.generic._

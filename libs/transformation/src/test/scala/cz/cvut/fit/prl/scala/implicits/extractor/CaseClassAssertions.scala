@@ -1,4 +1,4 @@
-package cz.cvut.fit.prl.scala.implicits
+package cz.cvut.fit.prl.scala.implicits.extractor
 import org.scalatest.Matchers
 
 import scala.meta.testkit.DiffAssertions

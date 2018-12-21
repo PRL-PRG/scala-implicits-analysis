@@ -1,10 +1,9 @@
-package cz.cvut.fit.prl.scala.implicits
+package cz.cvut.fit.prl.scala.implicits.extractor
 
 import java.io.{File => JFile}
 import java.net.URLClassLoader
 
 import better.files._
-import cz.cvut.fit.prl.scala.implicits.symtab.GlobalSymbolTable
 import cz.cvut.fit.prl.scala.implicits.utils.{BuildInfo, Libraries}
 import org.scalatest.FunSuite
 

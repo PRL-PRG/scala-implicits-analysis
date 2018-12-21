@@ -1,12 +1,10 @@
 package cz.cvut.fit.prl.scala.implicits
-import cz.cvut.fit.prl.scala.implicits.utils.BuildInfo
+import cz.cvut.fit.prl.scala.implicits.utils.BuildInfo.scalametaVersion
+import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames.AnalysisDirname
 
 object Constants {
-  val ProjectsDirname = "projects"
-
-  val AnalysisDirname = "_analysis_"
-  val MergedSemanticdbFilename = s"$AnalysisDirname/semanticdbs-${BuildInfo.scalametaVersion}.bin"
-  val MergedSemanticdbStatsFilename = s"$AnalysisDirname/semanticdbs-${BuildInfo.scalametaVersion}.csv"
+  val MergedSemanticdbFilename = s"$AnalysisDirname/semanticdbs-$scalametaVersion.bin"
+  val MergedSemanticdbStatsFilename = s"$AnalysisDirname/semanticdbs-$scalametaVersion.csv"
 
   val ExtractedImplicitsFilename = "implicits.bin"
   val ExtractionExceptionsFilename = "implicits-exceptions.csv"

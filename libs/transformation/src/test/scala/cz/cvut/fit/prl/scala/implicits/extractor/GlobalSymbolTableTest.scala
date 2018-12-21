@@ -1,4 +1,4 @@
-package cz.cvut.fit.prl.scala.implicits.symtab
+package cz.cvut.fit.prl.scala.implicits.extractor
 import cz.cvut.fit.prl.scala.implicits.utils.{BuildInfo, Libraries}
 import org.scalatest.{FunSuite, Inside, Matchers, OptionValues}
 
@@ -40,13 +40,13 @@ class GlobalSymbolTableTest extends FunSuite with Matchers with OptionValues wit
   test("Resolves project local name") {
     val tab = GlobalSymbolTable(FullClasspath)
     val symbol =
-      tab.resolve("cz/cvut/fit/prl/scala/implicits/symtab/SymbolTable#")
+      tab.resolve("cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable#")
 
     symbol.value.location shouldBe defined
 
     val location = symbol.value.location.get
 
-    location.uri should endWith("target/scala-2.12/classes/cz/cvut/fit/prl/scala/implicits/symtab/SymbolTable.class")
+    location.uri should endWith("target/scala-2.12/classes/cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable.class")
     location.position should not be defined
   }
 }

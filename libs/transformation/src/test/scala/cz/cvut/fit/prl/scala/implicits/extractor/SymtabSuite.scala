@@ -1,5 +1,4 @@
-package cz.cvut.fit.prl.scala.implicits
-
+package cz.cvut.fit.prl.scala.implicits.extractor
 import org.scalatest.Matchers
 
 class SymtabSuite extends SemanticdbSuite with Matchers {

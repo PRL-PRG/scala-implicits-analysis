@@ -1,11 +1,5 @@
-package cz.cvut.fit.prl.scala.implicits
+package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.extractor.{
-  CallSiteExtractor,
-  DeclarationExtractor,
-  ExtractionContext,
-  SemanticdbSymbolResolver
-}
 import cz.cvut.fit.prl.scala.implicits.model.TypeResolver
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 import cz.cvut.fit.prl.scala.implicits.utils._

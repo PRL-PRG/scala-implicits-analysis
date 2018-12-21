@@ -1,3 +1,3 @@
 package com.example.auxiliary
 
-class B {}
+class B

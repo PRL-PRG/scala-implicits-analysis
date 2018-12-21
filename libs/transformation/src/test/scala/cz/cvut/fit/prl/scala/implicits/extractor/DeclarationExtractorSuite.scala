@@ -1,4 +1,4 @@
-package cz.cvut.fit.prl.scala.implicits
+package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA

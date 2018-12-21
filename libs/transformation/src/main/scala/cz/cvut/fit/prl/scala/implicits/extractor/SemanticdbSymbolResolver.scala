@@ -1,7 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model.Location
-import cz.cvut.fit.prl.scala.implicits.symtab.{ResolvedSymbol, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils._
 
 import scala.meta.internal.semanticdb.Scala._

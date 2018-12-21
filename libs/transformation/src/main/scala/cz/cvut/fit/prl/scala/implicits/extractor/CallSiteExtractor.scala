@@ -16,12 +16,12 @@ class CallSiteExtractor(ctx: ExtractionContext) {
   class Converter(db: s.TextDocument, terms: Map[s.Range, Term]) {
 
     def findFunctionTerm(t: Term): Option[Tree] = t match {
-      case Term.Select(_, name)       => Some(t)
-      case Term.Name(_)               => Some(t)
-      case Term.ApplyType(fun, _)     => findFunctionTerm(fun)
-      case Term.Apply(fun, _)         => findFunctionTerm(fun)
+      case Term.Select(_, name) => Some(t)
+      case Term.Name(_) => Some(t)
+      case Term.ApplyType(fun, _) => findFunctionTerm(fun)
+      case Term.Apply(fun, _) => findFunctionTerm(fun)
       case Term.New(Init(_, name, _)) => Some(name)
-      case _                          => None
+      case _ => None
     }
 
     case class Argument(declaration: m.Declaration, typeArguments: List[m.Type]) {
@@ -89,8 +89,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
               arguments match {
                 case Seq(s.OriginalTree(Some(range))) =>
                   // implicit conversion
-                  cs.copy(
-                    code = cs.code + terms.get(range).map(x => s"($x)").getOrElse("")) :: css
+                  cs.copy(code = cs.code + terms.get(range).map(x => s"($x)").getOrElse("")) :: css
                 case _ =>
                   val args = arguments.toList.flatMap(createArguments)
                   cs.copy(argumentss = args :: cs.argumentss) :: css
@@ -144,7 +143,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // check if there is some inferred method call e.g.
             // Future(1) ==> Future.apply(1)
             // we want ot get a reference to actual methods, not objects
-            db.synthetics.find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange)).flatMap(x => convertInternal(x.tree, true).headOption)
+            db.synthetics
+              .find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange))
+              .flatMap(x => convertInternal(x.tree, true).headOption)
               .getOrElse {
 
                 val nestedTermsToTry = fnTerm :: fnTerm.collect {
@@ -158,7 +159,8 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                   } yield y
 
                 val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
-                  val e = MissingSymbolException(s"Missing function for $term at $range in ${db.uri}")
+                  val e =
+                    MissingSymbolException(s"Missing function for $term at $range in ${db.uri}")
                   e
                 }
 

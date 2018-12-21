@@ -19,8 +19,8 @@ class LegacySyntheticPrinter {
     val end = text.length
     buf += PositionedSymbol(sym, start, end)
   }
-  private def mkString[T](start: String, trees: Seq[T], end: String)(
-    fn: T => Unit): Unit = {
+
+  private def mkString[T](start: String, trees: Seq[T], end: String)(fn: T => Unit): Unit = {
     if (trees.isEmpty) ()
     else {
       text.append(start)
@@ -42,6 +42,7 @@ class LegacySyntheticPrinter {
       pprint(tpe)
     case _ =>
   }
+
   private def pprint(tpe: s.Type): Unit = tpe match {
     case s.TypeRef(prefix, symbol, typeArguments) =>
       prefix match {
@@ -95,6 +96,7 @@ class LegacySyntheticPrinter {
       pprint(tpe)
     case s.NoType =>
   }
+
   private def pprint(const: s.Constant): Unit = {
     const match {
       case s.NoConstant =>
@@ -126,6 +128,7 @@ class LegacySyntheticPrinter {
         text.append("null")
     }
   }
+
   private def loop(tree: s.Tree): Unit = tree match {
     case s.NoTree =>
     case s.ApplyTree(fn, args) =>

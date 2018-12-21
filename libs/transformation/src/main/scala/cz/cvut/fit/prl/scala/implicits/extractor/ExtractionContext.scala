@@ -1,7 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model.{DeclarationResolver, TypeResolver}
-import cz.cvut.fit.prl.scala.implicits.symtab.ResolvedSymbol
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
@@ -38,7 +37,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     val symbolInfo = resolvedSymbol.symbolInfo
     declarationIndex.get(symbolInfo.symbol) match {
       case Some(x) => x
-      case None    =>
+      case None =>
         // this will be just a temporary one to prevent infinite
         // loop in the case a TypeSignature contains a cycle
         // (e.g. class X[A <: X[A]])
@@ -125,20 +124,20 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
 
     val location = null
     val kind = symbolInfo match {
-      case x if x.isVal           => VAL
-      case x if x.isVar           => VAR
-      case x if x.isType          => TYPE
-      case x if x.isClass         => CLASS
-      case x if x.isTrait         => TRAIT
-      case x if x.isObject        => OBJECT
-      case x if x.isInterface     => INTERFACE
-      case x if x.isEnum          => ENUM
-      case x if x.isMethod        => DEF
-      case x if x.isConstructor   => DEF
+      case x if x.isVal => VAL
+      case x if x.isVar => VAR
+      case x if x.isType => TYPE
+      case x if x.isClass => CLASS
+      case x if x.isTrait => TRAIT
+      case x if x.isObject => OBJECT
+      case x if x.isInterface => INTERFACE
+      case x if x.isEnum => ENUM
+      case x if x.isMethod => DEF
+      case x if x.isConstructor => DEF
       case x if x.isTypeParameter => TYPE_PARAMETER
-      case x if x.isMacro         => MACRO
-      case x if x.isParameter     => PARAMETER
-      case x                      => throw new UnsupportedElementException("declaration symbol kind", x.kind)
+      case x if x.isMacro => MACRO
+      case x if x.isParameter => PARAMETER
+      case x => throw new UnsupportedElementException("declaration symbol kind", x.kind)
     }
 
     m.Declaration(
@@ -147,7 +146,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
       name = symbolInfo.displayName,
       location = location,
       language = symbolInfo.language,
-      isImplicit = symbolInfo.isImplicit,
+      isImplicit = symbolInfo.isImplicit
     )
   }
 
@@ -182,9 +181,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
         upperBound = Try(createType(upperBound)).getOrElse(m.Type.Empty)
       )
     case x =>
-      throw new UnexpectedElementException(
-        "type parameter signature",
-        x.getClass.getSimpleName)
+      throw new UnexpectedElementException("type parameter signature", x.getClass.getSimpleName)
   }
 
   def createType(tpe: s.Type): m.Type = tpe match {
@@ -227,7 +224,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver)
     typeArguments
       .filter {
         case s.TypeRef(_, symbol, _) if symbol.isLocal => false
-        case _                                         => true
+        case _ => true
       }
       .map(x => Try(createType(x)))
       .collect {
