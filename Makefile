@@ -1,8 +1,8 @@
 include Makevars
 
-.PHONY: all sbt-plugins libs sync-prl4
+.PHONY: all libs sbt-plugins sync-prl4
 
-all: sbt-plugins libs
+all: libs sbt-plugins
 
 libs:
 	$(MAKE) -C libs
