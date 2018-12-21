@@ -16,6 +16,7 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=t
 	clean-sbt \
 	clean-semanticdb \
 	compile \
+	implicits \
 	merge-semanticdbs \
 	metadata \
 	semanticdb \
@@ -33,12 +34,18 @@ $(COMPILE_STATUS): $(METADATA_STATUS)
     fi; \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
 
+$(IMPLICITS_STATUS): $(MERGED_SEMANTICDB_FILE)
+	$(AMM) $(SCRIPTS_DIR)/extract-implicits.sc 2>&1 | tee $(IMPLICITS_LOG)
+
 $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
+
+$(MERGED_SEMANTICDB_FILE): $(SEMANTICDB_STATUS)
+	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc
 
 # runs the semanticdb task on a clean project
 $(SEMANTICDB_STATUS): $(COMPILE_STATUS)
@@ -51,9 +58,6 @@ $(SEMANTICDB_STATUS): $(COMPILE_STATUS)
       exit_code=-1; \
     fi; \
     echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS);
-
-$(MERGED_SEMANTICDB_FILE): $(SEMANTICDB_STATUS)
-	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc
 
 # removes the artifacts created by running tasks from this Makefile
 clean:
@@ -82,6 +86,8 @@ clean-semanticdb:
 	rm -f $(MERGED_SEMANTICDB_STATS_FILE)
 
 compile: $(COMPILE_STATUS)
+
+implicits: $(IMPLICITS_STATUS)
 
 metadata: $(METADATA_STATUS)
 

@@ -118,8 +118,8 @@ download-projects: $(PROJECTS_FILE)
 	cat $(PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
         parallel -C, --bar -j4 git clone "https://github.com/{1}/{2}" $(PROJECTS_DIR)/"{1}--{2}"
 
-extract-implicits: $(bootstrap)
-	$(AMM) $(SCRIPTS_DIR)/extract-implicits.sc --source $(PROJECTS_FILE) --outputDir $(LOG_DIR_LATEST) 2>&1 | tee $(LOG_DIR_LATEST)/extract-implicits.log
+implicits: $(bootstrap)
+	$(parallel) $@
 
 link-projects: $(PROJECTS_CSV_FILE)
 	-mkdir -p $(PROJECTS_DIR)
