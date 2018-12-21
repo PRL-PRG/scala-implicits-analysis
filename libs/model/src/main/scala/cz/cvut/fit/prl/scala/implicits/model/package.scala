@@ -54,7 +54,6 @@ package object model {
       val args = that.typeArguments.map(_.asCode)
       that.declarationRef + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
     }
-
   }
 
   implicit class XtensionTypeParameterRef(that: TypeParameterRef) {

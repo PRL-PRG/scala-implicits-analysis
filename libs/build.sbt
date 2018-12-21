@@ -1,8 +1,10 @@
 val ScalametaVersion = "4.1.0"
 
-ThisBuild / scalaVersion := "2.12.7"
-ThisBuild / organization := "cz.cvut.fit.prl.scala.implicits"
-ThisBuild / version := "1.0-SNAPSHOT"
+lazy val commonSettings = Seq(
+  scalaVersion := "2.12.7",
+  organization := "cz.cvut.fit.prl.scala.implicits",
+  version := "1.0-SNAPSHOT"
+)
 
 // this is for the sbt-buildinfo plugin
 resolvers += Resolver.sbtPluginRepo("releases")
@@ -17,15 +19,24 @@ val LoggingLibraries = Seq(
 )
 val BetterFilesLibrary = "com.github.pathikrit" %% "better-files" % "3.4.0"
 
+lazy val metadata = (project in file("metadata"))
+  .settings(commonSettings)
+  .settings(
+  name := "metadata",
+  crossScalaVersions := Seq("2.10.7", "2.11.12", "2.12.7"),
+)
+
 // the reason, why we split the project is that there is some bug in either scalapb or buildinfo
 // and they do not work well together
 // when they are together, the build fails with `BuildInfo is already defined as case class BuildInfo`
 // there seem to be some race conditions (sometimes it would simply complain that the buildinfo does not exist)
 // it is also super convenient for developing - once can rebuild model with errors in transformation module
-lazy val model = (project in file("model")).settings(
+lazy val model = (project in file("model"))
+  .dependsOn(metadata)
+  .settings(commonSettings)
+  .settings(
   name := "model",
   libraryDependencies ++= Seq(
-    "cz.cvut.fit.prl.scala.implicits" %% "metadata" % "1.0-SNAPSHOT",
     "org.typelevel" %% "cats-core" % "1.5.0",
     "org.typelevel" %% "kittens" % "1.2.0",
     "org.scalameta" %% "semanticdb" % ScalametaVersion,
@@ -43,6 +54,7 @@ lazy val model = (project in file("model")).settings(
 lazy val transformation = (project in file("transformation"))
   .enablePlugins(BuildInfoPlugin)
   .dependsOn(model)
+  .settings(commonSettings)
   .settings(
     name := "transformation",
     // Cats relies on improved type inference via the fix for SI-2712,
@@ -110,7 +122,10 @@ lazy val transformation = (project in file("transformation"))
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   )
 
-lazy val root = (project in file(".")).aggregate(model, transformation).settings(name := "libs")
+lazy val root = (project in file("."))
+  .aggregate(metadata, model, transformation)
+  .settings(commonSettings)
+  .settings(name := "libs")
 
 // this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
 // the semanticdb jar does not include the proto file so we cannot use the standard mechanism

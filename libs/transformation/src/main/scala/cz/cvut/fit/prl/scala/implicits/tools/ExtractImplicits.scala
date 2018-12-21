@@ -6,7 +6,11 @@ import cats.implicits._
 import cats.derived
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.{Constants, ProjectMetadata, SubProjectMetadata}
-import cz.cvut.fit.prl.scala.implicits.extractor.{CallSiteExtractor, DeclarationExtractor, ExtractionContext}
+import cz.cvut.fit.prl.scala.implicits.extractor.{
+  CallSiteExtractor,
+  DeclarationExtractor,
+  ExtractionContext
+}
 import cz.cvut.fit.prl.scala.implicits.model.{CallSite, Declaration, PathEntry, Project}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import kantan.csv._
@@ -17,7 +21,7 @@ import scala.util.{Failure, Success, Try}
 
 object ExtractImplicits extends App {
 
-  case class Result(project: Project, exceptions: Seq[Throwable])
+  case class Result(project: Project, exceptions: Seq[(String, Throwable)])
   case class Stats(declarations: Int, callSites: Int, failures: Int) {
     override def toString: String = s"$declarations, $callSites, $failures"
   }
@@ -52,21 +56,32 @@ object ExtractImplicits extends App {
       override def stats: Stats = Monoid[Stats].empty
     }
 
-    case class ExtractionException(projectId: String, cause: String, message: String, trace: String)
+    case class ExtractionException(
+        projectId: String,
+        moduleId: String,
+        cause: String,
+        message: String,
+        trace: String)
 
     object ExtractionException {
-      def apply(projectId: String, exception: Throwable): ExtractionException = {
+      def apply(projectId: String, moduleId: String, exception: Throwable): ExtractionException = {
         val cause = Option(exception.getCause).getOrElse(exception)
         val trace = cause.getStackTrace.head.toString
 
-        ExtractionException(projectId, cause.getClass.getSimpleName, cause.getMessage, trace)
+        ExtractionException(
+          projectId,
+          moduleId,
+          cause.getClass.getSimpleName,
+          cause.getMessage,
+          trace)
       }
     }
 
     private val messageOutput = messageFile.newOutputStream
     private val exceptionOutput =
       exceptionFile.newOutputStream
-        .asCsvWriter[ExtractionException](rfc.withHeader("project_id", "cause", "message", "trace"))
+        .asCsvWriter[ExtractionException](
+          rfc.withHeader("project_id", "module_id", "cause", "message", "trace"))
 
     private val statusOutput =
       statusFile.newOutputStream
@@ -86,7 +101,9 @@ object ExtractImplicits extends App {
     def process(projectId: String, result: Result): Stats = {
       result.project.writeDelimitedTo(messageOutput)
       result.exceptions
-        .map(e => ExtractionException(projectId, e))
+        .map {
+          case (moduleId, e) => ExtractionException(projectId, moduleId, e)
+        }
         .foreach(exceptionOutput.write)
 
       Stats(
@@ -109,7 +126,7 @@ object ExtractImplicits extends App {
         implicitCallSites: List[CallSite],
         allCallSitesCount: Int,
         paths: List[PathEntry],
-        exceptions: List[Throwable]
+        exceptions: List[(String, Throwable)]
     )
 
     object SubProjectResult {
@@ -136,7 +153,10 @@ object ExtractImplicits extends App {
         subProjectResult.allCallSitesCount
       )
 
-      Result(project, subProjectResult.exceptions ++ warnings)
+      Result(
+        project,
+        subProjectResult.exceptions ++ warnings.map(x => "ROOT" -> x)
+      )
     }
 
     def extract(metadata: SubProjectMetadata): SubProjectResult = {
@@ -168,7 +188,7 @@ object ExtractImplicits extends App {
         implicitCallSites = callSites,
         allCallSitesCount = csCount,
         paths = classpath ++ metadata.sourcepathEntries,
-        declExceptions ++ csExceptions
+        (declExceptions ++ csExceptions).map(x => metadata.moduleId -> x)
       )
     }
   }

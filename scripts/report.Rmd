@@ -1,0 +1,261 @@
+---
+title: "Report"
+output:
+ html_document:
+    toc: true
+    theme: united
+editor_options: 
+  chunk_output_type: console
+params:
+  base_dir: "/home/rstudio/work/Research/Projects/scala-corpus/corpora/4-top100"
+  file_view_prefix: "/files/"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(fs)
+library(tidyverse)
+library(DT)
+library(glue)
+
+PROJECTS_DIR <- "projects"
+ANALYSIS_DIR <- "_analysis_"
+STATUS_FILES <- c(
+  "metadata-external-dependencies.csv",
+  "metadata-internal-dependencies.csv",
+  "metadata-sourcepaths.csv",
+  "metadata-versions.csv", 
+  "metadata-status.csv",
+  "metadata.log",
+  "compile-status.csv",
+  "compile.log",
+  "semanticdb-status.csv",
+  "semanticdb.log"
+  )
+
+show_dataframe <- function(table) {
+  datatable(
+    table,
+    class='cell-border stripe',
+    options=list(pageLength=100),
+    escape=FALSE
+  )
+}
+
+show_task_exit_code_summary <- function(status) {
+  count(status, exit_code) %>% 
+    knitr::kable()
+}
+
+create_link <- Vectorize(function(href, text) {
+  glue("<a href='{href}' target='_blank'>{text}</a>")
+})
+
+add_project_html_links <- function(df) {
+  mutate(
+    df, 
+    project_id=create_link(origin, project_id), 
+    project_path=create_link(
+      str_c(params$file_view_prefix,project_path),
+      basename(project_path)
+    )
+  )
+}
+
+add_html_links <- function(df) {
+  add_project_html_links(df) %>%
+  mutate(
+    log_file=create_link(
+      str_c(params$file_view_prefix,log_file),
+      basename(log_file)
+    )
+  )
+}
+
+show_task_all_project_status <- function(df) {
+  add_html_links(df) %>%
+  select(
+    -status_file,
+    -origin
+  ) %>% 
+    show_dataframe()
+}
+
+# expecting a data_frame with:
+# - project_id, 
+# - origin, 
+# - project_path, 
+# - status, 
+# - status_exists,
+# - log
+load_status <- function(projects, status_file, log_file) {
+  df <- mutate(
+    projects,
+    status_file=path(project_path, ANALYSIS_DIR, status_file),
+    status_file_exists=file_exists(status_file),
+    log_file=path(project_path, ANALYSIS_DIR, log_file)
+  )
+    
+  existing <- filter(df, status_file_exists)
+  
+  map2_dfr(
+    existing$project_id, 
+    existing$status_file, 
+    ~mutate(read_csv(.y, col_types = "ii"), project_id=.x)
+  ) %>%
+    right_join(
+      select(
+        df, 
+        project_id, origin, project_path, status_file, status_file_exists, log_file
+      ),
+      by="project_id"
+    ) %>%
+    select(project_id, everything())
+}
+```
+
+# Load data
+
+```{r load project ids}
+project_ids <- read_lines(path(params$base_dir, "projects.txt"))
+projects <- data_frame(
+    project_id=project_ids,
+    origin=str_c("https://github.com/", str_replace(project_id, "--", "/")),
+    project_path=path(params$base_dir, PROJECTS_DIR, project_id)
+)
+```
+
+# Metadata
+
+```{r}
+metadata_status <- load_status(projects, "metadata-status.csv", "metadata.log")
+```
+
+## Metadata - Summary
+
+```{r}
+show_task_exit_code_summary(metadata_status)
+```
+
+## Metadata - All projects
+
+```{r}
+show_task_all_project_status(metadata_status)
+```
+
+## Metadata - Actions
+
+```{r}
+# delete failed
+# file_delete(filter(metadata_status, exit_code > 0)$status_file)
+
+# delete missing output ones
+# file_delete(missing_successfull_metadata$status_file)
+```
+
+# Compile
+
+```{r}
+compile_status <- 
+  load_status(projects, "compile-status.csv", "compile.log") %>%
+  left_join(
+    select(metadata_status, project_id, metadata_status=exit_code),
+    by="project_id"
+  )
+```
+
+## Compile - Summary
+
+```{r}
+show_task_exit_code_summary(compile_status)
+```
+
+## Compile - All projects
+
+```{r}
+show_task_all_project_status(compile_status)
+```
+
+## Compile - Actions
+
+```{r}
+# delete failed
+# file_delete(filter(compile_status, exit_code > 0), by="project_id")$status_file)
+```
+
+
+# Semanticdb
+
+```{r}
+semanticdb_status <- 
+  load_status(projects, "semanticdb-status.csv", "semanticdb.log") %>%
+  left_join(
+    select(compile_status, project_id, compile_status=exit_code),
+    by="project_id"
+  )
+```
+
+## Semanticdb - Summary
+
+```{r}
+show_task_exit_code_summary(semanticdb_status)
+```
+
+## Semanticdb - All projects
+
+```{r}
+show_task_all_project_status(semanticdb_status)
+```
+
+## Semanticdb - Actions
+
+```{r}
+# delete failed
+# file_delete(filter(semanticdb_status, exit_code > 0), by="project_id")$status_file)
+```
+
+# Merged Semanticdb
+
+```{r}
+merged_sdbs <- 
+  select(semanticdb_status, project_id, origin, project_path, compile_status) %>%
+  mutate(
+    stats_file=path(project_path, ANALYSIS_DIR, "semanticdbs-4.1.0.csv"),
+    stats_exists=file_exists(stats_file),
+    bin_file=path(project_path, ANALYSIS_DIR, "semanticdbs-4.1.0.bin"),
+    bin_exists=file_exists(bin_file)
+  )
+
+merged_sdbs_stats <- local({
+  existing <- filter(merged_sdbs, stats_exists==TRUE)
+  map2_dfr(
+    existing$project_id, 
+    existing$stats_file, 
+    ~mutate(read_csv(.y, col_types = "iii", skip = 1), project_id=.x)
+  )
+})
+
+merged_sdbs_all <-
+  merged_sdbs %>% 
+  left_join(merged_sdbs_stats, by="project_id") %>%
+  mutate(
+    bin_size=file.size(bin_file)
+  )
+```
+
+## Summary
+
+```{r}
+summary(merged_sdbs_all)
+```
+
+## Status
+
+```{r}
+merged_sdbs_all %>%
+  add_project_html_links() %>%
+  select(-origin, -stats_file, -bin_file) %>%
+  show_dataframe()
+```
+

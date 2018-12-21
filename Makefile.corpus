@@ -35,7 +35,7 @@ define parallel =
 @echo $(N_JOBS) > jobsfile.txt
 @echo ">> Running parallel with logs in $(LOG_DIR) using $(PROJECTS_FILE)..."
 cp $(PROJECTS_FILE) $(LOG_DIR)/projects.txt
-echo "$@" > $(LOG_DIR)/task
+touch "$(LOG_DIR)/$@"
 -parallel \
   --jobs $(JOBS_FILE) \
   -a "$(PROJECTS_FILE)" \
@@ -43,7 +43,7 @@ echo "$@" > $(LOG_DIR)/task
   --bar \
   --tagstring "$@ - {}:" \
   --result "$(PROJECTS_DIR)/{1}/$(ANALYSIS_DIR)/parallel/{2}" \
-  --joblog "$(LOG_DIR)/parallel.log" \
+  --joblog "$(LOG_DIR)/$@-parallel.log" \
   --timeout $(TIMEOUT) \
   --shuf \
   make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project "{2}" \
@@ -58,6 +58,7 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
   all \
 	clean \
 	clean-classes \
+	clean-compile \
 	clean-implicits \
 	clean-metadata \
 	clean-sbt \
@@ -82,7 +83,7 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-all: metadata report-metadata compile report-compile  merge-semanticdbs report-semanticdb extract-implicits
+all: metadata compile semanticdb merge-semanticdbs
 
 clean: $(bootstrap)
 	$(parallel) $@
@@ -92,6 +93,9 @@ clean: $(bootstrap)
 	-rm -fr logs
 
 clean-classes: $(bootstrap)
+	$(parallel) $@
+
+clean-compile: $(bootstrap)
 	$(parallel) $@
 
 clean-implicits: $(bootstrap)

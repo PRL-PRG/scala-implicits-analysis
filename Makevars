@@ -23,7 +23,7 @@ endif
 #endif
 
 SBT_MEM ?= 16000
-TIMEOUT ?= 30m
+TIMEOUT ?= 120m
 MAX_MEM ?= 128000
 
 ANALYSIS_DIR := _analysis_

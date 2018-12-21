@@ -5,12 +5,12 @@ include $(base_dir)/Makevars
 
 SHELL := /bin/bash
 
-SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem $(SBT_MEM) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
+SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
 
 .PHONY: \
-	bootstrap \
 	clean \
 	clean-classes \
+	clean-compile \
 	clean-implicits \
 	clean-metadata \
 	clean-sbt \
@@ -22,20 +22,19 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -mem $(SBT_MEM) -Dsb
 	repo-metadata \
 	reset \
 
-bootstrap: $(IVY_DIR) $(SBT_BOOT_DIR)
-	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
-
 $(COMPILE_STATUS): $(METADATA_STATUS)
 	echo "exit_code,duration" > $(COMPILE_STATUS)
 	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-      $(SBT) test:compile > $(COMPILE_LOG) 2>&1; \
+      JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx1536M -Xss1M" \
+        $(SBT) clean test:compile > $(COMPILE_LOG) 2>&1; \
       exit_code=$$?; \
     else \
       exit_code=-1; \
     fi; \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
 
-$(METADATA_STATUS): bootstrap
+$(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
+	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
@@ -45,7 +44,8 @@ $(METADATA_STATUS): bootstrap
 $(SEMANTICDB_STATUS): $(COMPILE_STATUS)
 	echo "exit_code,duration" > $(SEMANTICDB_STATUS)
 	if [ $$(Rscript -e 'cat(read.csv("$(COMPILE_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-      $(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
+      JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
+        $(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
       exit_code=$$?; \
     else \
       exit_code=-1; \
@@ -62,6 +62,9 @@ clean:
 # removes classes under target (only works for regular sbt projects)
 clean-classes:
 	find . -type d -name "target" | parallel find "{1}" -type f -name "\*.class" -delete
+
+clean-compile:
+	rm -f $(COMPILE_STATUS) $(COMPILE_LOG)
 
 clean-implicits:
 	rm -f $(IMPLICITS_STATUS) $(IMPLICITS_LOG) $(IMPLICITS)

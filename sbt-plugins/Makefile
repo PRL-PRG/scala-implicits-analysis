@@ -1,14 +1,33 @@
 include ../Makevars
 
-FILENAME := scala-implicits.sbt
+GROUP_ID := cz.cvut.fit.prl.scala.implicits
+ARTIFACT_ID := sbt-plugins
+VERSION := 1.0-SNAPSHOT
 
-all: $(IVY_DIR)
+FILENAME := scala-implicits.sbt
+PLUGIN_013 := ~/.sbt/0.13/plugins/$(FILENAME)
+PLUGIN_10 := ~/.sbt/1.0/plugins/$(FILENAME)
+JAR := $(IVY_DIR)/local/$(GROUP_ID)/$(ARTIFACT_ID)/scala_2.12/sbt_1.0/$(VERSION)/jars/$(ARTIFACT_ID).jar
+
+.PHONY: all install uninstall
+
+all: install
+
+$(JAR): $(IVY_DIR)
+	sbt -batch -ivy ../$(IVY_DIR) "^ publishLocal"
+
+$(PLUGIN_013): $(JAR)
+	-mkdir -p ~/.sbt/0.13/plugins
+	echo 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")' >\
+        $(PLUGIN_013)
+
+$(PLUGIN_10): $(JAR)
+	echo 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")' >\
+        $(PLUGIN_10)
+	-mkdir -p ~/.sbt/1.0/plugins
+
+install: $(PLUGIN_013) $(PLUGIN_10)
+
+uninstall:
 	-rm ~/.sbt/0.13/plugins/$(FILENAME)
 	-rm ~/.sbt/1.0/plugins/$(FILENAME)
-	sbt -batch -ivy ../$(IVY_DIR) "^ publishLocal"
-	-mkdir -p ~/.sbt/0.13/plugins
-	-mkdir -p ~/.sbt/1.0/plugins
-	echo 'addSbtPlugin("cz.cvut.fit.prl.scala.implicits" % "plugins" % "1.0-SNAPSHOT")' >\
-        ~/.sbt/0.13/plugins/$(FILENAME)
-	echo 'addSbtPlugin("cz.cvut.fit.prl.scala.implicits" % "plugins" % "1.0-SNAPSHOT")' >\
-        ~/.sbt/1.0/plugins/$(FILENAME)

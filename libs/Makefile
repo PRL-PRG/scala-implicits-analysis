@@ -1,4 +1,4 @@
 include ../Makevars
 
 all:
-	sbt -batch "^ publishLocal"
+	sbt -batch "+ publishLocal"

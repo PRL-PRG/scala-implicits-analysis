@@ -1,7 +1,18 @@
 version: '3'
 services:
+  rstudio:
+    image: fikovnik/rstudio
+    ports:
+      - 8787:8787
+    volumes:
+      - ".:/home/rstudio/work"
+      - "~:/mnt/home"
+    environment:
+      USERID: "${USERID-1000}"
+      GROUPID: "${GROUPID-1000}"
+      ROOT: "TRUE"
   jupyter:
-    image: fikovnik/jupyter-scala-212
+    image: fikovnik/jupyter-scala
     ports:
       # prl4 specific - can be only 8000-8009 facing the host
       - 8004:8888

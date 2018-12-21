@@ -4,7 +4,10 @@ import better.files._
 import cats.instances.list._
 import cats.instances.map._
 import cats.syntax.semigroup._
-import cz.cvut.fit.prl.scala.implicits.extractor.{LoadingMetadataException, SemanticdbSymbolResolver}
+import cz.cvut.fit.prl.scala.implicits.extractor.{
+  LoadingMetadataException,
+  SemanticdbSymbolResolver
+}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
@@ -21,7 +24,7 @@ import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
 
 case class SubProjectMetadata(
-    modulesId: String,
+    moduleId: String,
     classpathEntries: List[ClasspathEntry],
     sourcepathEntries: List[SourcepathEntry],
     classpath: Classpath,
@@ -183,18 +186,17 @@ object ProjectMetadata {
 
           Libraries.JvmBootClasspath ++ Classpath(absolutePaths)
         }
-        .withDefaultValue(Classpath(Nil))
+        .withDefaultValue(Libraries.JvmBootClasspath)
 
-      versions.map { version =>
-        val projectName = version.moduleId
-        SubProjectMetadata(
-          projectName,
-          classpathEntriesMap(projectName),
-          sourcepathEntriesMap(projectName),
-          classpathMap(projectName),
-          semanticdbMap(projectName)
-        )
-      }
+      for {
+        version <- versions
+        moduleId = version.moduleId
+        semanticdbs = semanticdbMap(moduleId) if semanticdbs.nonEmpty
+        classpathEntries = classpathEntriesMap(moduleId)
+        sourcepathEntries = sourcepathEntriesMap(moduleId)
+        classpath = classpathMap(moduleId)
+      } yield
+        SubProjectMetadata(moduleId, classpathEntries, sourcepathEntries, classpath, semanticdbs)
     }
 
     val projectId: String = versions.head.projectId

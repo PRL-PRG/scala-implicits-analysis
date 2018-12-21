@@ -87,7 +87,7 @@ summary(final_df$duration)
 ```{r summary, echo=FALSE}
 save_projects_by_exit_code <- function(code) {
   projects_ids <- dplyr::filter(final_df, exit_code==code)$project_id
-  filename <- str_c("projects-exitcode-", code, ".txt")
+  filename <- str_c(params$taskname, "projects-exitcode-", code, ".txt")
   write_lines(projects_ids, path(OUTPUT_DIR, filename))
   filename
 }
