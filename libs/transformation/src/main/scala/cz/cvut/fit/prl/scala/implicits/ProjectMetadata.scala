@@ -4,15 +4,15 @@ import better.files._
 import cats.instances.list._
 import cats.instances.map._
 import cats.syntax.semigroup._
-import cz.cvut.fit.prl.scala.implicits.extractor.{
-  LoadingMetadataException,
-  SemanticdbSymbolResolver
-}
+import cz.cvut.fit.prl.scala.implicits.extractor.{LoadingMetadataException, SemanticdbSymbolResolver}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
 import cz.cvut.fit.prl.scala.implicits.extractor.{GlobalSymbolTable, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
+import cz.cvut.fit.prl.scala.implicits.utils._
+import cz.cvut.fit.prl.scala.implicits.Constants._
+import cz.cvut.fit.prl.scala.implicits.semanticdb.Semanticdb
 import kantan.csv._
 import kantan.csv.generic._
 
@@ -73,8 +73,11 @@ object ProjectMetadata {
       .groupBy(_.moduleId)
       .mapValues {
         case v :: Nil => v
-        case x @ vs =>
-          throw new Exception(s"Wrong number of projects associated with $x: $vs")
+        case vs =>
+          // s rough heuristic
+          warnings += new Exception(
+            s"There are multiple projects under the same name -- taking head: $vs")
+          vs.head
       }
 
     val sourcepathEntriesMap =
@@ -84,9 +87,28 @@ object ProjectMetadata {
         .withDefaultValue(Nil)
 
     val internalClasspathEntriesMap: Map[String, List[ClasspathEntry]] = {
-      val dependencyMap = internalDependencies
-        .groupBy(_.moduleId)
-        .mapValues(_.map(_.dependency))
+      val dependencyMap: Map[String, List[String]] = internalDependencies
+        .map { x =>
+          val module = x.moduleId
+          val platform = versionsMap(module).platform
+          val candidates = Seq(
+            x.dependencyId(platform),
+            x.dependencyId("jvm")
+          )
+
+          // we need either the dependency for the platform version of the module or JVM version
+          val dependencyId = candidates.collectFirst {
+            case x if versionsMap.get(x).isDefined => x
+          }
+
+          module -> dependencyId.getOrThrow {
+            val e =
+              new Exception(s"Unable to find dependency ${x.dependencyId("")}, tried $candidates")
+            e
+          }
+        }
+        .groupBy(_._1)
+        .mapValues(_.map(_._2))
         .withDefaultValue(Nil)
 
       @tailrec
@@ -147,24 +169,26 @@ object ProjectMetadata {
     val classpathEntriesMap =
       (internalClasspathEntriesMap |+| externalClasspathEntriesMap).withDefaultValue(Nil)
 
-    val semanticdbs: List[s.TextDocument] =
+    val semanticdbs: List[Semanticdb] =
       (path / Constants.MergedSemanticdbFilename).inputStream
-        .apply(input => s.TextDocument.streamFromDelimitedInput(input).toList)
+        .apply(input => Semanticdb.streamFromDelimitedInput(input).toList)
 
     val subProjects: Seq[SubProjectMetadata] = {
       val semanticdbMap: Map[String, List[s.TextDocument]] = {
-        val inversePathsMap = sourcepathEntries.groupBy(_.path).mapValues(xs => xs.head.moduleId)
+        // an output classpath to moduleId
+        val inversePathsMap: Map[String, String] = versions.flatMap(x => x.output.map(_ -> x.moduleId)).toMap
         val map = mutable.Map[String, mutable.Buffer[s.TextDocument]]()
+
         semanticdbs.foreach { sdb =>
           inversePathsMap.collectFirst {
-            case (path, project) if sdb.uri.startsWith(path) => project
+            case (path, project) if sdb.path.startsWith(path) => project
           } match {
             case Some(project) =>
-              map.getOrElseUpdate(project, mutable.Buffer()) += sdb
+              map.getOrElseUpdate(project, mutable.Buffer()) += sdb.semanticdb
             case None =>
               // it is possible that there are semanticdbs in source paths that we do not know about
               // for example multi-jvm (https://github.com/sbt/sbt-multi-jvm) creates a new scope
-              warnings += new LoadingMetadataException(s"No source entry for ${sdb.uri}")
+              warnings += new LoadingMetadataException(s"No module found for ${sdb.path}")
           }
         }
 

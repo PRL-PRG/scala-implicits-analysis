@@ -17,47 +17,47 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=t
 	clean-semanticdb \
 	compile \
 	implicits \
-	merge-semanticdbs \
 	metadata \
 	semanticdb \
 	repo-metadata \
-	reset \
+	reset
 
-$(COMPILE_STATUS): $(METADATA_STATUS)
-	echo "exit_code,duration" > $(COMPILE_STATUS)
-	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-      JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx1536M -Xss1M" \
-        $(SBT) clean test:compile > $(COMPILE_LOG) 2>&1; \
-      exit_code=$$?; \
-    else \
-      exit_code=-1; \
-    fi; \
+$(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
+	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx1536M -Xss1M" \
+    $(SBT) clean test:compile 2>&1 | tee $(COMPILE_LOG); \
+    exit_code=$$?; \
+    echo "exit_code,duration" > $(COMPILE_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
 
-$(IMPLICITS_STATUS): $(MERGED_SEMANTICDB_FILE)
-	$(AMM) $(SCRIPTS_DIR)/extract-implicits.sc 2>&1 | tee $(IMPLICITS_LOG)
+$(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
+	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
+    if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+      $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc 2>&1 | tee $(IMPLICITS_LOG); \
+      exit_code=$$?; \
+      echo "$$exit_code,$$SECONDS" >> $(IMPLICITS_STATUS); \
+    else \
+      echo "-1,0" >> $(IMPLICITS_STATUS); \
+    fi
 
 $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
-	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
+	$(SBT) metadata 2>&1 | tee $(METADATA_LOG); \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
 
-$(MERGED_SEMANTICDB_FILE): $(SEMANTICDB_STATUS)
-	$(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc
-
 # runs the semanticdb task on a clean project
-$(SEMANTICDB_STATUS): $(COMPILE_STATUS)
-	echo "exit_code,duration" > $(SEMANTICDB_STATUS)
-	if [ $$(Rscript -e 'cat(read.csv("$(COMPILE_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-      JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
-        $(SBT) clean semanticdb > $(SEMANTICDB_LOG) 2>&1; \
-      exit_code=$$?; \
-    else \
-      exit_code=-1; \
-    fi; \
-    echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS);
+$(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
+	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
+    $(SBT) semanticdb 2>&1 | tee $(SEMANTICDB_LOG); \
+    exit_code=$$?; \
+    echo "exit_code,duration" > $(SEMANTICDB_STATUS); \
+    echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS); \
+    if [ $$exit_code -eq 0 ]; then \
+      $(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc; \
+    fi
 
 # removes the artifacts created by running tasks from this Makefile
 clean:
@@ -71,7 +71,10 @@ clean-compile:
 	rm -f $(COMPILE_STATUS) $(COMPILE_LOG)
 
 clean-implicits:
-	rm -f $(IMPLICITS_STATUS) $(IMPLICITS_LOG) $(IMPLICITS)
+	rm -f $(IMPLICITS_STATUS) \
+      $(IMPLICITS_LOG) \
+      $(IMPLICITS_EXCEPTIONS) \
+      $(IMPLICITS)
 
 clean-metadata:
 	rm -f $(METADATA_STATUS) $(METADATA_LOG)

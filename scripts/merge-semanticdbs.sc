@@ -1,41 +1,51 @@
 import $ivy.`cz.cvut.fit.prl.scala.implicits::transformation:1.0-SNAPSHOT`
+import $ivy.`cz.cvut.fit.prl.scala.implicits::metadata:1.0-SNAPSHOT`
+
 import java.nio.file.FileVisitOption
+
+import kantan.csv._
+import kantan.csv.ops._
+import kantan.csv.generic._
 
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.Constants._
+import cz.cvut.fit.prl.scala.implicits.metadata._
+import cz.cvut.fit.prl.scala.implicits.semanticdb.Semanticdb
 import cz.cvut.fit.prl.scala.implicits.utils.SdbLocator
 
 val startingPath = File(".")
 val mergedSemanticdbFile = startingPath / MergedSemanticdbFilename
 val mergedSemanticdbStatsFile = startingPath / MergedSemanticdbStatsFilename
 
-println(s"** MERGING from: ${startingPath.path.toAbsolutePath}")
+println(s"** MERGING semanticdbs from: ${startingPath.path.toAbsolutePath}")
 
-var occurences = 0
-var synthetics = 0
-var symbols = 0
+var stats = (0, 0, 0)
 
-mergedSemanticdbFile.outputStream.apply { output =>
-    new SdbLocator(startingPath.path)
+for {
+  mergedOutput <- mergedSemanticdbFile.newOutputStream.autoClosed
+} {
+  new SdbLocator(startingPath.path)
       .exclude(ExcludedDirs)
       .options(FileVisitOption.FOLLOW_LINKS)
       .run {
-        case (_, db) => {
-          occurences += db.documents.map(_.occurrences.size).sum
-          synthetics += db.documents.map(_.synthetics.size).sum
-          symbols += db.documents.map(_.symbols.size).sum
+        case (path, db) =>
+          stats = (
+            stats._1 + db.documents.map(_.occurrences.size).sum,
+            stats._2 + db.documents.map(_.synthetics.size).sum,
+            stats._3 + db.documents.map(_.symbols.size).sum
+          )
 
-          db.documents.foreach(_.writeDelimitedTo(output))
-        }
+          db.documents.foreach { d =>
+            val sdb = Semanticdb(path.toString, d)
+            sdb.writeDelimitedTo(mergedOutput)
+          }
       }
-  }
+}
 
-val stats =
-    s"""
-     |occurrences,synthetics,symbols
-     |$occurences,$synthetics,$symbols
-     |""".stripMargin
+for {
+  output <- mergedSemanticdbStatsFile
+    .toJava
+    .asCsvWriter[(Int, Int, Int)](rfc.withHeader("occurrences", "synthetics", "symbols")).autoClosed
+} output.write(stats)
 
-mergedSemanticdbStatsFile.writeText(stats)
-
-println(s"** MERGED $occurences occurences, $synthetics synthetics, $symbols symbols into $mergedSemanticdbFile")
+println(s"** MERGED $stats into $mergedSemanticdbFile")

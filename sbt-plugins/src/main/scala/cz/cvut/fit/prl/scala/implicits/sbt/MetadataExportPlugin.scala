@@ -13,10 +13,6 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
-  implicit class XtensionModuleID(that: ModuleID) {
-    def moduleId: String =
-      MetadataUtils.moduleId(that.organization.toLowerCase, that.name.toLowerCase, that.revision)
-  }
 
   private val GHOrigin: Regex =
     "^http[s]?://github.com/([^/]+)/(.*)$".r
@@ -80,9 +76,8 @@ object MetadataExportPlugin extends AutoPlugin {
         val forcedName = name.value
         val forcedOrganization = organization.value
         val forcedVersion = version.value
-        val moduleId = s"${forcedOrganization.toLowerCase}:${forcedName.toLowerCase}:$forcedVersion"
 
-        println(s"Processing: $moduleId in $repositoryRoot")
+        println(s"** Processing: $forcedOrganization:$forcedName:$forcedVersion in $repositoryRoot")
 
         val forcedScalaVersion = (scalaVersion in Compile).value
         val forcedSbtVersion = (sbtVersion in Compile).value
@@ -112,11 +107,34 @@ object MetadataExportPlugin extends AutoPlugin {
           .map { case (maj, min) => Config.updateVersion(maj, min, forcedScalaVersion) }
           .getOrElse("NA")
 
+        // we need to check if the project might build for multiple platforms
+        // a better way would be to somehow ask the
+        // crossplatform plugin (https://github.com/portable-scala/sbt-crossproject), but
+        // the following should do
+        val forcedLibraryDependencies = libraryDependencies.value
+        val platform = {
+          val candidates = forcedLibraryDependencies.collect { case m => m.organization -> m.name }
+
+          if (Config.ScalaNativeLibs.forall(candidates.contains)) "native"
+          else if (Config.ScalaJsLibs.forall(candidates.contains)) "js"
+          else "jvm"
+        }
+
+        val moduleId =
+          MetadataUtils.moduleId(
+            forcedOrganization.toLowerCase,
+            forcedName.toLowerCase,
+            forcedVersion,
+            platform)
+
+        println(s"** ModuleID: $moduleId")
+
         exportVersion(
           moduleId,
           forcedOrganization,
           forcedName,
           forcedVersion,
+          platform,
           forcedScalaVersion,
           forcedSbtVersion,
           updatedVersion,
@@ -221,9 +239,8 @@ object MetadataExportPlugin extends AutoPlugin {
     InternalDependency(
       projectId,
       moduleId,
-      dependencyId.moduleId,
-      dependencyId.organization,
-      dependencyId.name,
+      dependencyId.organization.toLowerCase,
+      dependencyId.name.toLowerCase,
       dependencyId.revision,
       scope
     )
@@ -239,7 +256,14 @@ object MetadataExportPlugin extends AutoPlugin {
       }
       .getOrElse((NA, NA, NA))
 
-    ExternalDependency(projectId, moduleId, groupId, artifactId, version, path, scope)
+    ExternalDependency(
+      projectId,
+      moduleId,
+      groupId.toLowerCase,
+      artifactId.toLowerCase,
+      version,
+      path,
+      scope)
   }
 
   def deleteIfExists(file: File): File = {
@@ -252,6 +276,7 @@ object MetadataExportPlugin extends AutoPlugin {
       projectOrganization: String,
       projectName: String,
       projectVersion: String,
+      platform: String,
       forcedScalaVersion: String,
       forcedSbtVersion: String,
       updatedScalaVersion: String,
@@ -262,9 +287,10 @@ object MetadataExportPlugin extends AutoPlugin {
       Version(
         projectId,
         moduleId,
-        projectOrganization,
-        projectName,
+        projectOrganization.toLowerCase,
+        projectName.toLowerCase,
         projectVersion,
+        platform,
         commit,
         forcedScalaVersion,
         forcedSbtVersion,
@@ -320,12 +346,18 @@ object MetadataExportPlugin extends AutoPlugin {
     )
 
     val directories = for {
-      (kind, scope, paths) <- sources
+      (managed, scope, paths) <- sources
       path <- paths.map(_.toPath.toAbsolutePath)
       slocs <- computeSLOC(path).toOption.toSeq
       sloc <- slocs
     } yield
-      SourcePath(projectId, moduleId, scope, kind, repositoryRoot.relativize(path).toString, sloc)
+      SourcePath(
+        projectId,
+        moduleId,
+        scope,
+        managed,
+        repositoryRoot.relativize(path).toString,
+        sloc)
 
     writeCSV(sourcepathsFile, SourcePath.CsvHeader, directories)
   }

@@ -27,4 +27,17 @@ object Config {
     case (2, 12) => supported212.find(_ == fullVersion).getOrElse(default212)
     case _ => throw new IllegalArgumentException(s"Unsupported Scala version $fullVersion")
   }
+
+  // https://github.com/scala-native/scala-native/blob/master/sbt-scala-native/src/main/scala/scala/scalanative/sbtplugin/ScalaNativePluginInternal.scala#L41
+  val ScalaNativeLibs = Seq(
+    "org.scala-native" -> "nativelib",
+    "org.scala-native" -> "javalib",
+    "org.scala-native" -> "auxlib",
+    "org.scala-native" -> "scalalib"
+  )
+
+  // https://github.com/scala-js/scala-js/blob/master/sbt-plugin/src/main/scala/org/scalajs/sbtplugin/ScalaJSPluginInternal.scala#L501
+  val ScalaJsLibs = Seq(
+    "org.scala-js" -> "scalajs-library"
+  )
 }

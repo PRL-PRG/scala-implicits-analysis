@@ -2,6 +2,11 @@ MAKEFLAGS += --no-builtin-rules
 
 .SUFFIXES:
 
+HOSTNAME := $(shell hostname)
+USERNAME := $(shell id -un)
+base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+include $(base_dir)/Makevars-$(USERNAME)@$(HOSTNAME)
+
 # absolute path to the ivy directory that contains cache and local subdirs
 ifndef GLOBAL_IVY_DIR
 $(error GLOBAL_IVY_DIR is not set. Typically ~/.ivy2)
@@ -16,11 +21,6 @@ endif
 ifndef N_JOBS
 $(error N_JOBS is not set. Controls the number of parallel jobs)
 endif
-
-# level of concurrency
-#ifndef CORPUS_DIR
-#$(error CORPUS_DIR is not set. Controls which corpus shall be used)
-#endif
 
 SBT_MEM ?= 16000
 TIMEOUT ?= 120m
@@ -45,9 +45,11 @@ SEMANTICDB_LOG := $(ANALYSIS_DIR)/semanticdb.log
 MERGED_SEMANTICDB_FILE := $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).bin
 MERGED_SEMANTICDB_STATS_FILE := $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).csv
 
+GLOBAL_IMPLICITS := implicits.bin
 IMPLICITS := $(ANALYSIS_DIR)/implicits.bin
 IMPLICITS_STATUS := $(ANALYSIS_DIR)/implicits-status.csv
 IMPLICITS_LOG := $(ANALYSIS_DIR)/implicits.log
+IMPLICITS_EXCEPTIONS := $(ANALYSIS_DIR)/implicits-exceptions.csv
 
 #AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm

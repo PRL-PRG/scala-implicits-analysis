@@ -35,7 +35,7 @@ object ExtractImplicits extends App {
     def stats = Stats(project.declarations.size, project.implicitCallSites.size, exceptions.size)
   }
 
-  class OutputWriter(messageFile: File, exceptionFile: File, statusFile: File) {
+  class OutputWriter(messageFile: File, exceptionFile: File, statsFile: File) {
 
     sealed trait Status {
       def projectId: String
@@ -84,19 +84,19 @@ object ExtractImplicits extends App {
         .asCsvWriter[ExtractionException](
           rfc.withHeader("project_id", "module_id", "cause", "message", "trace"))
 
-    private val statusOutput =
-      statusFile.newOutputStream
+    private val statsOutput =
+      statsFile.newOutputStream
         .asCsvWriter[Status](
           rfc.withHeader("project_id", "failure", "declarations", "callsites", "failures"))
 
     def write(projectId: String, result: Try[Result]): Stats = {
-      val status = result match {
+      val stats = result match {
         case Success(value) => SuccessfulExtraction(projectId, process(projectId, value))
         case Failure(exception) => FailedExtraction(projectId, exception)
       }
 
-      statusOutput.write(status)
-      status.stats
+      statsOutput.write(stats)
+      stats.stats
     }
 
     def process(projectId: String, result: Result): Stats = {
@@ -111,7 +111,7 @@ object ExtractImplicits extends App {
     }
 
     def close(): Unit = {
-      Seq(messageOutput, exceptionOutput, statusOutput)
+      Seq(messageOutput, exceptionOutput, statsOutput)
         .map(x => Try(x.close()))
         .foreach(_.get)
     }
@@ -192,9 +192,9 @@ object ExtractImplicits extends App {
   def run(projectPath: File, outputPath: File): Unit = {
     val messageFile = outputPath / ExtractedImplicitsFilename
     val exceptionFile = outputPath / ExtractionExceptionsFilename
-    val statusFile = outputPath / ExtractionStatusFilename
+    val statsFile = outputPath / ExtractionStatsFilename
 
-    val outputWriter = new OutputWriter(messageFile, exceptionFile, statusFile)
+    val outputWriter = new OutputWriter(messageFile, exceptionFile, statsFile)
 
     val result = Try(extractProject(projectPath))
 

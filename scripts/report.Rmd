@@ -7,7 +7,7 @@ output:
 editor_options: 
   chunk_output_type: console
 params:
-  base_dir: "/home/rstudio/work/Research/Projects/scala-corpus/corpora/4-top100"
+  base_dir: "~/Research/Projects/scala-corpus/corpora/1-single"
   file_view_prefix: "/files/"
 ---
 
@@ -63,14 +63,20 @@ add_project_html_links <- function(df) {
   )
 }
 
-add_html_links <- function(df) {
-  add_project_html_links(df) %>%
+add_log_html_links <- function(df) {
   mutate(
+    df, 
     log_file=create_link(
       str_c(params$file_view_prefix,log_file),
       basename(log_file)
     )
   )
+}
+
+add_html_links <- function(df) {
+  df %>%
+  add_project_html_links() %>%
+  add_log_html_links()
 }
 
 show_task_all_project_status <- function(df) {
@@ -89,7 +95,7 @@ show_task_all_project_status <- function(df) {
 # - status, 
 # - status_exists,
 # - log
-load_status <- function(projects, status_file, log_file) {
+load_status <- function(projects, status_file, log_file, col_types="ii") {
   df <- mutate(
     projects,
     status_file=path(project_path, ANALYSIS_DIR, status_file),
@@ -102,7 +108,7 @@ load_status <- function(projects, status_file, log_file) {
   map2_dfr(
     existing$project_id, 
     existing$status_file, 
-    ~mutate(read_csv(.y, col_types = "ii"), project_id=.x)
+    ~mutate(read_csv(.y, col_types=col_types), project_id=.x)
   ) %>%
     right_join(
       select(
@@ -181,7 +187,7 @@ show_task_all_project_status(compile_status)
 
 ```{r}
 # delete failed
-# file_delete(filter(compile_status, exit_code > 0), by="project_id")$status_file)
+# file_delete(filter(compile_status, exit_code > 0)$status_file)
 ```
 
 
@@ -212,18 +218,18 @@ show_task_all_project_status(semanticdb_status)
 
 ```{r}
 # delete failed
-# file_delete(filter(semanticdb_status, exit_code > 0), by="project_id")$status_file)
+# file_delete(filter(semanticdb_status, exit_code > 0)$status_file)
 ```
 
 # Merged Semanticdb
 
 ```{r}
 merged_sdbs <- 
-  select(semanticdb_status, project_id, origin, project_path, compile_status) %>%
+  select(semanticdb_status, project_id, origin, project_path, compile_status, sdb_status=exit_code) %>%
   mutate(
-    stats_file=path(project_path, ANALYSIS_DIR, "semanticdbs-4.1.0.csv"),
+    stats_file=path(project_path, ANALYSIS_DIR, "semanticdb-stats-4.1.0.csv"),
     stats_exists=file_exists(stats_file),
-    bin_file=path(project_path, ANALYSIS_DIR, "semanticdbs-4.1.0.bin"),
+    bin_file=path(project_path, ANALYSIS_DIR, "semanticdb-4.1.0.bin"),
     bin_exists=file_exists(bin_file)
   )
 
@@ -232,9 +238,13 @@ merged_sdbs_stats <- local({
   map2_dfr(
     existing$project_id, 
     existing$stats_file, 
-    ~mutate(read_csv(.y, col_types = "iii", skip = 1), project_id=.x)
+    ~mutate(read_csv(.y, col_types = "iii"), project_id=.x)
   )
 })
+
+if (nrow(merged_sdbs_stats) == 0) {
+  merged_sdbs_stats <- data_frame(project_id=character(), occurrences=integer(), synthetics=integer(), symbols=integer())
+}
 
 merged_sdbs_all <-
   merged_sdbs %>% 
@@ -259,3 +269,28 @@ merged_sdbs_all %>%
   show_dataframe()
 ```
 
+# Extracted
+
+```{r}
+implicits_status <- 
+  load_status(projects, "implicits-status.csv", "implicits.log", "ii") %>%
+  left_join(
+    select(merged_sdbs_all, project_id, compile_status, sdb_status, bin_size),
+    by="project_id"
+  ) %>%
+  mutate(
+    stats_file=path(project_path, ANALYSIS_DIR, "implicits-stats.csv"),
+    stats_exists=file_exists(stats_file)
+  )
+```
+
+
+```{r}
+implicits_status %>%
+  add_project_html_links() %>%
+  add_log_html_links() %>%
+  select(-origin, -status_file_exists, -status_file) %>%
+  show_dataframe()
+```
+
+## Summary

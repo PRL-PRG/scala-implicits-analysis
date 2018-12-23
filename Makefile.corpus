@@ -83,14 +83,12 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-all: metadata compile semanticdb merge-semanticdbs report
+all: metadata compile semanticdb implicits report
 
 clean: $(bootstrap)
 	$(parallel) $@
-	-rm -f extract-implicits.log
-	-rm -f implicits.bin
-	-rm -f implicits-exceptions.log
-	-rm -fr logs
+	-rm -f $(GLOBAL_IMPLICITS)
+	-rm -fr $(LOG_DIR_BASE)
 
 clean-classes: $(bootstrap)
 	$(parallel) $@
@@ -120,6 +118,7 @@ download-projects: $(PROJECTS_FILE)
 
 implicits: $(bootstrap)
 	$(parallel) $@
+	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
 
 link-projects: $(PROJECTS_CSV_FILE)
 	-mkdir -p $(PROJECTS_DIR)
