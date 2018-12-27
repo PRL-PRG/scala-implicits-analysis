@@ -4,48 +4,27 @@ import cz.cvut.fit.prl.scala.implicits.model.Location
 import cz.cvut.fit.prl.scala.implicits.utils._
 
 import scala.meta.internal.semanticdb.Scala._
+import scala.meta.internal.semanticdb.SymbolOccurrence
 import scala.meta.internal.{semanticdb => s}
 
 object SemanticdbSymbolResolver {
 
   def apply(dbs: Seq[s.TextDocument], symtab: SymbolTable): SemanticdbSymbolResolver = {
-
     val localSymbols = {
       for {
         db <- dbs
-        s.SymbolOccurrence(
-          Some(range),
-          symbol,
-          s.SymbolOccurrence.Role.DEFINITION
-        ) <- db.occurrences if !symbol.isPackage && !symbol.isLocal
-        info <- db.symbols.find(_.symbol == symbol)
-        location = Location(db.uri, Some(range))
-        resolvedSymbol = ResolvedSymbol(info, Some(location))
-      } yield symbol -> resolvedSymbol
-    }.toMap
-
-    def findSymbolLocation(o: s.SymbolInformation): Option[Location] = {
-      def tryToFind(s: String): Option[Location] = localSymbols.get(s) match {
-        case Some(ResolvedSymbol(_, location)) =>
-          location
-        case _ if s.isNone =>
-          None
-        case _ =>
-          tryToFind(s.owner)
+        symbolInfo <- db.symbols if symbolInfo.symbol.isLocal
+      } yield {
+        val range = db.occurrences.collectFirst {
+          case SymbolOccurrence(
+              Some(range),
+              symbolInfo.symbol,
+              s.SymbolOccurrence.Role.DEFINITION) =>
+            range.toLocal
+        }
+        symbolInfo.symbol -> ResolvedSymbol(symbolInfo, Some(Location(db.uri, range)))
       }
-
-      tryToFind(o.symbol.owner)
-    }
-
-    val localSyntheticSymbols = {
-      for {
-        db <- dbs
-        info <- db.symbols if !localSymbols.contains(info.symbol)
-        resolvedSymbol = ResolvedSymbol(info, findSymbolLocation(info))
-      } yield info.symbol -> resolvedSymbol
     }.toMap
-
-    val localSymbolIndex = localSymbols ++ localSyntheticSymbols
 
     val localRangeIndex = {
       for {
@@ -54,7 +33,7 @@ object SemanticdbSymbolResolver {
       } yield (db.uri -> range) -> symbol
     }.toMap
 
-    new SemanticdbSymbolResolver(localSymbolIndex, localRangeIndex, symtab)
+    new SemanticdbSymbolResolver(localSymbols, localRangeIndex, symtab)
   }
 }
 
@@ -71,13 +50,11 @@ class SemanticdbSymbolResolver(
       .getOrThrow(MissingSymbolException(s"at $unit:$range"))
   }
 
-  override def resolveSymbol(name: String): ResolvedSymbol =
-    localSymbolIndex
-      .get(name)
-      .orElse(symtab.resolve(name))
-      .getOrThrow({
-        val e = MissingSymbolException(s"Unable to resolve: $name")
-        e
-      })
-
+  override def resolveSymbol(name: String): ResolvedSymbol = {
+    val symbol = if (name.isLocal) localSymbolIndex.get(name) else symtab.resolve(name)
+    symbol.getOrThrow({
+      val e = MissingSymbolException(s"symbol: $name")
+      e
+    })
+  }
 }

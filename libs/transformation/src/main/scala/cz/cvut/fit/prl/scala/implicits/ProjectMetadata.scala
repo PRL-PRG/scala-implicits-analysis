@@ -4,7 +4,10 @@ import better.files._
 import cats.instances.list._
 import cats.instances.map._
 import cats.syntax.semigroup._
-import cz.cvut.fit.prl.scala.implicits.extractor.{LoadingMetadataException, SemanticdbSymbolResolver}
+import cz.cvut.fit.prl.scala.implicits.extractor.{
+  LoadingMetadataException,
+  SemanticdbSymbolResolver
+}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
@@ -176,7 +179,8 @@ object ProjectMetadata {
     val subProjects: Seq[SubProjectMetadata] = {
       val semanticdbMap: Map[String, List[s.TextDocument]] = {
         // an output classpath to moduleId
-        val inversePathsMap: Map[String, String] = versions.flatMap(x => x.output.map(_ -> x.moduleId)).toMap
+        val inversePathsMap: Map[String, String] =
+          versions.flatMap(x => x.output.map(_ -> x.moduleId)).toMap
         val map = mutable.Map[String, mutable.Buffer[s.TextDocument]]()
 
         semanticdbs.foreach { sdb =>
@@ -197,20 +201,28 @@ object ProjectMetadata {
           .withDefaultValue(Nil)
       }
 
-      val classpathMap = classpathEntriesMap
-        .mapValues { entries =>
-          val absolutePaths = entries.map(_.path).distinct.map(AbsolutePath(_))
-          val missing = absolutePaths.filter { x =>
-            val file = x.toFile
-            file.getName.endsWith(".jar") && !file.exists()
+      val classpathMap: Map[String, Classpath] =
+        classpathEntriesMap
+          .map {
+            case (name, entries) =>
+              val moduleClasspath = entries.map(_.path).distinct.map(AbsolutePath(_))
+              val missing = moduleClasspath.filter { x =>
+                val file = x.toFile
+                file.getName.endsWith(".jar") && !file.exists()
+              }
+
+              missing.foreach(x =>
+                warnings += new LoadingMetadataException(s"Missing classpath entries: $x"))
+
+              val moduleOutput = versionsMap
+                .get(name)
+                .map(m => m.output.map(AbsolutePath(_)))
+                .getOrElse(Nil)
+                .toList
+
+              name -> (Classpath(moduleOutput) ++ Classpath(moduleClasspath) ++ Libraries.JvmBootClasspath)
           }
-
-          missing.foreach(x =>
-            warnings += new LoadingMetadataException(s"Missing classpath entries: $x"))
-
-          Libraries.JvmBootClasspath ++ Classpath(absolutePaths)
-        }
-        .withDefaultValue(Libraries.JvmBootClasspath)
+          .withDefaultValue(Libraries.JvmBootClasspath)
 
       for {
         version <- versions
