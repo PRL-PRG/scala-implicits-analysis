@@ -10,6 +10,7 @@ PROJECTS_DIR := projects
 LOG_DIR_BASE := logs
 TIMESTAMP := $(shell LC_LOCALE=C date)
 LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
+CORPUS := $(shell basename $$(pwd))
 
 # it cannot be simply be ?= because that one is not immediate, but deferred so
 # it will be evaluated multiple times
@@ -96,6 +97,13 @@ clean: $(bootstrap)
 	$(parallel) $@
 	-rm -f $(GLOBAL_IMPLICITS)
 	-rm -fr $(LOG_DIR_BASE)
+	-rm -f $(notdir $(METADATA_STATUS))
+	-rm -f $(notdir $(COMPILE_STATUS))
+	-rm -f $(notdir $(SEMANTICDB_STATUS))
+	-rm -f $(notdir $(SEMANTICDB_STATS))
+	-rm -f $(notdir $(IMPLICITS_STATUS))
+	-rm -f $(notdir $(IMPLICITS_STATS))
+	-rm -f $(notdir $(IMPLICITS_EXCEPTIONS))
 
 clean-classes: $(bootstrap)
 	$(parallel) $@
@@ -117,7 +125,7 @@ clean-semanticdb: $(bootstrap)
 
 compile: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(LOG_DIR)/compile-status.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(notdir $(COMPILE_STATUS))
 
 download-projects: $(PROJECTS_FILE)
 	-mkdir -p $(PROJECTS_DIR)
@@ -126,9 +134,9 @@ download-projects: $(PROJECTS_FILE)
 
 implicits: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(LOG_DIR)/implicits-status.csv
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciii" $(LOG_DIR)/implicits-stats.csv
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(LOG_DIR)/implicits-exceptions.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(notdir $(IMPLICITS_STATUS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciii" $(notdir $(IMPLICITS_STATS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(notdir $(IMPLICITS_EXCEPTIONS))
 	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
 
 link-projects: $(PROJECTS_CSV_FILE)
@@ -144,7 +152,7 @@ merge-semanticdbs: $(bootstrap)
 
 metadata: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(METADATA_STATUS) "ii" $(LOG_DIR)/metadata-status.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(METADATA_STATUS) "ii" $(notdir $(METADATA_STATUS))
 
 redo-failed-metadata: $(bootstrap)
 	$(parallel) $@
@@ -158,8 +166,21 @@ reset: $(bootstrap)
 
 semanticdb: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(LOG_DIR)/semanticdb-status.csv
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATS) "iii" $(LOG_DIR)/semanticdb-stats.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(notdir $(SEMANTICDB_STATUS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATS) "iii" $(notdir $(SEMANTICDB_STATS))
 
 tail-log: $(LOG_DIR_LATEST)
 	tail -f $(LOG_DIR_LATEST)/parallel.log
+
+sync-from-prl4:
+	rsync \
+      -avhm \
+      --progress \
+      --exclude='Makefile' \
+      --exclude='jobsfile.txt' \
+      --exclude='.ivy' \
+      --exclude='.sbt-boot' \
+      --exclude='*.class' \
+      --exclude='target' \
+      prl4:Research/Projects/scala-corpus/corpora/$(CORPUS)/ \
+      ./
