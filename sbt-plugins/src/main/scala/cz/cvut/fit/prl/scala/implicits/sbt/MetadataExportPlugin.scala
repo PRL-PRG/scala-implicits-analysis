@@ -73,11 +73,12 @@ object MetadataExportPlugin extends AutoPlugin {
   override lazy val projectSettings: Seq[Def.Setting[Task[Unit]]] =
     Seq(
       MyKeys.metadata := {
-        val forcedName = name.value
+        val forcedModuleName = moduleName.value
         val forcedOrganization = organization.value
         val forcedVersion = version.value
 
-        println(s"** Processing: $forcedOrganization:$forcedName:$forcedVersion in $repositoryRoot")
+        println(
+      s"** Processing: $forcedOrganization:$forcedModuleName:$forcedVersion in $repositoryRoot")
 
         val forcedScalaVersion = (scalaVersion in Compile).value
         val forcedSbtVersion = (sbtVersion in Compile).value
@@ -121,9 +122,7 @@ object MetadataExportPlugin extends AutoPlugin {
         }
 
         val moduleId =
-          MetadataUtils.moduleId(
-            forcedOrganization.toLowerCase,
-            forcedName.toLowerCase,
+          MetadataUtils.moduleId(forcedOrganization, forcedModuleName,
             forcedVersion,
             platform)
 
@@ -132,7 +131,7 @@ object MetadataExportPlugin extends AutoPlugin {
         exportVersion(
           moduleId,
           forcedOrganization,
-          forcedName,
+          forcedModuleName,
           forcedVersion,
           platform,
           forcedScalaVersion,
@@ -239,8 +238,8 @@ object MetadataExportPlugin extends AutoPlugin {
     InternalDependency(
       projectId,
       moduleId,
-      dependencyId.organization.toLowerCase,
-      dependencyId.name.toLowerCase,
+      dependencyId.organization,
+      dependencyId.name,
       dependencyId.revision,
       scope
     )
@@ -258,9 +257,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
     ExternalDependency(
       projectId,
-      moduleId,
-      groupId.toLowerCase,
-      artifactId.toLowerCase,
+      moduleId, groupId, artifactId,
       version,
       path,
       scope)
@@ -287,8 +284,8 @@ object MetadataExportPlugin extends AutoPlugin {
       Version(
         projectId,
         moduleId,
-        projectOrganization.toLowerCase,
-        projectName.toLowerCase,
+        projectOrganization,
+        projectName,
         projectVersion,
         platform,
         commit,
