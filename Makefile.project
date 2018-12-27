@@ -1,6 +1,8 @@
 # -*- mode: makefile -*-
 
 base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+this_makefile := $(lastword $(MAKEFILE_LIST))
+
 include $(base_dir)/Makevars
 
 SHELL := /bin/bash
@@ -25,7 +27,7 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=t
 $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx1536M -Xss1M" \
-    $(SBT) clean test:compile 2>&1 | tee $(COMPILE_LOG); \
+    $(SBT) clean test:compile > $(COMPILE_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(COMPILE_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
@@ -33,7 +35,7 @@ $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
     if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-      $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc 2>&1 | tee $(IMPLICITS_LOG); \
+      $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc > $(IMPLICITS_LOG) 2>&1; \
       exit_code=$$?; \
       echo "$$exit_code,$$SECONDS" >> $(IMPLICITS_STATUS); \
     else \
@@ -42,7 +44,8 @@ $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
 
 $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
-	$(SBT) metadata 2>&1 | tee $(METADATA_LOG); \
+    # we cannot tee the output since we want to keep the error code
+	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
@@ -51,7 +54,7 @@ $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 $(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
-    $(SBT) semanticdb 2>&1 | tee $(SEMANTICDB_LOG); \
+    $(SBT) semanticdb >$(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(SEMANTICDB_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS); \
@@ -95,6 +98,12 @@ implicits: $(IMPLICITS_STATUS)
 metadata: $(METADATA_STATUS)
 
 merge-semanticdbs: $(MERGED_SEMANTICDB_FILE)
+
+redo-failed-metadata:
+	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -ne '0' ]; then \
+      echo "Redoing"; \
+      $(MAKE) -f $(this_makefile) clean-metadata metadata; \
+    fi
 
 repo-metadata:
 	$(base_dir)/scripts/generate-repo-metadata.sh .

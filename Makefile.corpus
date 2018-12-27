@@ -2,6 +2,8 @@
 
 # the location of this makefile
 base_dir := $(dir $(abspath $(shell readlink $(lastword $(MAKEFILE_LIST)))))
+this_makefile := $(lastword $(MAKEFILE_LIST))
+
 include $(base_dir)/Makevars
 
 PROJECTS_DIR := projects
@@ -70,9 +72,8 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	merge-semanticdbs \
 	metadata \
 	link-projects \
-	report-compile \
-	report-metadata \
-	report-semanticdb \
+	redo-failed-metadata \
+	report \
 	reset \
 	semanticdb \
 	tail-log
@@ -83,7 +84,13 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-all: metadata compile semanticdb implicits report
+all:
+	$(MAKE) -f $(this_makefile) clean
+	$(MAKE) -f $(this_makefile) metadata
+	$(MAKE) -f $(this_makefile) redo-failed-metadata N_JOBS=1
+	$(MAKE) -f $(this_makefile) compile
+	$(MAKE) -f $(this_makefile) semanticdb
+	$(MAKE) -f $(this_makefile) implicits
 
 clean: $(bootstrap)
 	$(parallel) $@
@@ -110,6 +117,7 @@ clean-semanticdb: $(bootstrap)
 
 compile: $(bootstrap)
 	$(parallel) $@
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(LOG_DIR)/compile-status.csv
 
 download-projects: $(PROJECTS_FILE)
 	-mkdir -p $(PROJECTS_DIR)
@@ -118,6 +126,9 @@ download-projects: $(PROJECTS_FILE)
 
 implicits: $(bootstrap)
 	$(parallel) $@
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(LOG_DIR)/implicits-status.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciii" $(LOG_DIR)/implicits-stats.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(LOG_DIR)/implicits-exceptions.csv
 	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
 
 link-projects: $(PROJECTS_CSV_FILE)
@@ -133,8 +144,9 @@ merge-semanticdbs: $(bootstrap)
 
 metadata: $(bootstrap)
 	$(parallel) $@
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(METADATA_STATUS) "ii" $(LOG_DIR)/metadata-status.csv
 
-repo-metadata: $(bootstrap)
+redo-failed-metadata: $(bootstrap)
 	$(parallel) $@
 
 report:
@@ -146,6 +158,8 @@ reset: $(bootstrap)
 
 semanticdb: $(bootstrap)
 	$(parallel) $@
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(LOG_DIR)/semanticdb-status.csv
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATS) "iii" $(LOG_DIR)/semanticdb-stats.csv
 
 tail-log: $(LOG_DIR_LATEST)
 	tail -f $(LOG_DIR_LATEST)/parallel.log

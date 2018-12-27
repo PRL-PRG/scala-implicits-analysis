@@ -20,11 +20,3 @@ sync-prl4:
       --exclude "target" \
       . prl4:Research/Projects/scala-corpus/
 
-	rsync \
-      -avh \
-      --delete \
-      ~/.ivy2/local/cz.cvut.fit.prl.scala.implicits/ \
-      prl4:.ivy2/local/cz.cvut.fit.prl.scala.implicits
-
-	scp ~/.sbt/1.0/global.sbt prl4:.sbt/1.0/global.sbt
-	scp ~/.sbt/0.13/global.sbt prl4:.sbt/0.13/global.sbt
