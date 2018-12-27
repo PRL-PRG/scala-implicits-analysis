@@ -40,6 +40,7 @@ COMPILE_STATUS := $(ANALYSIS_DIR)/compile-status.csv
 COMPILE_LOG := $(ANALYSIS_DIR)/compile.log
 
 SEMANTICDB_STATUS := $(ANALYSIS_DIR)/semanticdb-status.csv
+SEMANTICDB_STATS := $(ANALYSIS_DIR)/semanticdb-stats.csv
 SEMANTICDB_LOG := $(ANALYSIS_DIR)/semanticdb.log
 
 MERGED_SEMANTICDB_FILE := $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION).bin
@@ -48,6 +49,7 @@ MERGED_SEMANTICDB_STATS_FILE := $(ANALYSIS_DIR)/semanticdbs-$(SCALAMETA_VERSION)
 GLOBAL_IMPLICITS := implicits.bin
 IMPLICITS := $(ANALYSIS_DIR)/implicits.bin
 IMPLICITS_STATUS := $(ANALYSIS_DIR)/implicits-status.csv
+IMPLICITS_STATS := $(ANALYSIS_DIR)/implicits-stats.csv
 IMPLICITS_LOG := $(ANALYSIS_DIR)/implicits.log
 IMPLICITS_EXCEPTIONS := $(ANALYSIS_DIR)/implicits-exceptions.csv
 
