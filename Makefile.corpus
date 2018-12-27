@@ -87,7 +87,6 @@ $(LOG_DIR):
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
 all:
-	$(MAKE) -f $(this_makefile) clean
 	$(MAKE) -f $(this_makefile) metadata
 	$(MAKE) -f $(this_makefile) redo-failed-metadata N_JOBS=1
 	$(MAKE) -f $(this_makefile) compile
