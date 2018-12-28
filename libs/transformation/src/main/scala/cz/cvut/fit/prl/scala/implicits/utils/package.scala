@@ -3,12 +3,14 @@ package cz.cvut.fit.prl.scala.implicits
 import java.io.PrintWriter
 
 import cz.cvut.fit.prl.scala.implicits.extractor.SymbolResolver
+import cz.cvut.fit.prl.scala.implicits.metadata.Version
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
 import scala.language.implicitConversions
 import scala.meta.inputs.Position
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
+import scala.meta.io.{AbsolutePath, Classpath}
 import scala.util.{Failure, Success, Try}
 
 package object utils {
@@ -27,6 +29,12 @@ package object utils {
       case _ => false
     }
   }
+
+  implicit class XtensionModuleClasspath(that: Version) {
+    def classpath: Classpath = Classpath(that.output.map(AbsolutePath(_)).toList)
+  }
+
+
   implicit class XtensionOptions[+A](that: Option[A]) {
 
     def getOrThrow(e: => Throwable): A = that match {

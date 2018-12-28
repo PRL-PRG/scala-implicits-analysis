@@ -72,15 +72,17 @@ object ProjectMetadata {
     val sourcepathEntries: List[SourcePath] =
       readCSV[SourcePath](path / AnalysisDirname / SourcePathsFilename)
 
-    val versionsMap = versions
+    val versionsMap: Map[String, Version] = versions
       .groupBy(_.moduleId)
       .mapValues {
         case v :: Nil => v
         case vs =>
-          // s rough heuristic
           warnings += new Exception(
-            s"There are multiple projects under the same name -- taking head: $vs")
-          vs.head
+            s"There are multiple projects under the same name -- taking the one with existing output: $vs")
+
+          // rough heuristic
+          val top = vs.map(x => x -> x.output.map(y => if (File(y).exists) 1 else 0).sum).maxBy(_._2)
+          top._1
       }
 
     val sourcepathEntriesMap =
@@ -214,15 +216,11 @@ object ProjectMetadata {
               missing.foreach(x =>
                 warnings += new LoadingMetadataException(s"Missing classpath entries: $x"))
 
-              val moduleOutput = versionsMap
-                .get(name)
-                .map(m => m.output.map(AbsolutePath(_)))
-                .getOrElse(Nil)
-                .toList
+              val moduleOutput = versionsMap(name).classpath
 
-              name -> (Classpath(moduleOutput) ++ Classpath(moduleClasspath) ++ Libraries.JvmBootClasspath)
+              name -> (moduleOutput ++ Classpath(moduleClasspath) ++ Libraries.JvmBootClasspath)
           }
-          .withDefaultValue(Libraries.JvmBootClasspath)
+          .withDefault(x => versionsMap(x).classpath ++ Libraries.JvmBootClasspath)
 
       for {
         version <- versions
