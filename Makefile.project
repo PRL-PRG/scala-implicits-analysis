@@ -99,10 +99,22 @@ metadata: $(METADATA_STATUS)
 
 merge-semanticdbs: $(MERGED_SEMANTICDB_FILE)
 
+redo-failed-compile:
+	if [ $$(Rscript -e 'cat(read.csv("$(COMPILE_STATUS)")$$exit_code[1])') -ne '0' ]; then \
+      echo "Redoing"; \
+      $(MAKE) -f $(this_makefile) clean-compile compile; \
+    fi
+
 redo-failed-metadata:
 	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -ne '0' ]; then \
       echo "Redoing"; \
       $(MAKE) -f $(this_makefile) clean-metadata metadata; \
+    fi
+
+redo-failed-semanticdb:
+	if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -ne '0' ]; then \
+      echo "Redoing"; \
+      $(MAKE) -f $(this_makefile) clean-semanticdb semanticdb; \
     fi
 
 repo-metadata:

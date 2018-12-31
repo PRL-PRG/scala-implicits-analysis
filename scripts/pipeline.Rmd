@@ -7,7 +7,7 @@ output:
 editor_options: 
   chunk_output_type: console
 params:
-  base_dir: "/home/rstudio/work/Research/Projects/scala-corpus/corpora/6-scaladex"
+  base_dir: "/home/rstudio/work/Research/Projects/scala-corpus/corpora/4-top100"
   file_view_prefix: "/files/"
 ---
 
@@ -120,12 +120,11 @@ projects <- data_frame(
 ```
 
 ```{r}
-metadata_status <- merge_project_csvs(project_ids, projects_file(project_ids, METADATA_STATUS), col_types="ii")
-compile_status <- merge_project_csvs(project_ids, projects_file(project_ids, COMPILE_STATUS), col_types="ii")
-semanticdb_status <- merge_project_csvs(project_ids, projects_file(project_ids, SEMANTICDB_STATUS), col_types="ii")
-implicits_status <- merge_project_csvs(project_ids, projects_file(project_ids, IMPLICITS_STATUS), col_types="ii")
-# project_id,failure,declarations,callsites,failures
-implicits_stats <- merge_project_csvs(project_ids, projects_file(project_ids, IMPLICITS_STATS), col_types="cciii")
+metadata_status <- read_csv(path(params$base_dir, METADATA_STATUS), col_types="cii")
+compile_status <- read_csv(path(params$base_dir, COMPILE_STATUS), col_types="cii")
+semanticdb_status <- read_csv(path(params$base_dir, SEMANTICDB_STATUS), col_types="cii")
+implicits_status <- read_csv(path(params$base_dir, IMPLICITS_STATUS), col_types="cii")
+implicits_stats <- read_csv(path(params$base_dir, IMPLICITS_STATS), col_types="cciii")
 ```
 
 ```{r}
@@ -217,7 +216,7 @@ projects_with_logs %>% show_task_all_project_status()
 ## Implicits Exceptions
 
 ```{r}
-exceptions <- merge_project_csvs(project_ids, projects_file(project_ids, IMPLICITS_EXCEPTIONS), col_types="ccccc")
+exceptions <- read_csv(path(params$base_dir, IMPLICITS_EXCEPTIONS), col_types="ccccc")
 ```
 
 ```{r}
@@ -229,5 +228,11 @@ sum(implicits_stats$declarations)
 sum(implicits_stats$callsites)
 filter(missing, clazz=="scala/Predef.ArrowAssoc().") %>% count(project_id)
 filter(missing, clazz=="scala/Predef.$conforms().") %>% count(project_id)
+```
+
+## Implicits stats
+
+```{r}
+implicits_stats %>% summarise_at(vars(declarations, callsites, failures), sum)
 ```
 

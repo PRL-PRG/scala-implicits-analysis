@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
-library(fs)
-library(tidyverse)
+suppressPackageStartupMessages(library(fs))
+suppressPackageStartupMessages(library(tidyverse))
 
 args <- commandArgs(trailingOnly=T)
 projects_file <- args[1]
@@ -27,3 +27,8 @@ df <- if (nrow(df) == 0) {
 }
 
 write_csv(df, output_file)
+
+message("Merged ", sum(existing_files), "/", length(files), " into ", output_file)
+for (file in files[!existing_files]) {
+  message("Missing: ", file)
+}

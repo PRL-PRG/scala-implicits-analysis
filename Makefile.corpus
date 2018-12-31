@@ -70,10 +70,11 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	compile \
 	download-projects \
 	implicits \
-	merge-semanticdbs \
 	metadata \
 	link-projects \
+	redo-failed-compile \
 	redo-failed-metadata \
+	redo-failed-semanticdb \
 	report \
 	reset \
 	semanticdb \
@@ -88,9 +89,11 @@ $(LOG_DIR):
 
 all:
 	$(MAKE) -f $(this_makefile) metadata
-	$(MAKE) -f $(this_makefile) redo-failed-metadata N_JOBS=1
+	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-metadata; done
 	$(MAKE) -f $(this_makefile) compile
+	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-compile; done
 	$(MAKE) -f $(this_makefile) semanticdb
+	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-semanticdb; done
 	$(MAKE) -f $(this_makefile) implicits
 
 clean: $(bootstrap)
@@ -147,14 +150,19 @@ link-projects: $(PROJECTS_CSV_FILE)
       parallel -j1 --bar --colsep "," "ln -s {1} $(PROJECTS_DIR)/{2}"
 	cat $(PROJECTS_CSV_FILE) | csvcut -c project_id | csvformat -K 1 > $(PROJECTS_FILE)
 
-merge-semanticdbs: $(bootstrap)
-	$(parallel) $@
-
 metadata: $(bootstrap)
 	$(parallel) $@
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(METADATA_STATUS) "ii" $(notdir $(METADATA_STATUS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-versions.csv" "cccccccccccc" "metadata-versions.csv"
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-sourcepaths.csv" "ccclciciii" "metadata-sourcepaths.csv"
+
+redo-failed-compile: $(bootstrap)
+	$(parallel) $@
 
 redo-failed-metadata: $(bootstrap)
+	$(parallel) $@
+
+redo-failed-semanticdb: $(bootstrap)
 	$(parallel) $@
 
 report:
@@ -165,7 +173,7 @@ reset: $(bootstrap)
 	$(parallel) $@
 
 semanticdb: $(bootstrap)
-#	$(parallel) $@
+	$(parallel) $@
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(notdir $(SEMANTICDB_STATUS))
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(MERGED_SEMANTICDB_STATS_FILE) "iii" $(notdir $(MERGED_SEMANTICDB_STATS_FILE))
 
