@@ -21,6 +21,10 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=t
 	implicits \
 	metadata \
 	semanticdb \
+	redo-failed-compile \
+	redo-failed-metadata \
+	redo-failed-semanticdb \
+	redo-failed-implicits \
 	repo-metadata \
 	reset
 
@@ -34,10 +38,11 @@ $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 
 $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
-    if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-      $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc > $(IMPLICITS_LOG) 2>&1; \
-      exit_code=$$?; \
-      echo "$$exit_code,$$SECONDS" >> $(IMPLICITS_STATUS); \
+    if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' \
+      -a $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+        $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc > $(IMPLICITS_LOG) 2>&1; \
+        exit_code=$$?; \
+        echo "$$exit_code,$$SECONDS" >> $(IMPLICITS_STATUS); \
     else \
       echo "-1,0" >> $(IMPLICITS_STATUS); \
     fi
@@ -80,16 +85,19 @@ clean-implicits:
       $(IMPLICITS)
 
 clean-metadata:
-	rm -f $(METADATA_STATUS) $(METADATA_LOG)
+	rm -f $(METADATA_STATUS) \
+      $(METADATA_LOG) \
+      $(ANALYSIS_DIR)/metadata-*
 
 # removes whatever sbt was configured to remove
 clean-sbt:
 	$(SBT) clean
 
 clean-semanticdb:
-	rm -f $(SEMANTICDB_STATUS) $(SEMANTICDB_LOG)
-	rm -f $(MERGED_SEMANTICDB_FILE)
-	rm -f $(MERGED_SEMANTICDB_STATS_FILE)
+	rm -f $(SEMANTICDB_STATUS) \
+      $(SEMANTICDB_LOG) \
+      $(MERGED_SEMANTICDB_FILE) \
+      $(MERGED_SEMANTICDB_STATS_FILE)
 
 compile: $(COMPILE_STATUS)
 
@@ -106,6 +114,7 @@ redo-failed-compile:
     fi
 
 redo-failed-metadata:
+	Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])'
 	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -ne '0' ]; then \
       echo "Redoing"; \
       $(MAKE) -f $(this_makefile) clean-metadata metadata; \
@@ -113,8 +122,20 @@ redo-failed-metadata:
 
 redo-failed-semanticdb:
 	if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -ne '0' ]; then \
-      echo "Redoing"; \
-      $(MAKE) -f $(this_makefile) clean-semanticdb semanticdb; \
+      if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+        echo "Redoing"; \
+        $(MAKE) -f $(this_makefile) clean-semanticdb semanticdb; \
+      fi; \
+    fi
+
+redo-failed-implicits:
+	if [ $$(Rscript -e 'cat(read.csv("$(IMPLICITS_STATUS)")$$exit_code[1])') -ne '0' ]; then \
+      if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+        if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+          echo "Redoing"; \
+          $(MAKE) -f $(this_makefile) clean-implicits implicits; \
+        fi; \
+      fi; \
     fi
 
 repo-metadata:

@@ -75,6 +75,7 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	redo-failed-compile \
 	redo-failed-metadata \
 	redo-failed-semanticdb \
+	redo-failed-implicits \
 	report \
 	reset \
 	semanticdb \
@@ -138,7 +139,7 @@ download-projects: $(PROJECTS_FILE)
 implicits: $(bootstrap)
 	$(parallel) $@
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(notdir $(IMPLICITS_STATUS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciii" $(notdir $(IMPLICITS_STATS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciiiii" $(notdir $(IMPLICITS_STATS))
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(notdir $(IMPLICITS_EXCEPTIONS))
 	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
 
@@ -165,9 +166,12 @@ redo-failed-metadata: $(bootstrap)
 redo-failed-semanticdb: $(bootstrap)
 	$(parallel) $@
 
+redo-failed-implicits: $(bootstrap)
+	$(parallel) $@
+
 report:
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/$(LOG_DIR_LATEST)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(CURDIR)"))'
-	@echo ">> Report is in $(LOG_DIR_LATEST)/report.html"
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(CURDIR)"))'
+	@echo ">> Report is in report.html"
 
 reset: $(bootstrap)
 	$(parallel) $@
@@ -188,7 +192,5 @@ sync-from-prl4:
       --exclude='jobsfile.txt' \
       --exclude='.ivy' \
       --exclude='.sbt-boot' \
-      --exclude='*.class' \
-      --exclude='target' \
       prl4:Research/Projects/scala-corpus/corpora/$(CORPUS)/ \
       ./
