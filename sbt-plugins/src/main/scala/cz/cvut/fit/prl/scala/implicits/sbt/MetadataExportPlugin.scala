@@ -6,46 +6,45 @@ import cz.cvut.fit.prl.scala.implicits.metadata.Constants.{NA, NL, PathSep}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import sbt.Keys._
+import sbt._
 import sbt.plugins.JvmPlugin
-import sbt.{Def, _}
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
 object MetadataExportPlugin extends AutoPlugin {
+  object MetadataKeys {
+    val allProjectsMetadata = taskKey[Unit]("dumps all projects metadata")
+    val projectMetadata = taskKey[Unit]("dumps project metadata")
+  }
+
+  override def trigger = allRequirements
+  override def requires = JvmPlugin
+
+  final val autoImport = MetadataKeys
 
   private val GHOrigin: Regex =
     "^http[s]?://github.com/([^/]+)/(.*)$".r
 
-  final val autoImport = MyKeys
-
-  object MyKeys {
-    val metadata = taskKey[Unit]("dumps project metadata")
-  }
-
-  override def trigger = allRequirements
-
-  override def requires = JvmPlugin
-
-  lazy val origin: String = {
+  private lazy val origin: String = {
     runCommand("git remote get-url origin").get.trim
   }
 
-  lazy val commit: String = {
+  private lazy val commit: String = {
     runCommand("git log --pretty=format:%h -n 1").get.trim
   }
 
-  lazy val repositoryRoot: Path = {
+  private lazy val repositoryRoot: Path = {
     //runCommand("git rev-parse --show-toplevel").get.trim
     java.nio.file.Paths.get("").toAbsolutePath
   }
 
-  lazy val projectId: String = origin match {
+  private lazy val projectId: String = origin match {
     case GHOrigin(user, repo) => user + "--" + repo.replaceAll("\\.git$", "")
     case _ => throw new Exception("Unable to get projectId")
   }
 
-  lazy val analysisDir = {
+  private lazy val analysisDir = {
     val tmp = new File(AnalysisDirname)
     if (!tmp.exists()) {
       if (!tmp.mkdir())
@@ -55,30 +54,54 @@ object MetadataExportPlugin extends AutoPlugin {
     tmp
   }
 
-  lazy val dependenciesFile =
+  private lazy val dependenciesFile =
     deleteIfExists(new File(analysisDir, InternalDependenciesFilename))
 
-  lazy val sourcepathsFile =
+  private lazy val sourcepathsFile =
     deleteIfExists(new File(analysisDir, SourcePathsFilename))
 
-  lazy val versionsFile =
+  private lazy val versionsFile =
     deleteIfExists(new File(analysisDir, VersionsFilename))
 
-  lazy val classpathFile =
+  private lazy val classpathFile =
     deleteIfExists(new File(analysisDir, ExternalDependenciesFilename))
 
-  lazy val cleanpathFile =
+  private lazy val cleanpathFile =
     deleteIfExists(new File(analysisDir, CleanPathsFilename))
 
-  override lazy val projectSettings: Seq[Def.Setting[Task[Unit]]] =
+  override def globalSettings: Seq[Def.Setting[_]] = Seq(
+    aggregate.in(MetadataKeys.allProjectsMetadata) := false,
+    MetadataKeys.allProjectsMetadata := Def.taskDyn {
+      val extracted = Project.extract(state.value)
+      val refs = extracted.structure.allProjectRefs
+      val filter = ScopeFilter(
+        projects = inProjects(refs: _*),
+        configurations = inConfigurations(Compile, Test))
+      MetadataKeys.projectMetadata.all(filter)
+    }.value,
+    commands += Command.command("metadata") { state =>
+      val extracted = Project.extract(state)
+      val settings: Seq[Setting[_]] = for {
+        p <- extracted.structure.allProjectRefs
+        s <- List(
+          sources.in(p).in(Compile) := Seq.empty,
+          sources.in(p).in(Test) := Seq.empty
+        )
+      } yield s
+
+      val installed = extracted.append(settings, state)
+      "allProjectsMetadata" :: installed
+    }
+  )
+
+  override lazy val projectSettings: Seq[Def.Setting[_]] =
     Seq(
-      MyKeys.metadata := {
+      MetadataKeys.projectMetadata := {
         val forcedModuleName = moduleName.value
         val forcedOrganization = organization.value
         val forcedVersion = version.value
 
-        println(
-      s"** Processing: $forcedOrganization:$forcedModuleName:$forcedVersion in $repositoryRoot")
+        println(s"** Processing: $forcedOrganization:$forcedModuleName:$forcedVersion in $repositoryRoot")
 
         val forcedScalaVersion = (scalaVersion in Compile).value
         val forcedSbtVersion = (sbtVersion in Compile).value
@@ -122,9 +145,7 @@ object MetadataExportPlugin extends AutoPlugin {
         }
 
         val moduleId =
-          MetadataUtils.moduleId(forcedOrganization, forcedModuleName,
-            forcedVersion,
-            platform)
+          MetadataUtils.moduleId(forcedOrganization, forcedModuleName, forcedVersion, platform)
 
         println(s"** ModuleID: $moduleId")
 
@@ -161,7 +182,7 @@ object MetadataExportPlugin extends AutoPlugin {
       }
     )
 
-  def computeSLOC(path: Path): Try[Seq[SLOC]] = {
+  private def computeSLOC(path: Path): Try[Seq[SLOC]] = {
     if (path.toFile.exists()) {
       val cmd = s"cloc --quiet --csv $path"
       val output = runCommand(cmd)
@@ -178,7 +199,7 @@ object MetadataExportPlugin extends AutoPlugin {
     }
   }
 
-  def runCommand(cmd: String): Try[String] = {
+  private def runCommand(cmd: String): Try[String] = {
     val stdout = new StringBuilder
     val stderr = new StringBuilder
 
@@ -198,7 +219,7 @@ object MetadataExportPlugin extends AutoPlugin {
     status
   }
 
-  def writeCSV(
+  private def writeCSV(
       filename: File,
       columnNames: Seq[String],
       data: Seq[Product],
@@ -233,7 +254,7 @@ object MetadataExportPlugin extends AutoPlugin {
     }
   }
 
-  def projectInternalDependency(projectId: String, moduleId: String, scope: String)(
+  private def projectInternalDependency(projectId: String, moduleId: String, scope: String)(
       dependencyId: ModuleID): InternalDependency =
     InternalDependency(
       projectId,
@@ -244,7 +265,7 @@ object MetadataExportPlugin extends AutoPlugin {
       scope
     )
 
-  def projectExternalDependency(projectId: String, moduleId: String, scope: String)(
+  private def projectExternalDependency(projectId: String, moduleId: String, scope: String)(
       entry: Attributed[File]): ExternalDependency = {
 
     val path = entry.data.getAbsolutePath
@@ -255,20 +276,15 @@ object MetadataExportPlugin extends AutoPlugin {
       }
       .getOrElse((NA, NA, NA))
 
-    ExternalDependency(
-      projectId,
-      moduleId, groupId, artifactId,
-      version,
-      path,
-      scope)
+    ExternalDependency(projectId, moduleId, groupId, artifactId, version, path, scope)
   }
 
-  def deleteIfExists(file: File): File = {
+  private def deleteIfExists(file: File): File = {
     if (file.exists()) file.delete()
     file
   }
 
-  def exportVersion(
+  private def exportVersion(
       moduleId: String,
       projectOrganization: String,
       projectName: String,
@@ -299,7 +315,7 @@ object MetadataExportPlugin extends AutoPlugin {
     writeCSV(versionsFile, Version.CsvHeader, Seq(version))
   }
 
-  def exportInternalDependencies(
+  private def exportInternalDependencies(
       moduleId: String,
       compileDependencies: Seq[ModuleID],
       testDependencies: Seq[ModuleID]): Unit = {
@@ -313,7 +329,7 @@ object MetadataExportPlugin extends AutoPlugin {
     writeCSV(dependenciesFile, InternalDependency.CsvHeader, dependencies)
   }
 
-  def exportExternalDependencies(
+  private def exportExternalDependencies(
       moduleId: String,
       compileDependencies: Classpath,
       testDependencies: Classpath): Unit = {
@@ -328,7 +344,7 @@ object MetadataExportPlugin extends AutoPlugin {
     writeCSV(classpathFile, ExternalDependency.CsvHeader, classpath)
   }
 
-  def exportSourcePaths(
+  private def exportSourcePaths(
       moduleId: String,
       managedSourceDirectories: Seq[File],
       managedTestDirectories: Seq[File],
@@ -359,7 +375,7 @@ object MetadataExportPlugin extends AutoPlugin {
     writeCSV(sourcepathsFile, SourcePath.CsvHeader, directories)
   }
 
-  def exportCleanpaths(moduleId: String, cleanDirectories: Seq[File]): Unit = {
+  private def exportCleanpaths(moduleId: String, cleanDirectories: Seq[File]): Unit = {
     val cleanpaths = for (path <- cleanDirectories)
       yield CleanPath(projectId, moduleId, path.getAbsolutePath)
 
