@@ -36,22 +36,33 @@ message SourcepathEntry {
 
 message ClasspathEntry {
     required string path = 1;
-    required string groupId = 2;
-    required string artifactId = 3;
+    required string group_id = 2;
+    required string artifact_id = 3;
     required string version = 4;
     required string scope = 5;
     required bool internal = 6;
     required bool managed = 7;
+    required bool transitive = 8;
 }
 
 message Project {
-    required string projectId = 1;
-    required string scalaVersion = 2;
-    required string sbtVersion = 3;
-    map<string, PathEntry> paths = 4;
-    repeated Declaration declarations = 5;
-    repeated CallSite implicitCallSites = 6;
-    required int32 allCallSitesCount = 7;
+    required string project_id = 1;
+    required string sbt_version = 3;
+    repeated Module modules = 2;
+}
+
+message Module {
+    required string module_id = 1;
+    required string group_id = 2;
+    required string artifact_id = 3;
+    required string version = 4;
+    required string scala_version = 5;
+    map<string, PathEntry> paths = 6;
+    repeated Declaration declarations = 7;
+    repeated CallSite implicit_call_sites = 8;
+    required int32 call_sites_count = 9;
+    repeated string output_path = 10;
+    repeated string test_output_path = 11;
 }
 
 message Declaration {

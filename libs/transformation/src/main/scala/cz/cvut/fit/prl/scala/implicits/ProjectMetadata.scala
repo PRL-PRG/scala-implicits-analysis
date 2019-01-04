@@ -19,19 +19,24 @@ import cz.cvut.fit.prl.scala.implicits.semanticdb.Semanticdb
 import kantan.csv._
 import kantan.csv.generic._
 
-import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.meta._
 import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
 
-case class SubProjectMetadata(
+case class ModuleMetadata(
     moduleId: String,
+    groupId: String,
+    artifactId: String,
+    version: String,
+    scalaVersion: String,
     classpathEntries: List[ClasspathEntry],
     sourcepathEntries: List[SourcepathEntry],
     classpath: Classpath,
-    semanticdbs: List[s.TextDocument]
+    semanticdbs: List[s.TextDocument],
+    outputPath: List[String],
+    testOutputPath: List[String]
 ) {
   private val asts: TrieMap[String, Source] = TrieMap()
 
@@ -47,7 +52,7 @@ case class ProjectMetadata(
     projectId: String,
     scalaVersion: String,
     sbtVersion: String,
-    subProjects: Seq[SubProjectMetadata]
+    modules: Seq[ModuleMetadata]
 )
 
 object ProjectMetadata {
@@ -63,11 +68,8 @@ object ProjectMetadata {
     val versions: List[Version] =
       readCSV[Version](path / AnalysisDirname / VersionsFilename)
 
-    val internalDependencies: List[InternalDependency] =
-      readCSV[InternalDependency](path / AnalysisDirname / InternalDependenciesFilename)
-
-    val externalDependencies: List[ExternalDependency] =
-      readCSV[ExternalDependency](path / AnalysisDirname / ExternalDependenciesFilename)
+    val dependencies: List[Dependency] =
+      readCSV[Dependency](path / AnalysisDirname / DependenciesFilename)
 
     val sourcepathEntries: List[SourcePath] =
       readCSV[SourcePath](path / AnalysisDirname / SourcePathsFilename)
@@ -81,7 +83,8 @@ object ProjectMetadata {
             s"There are multiple projects under the same name -- taking the one with existing output: $vs")
 
           // rough heuristic
-          val top = vs.map(x => x -> x.output.map(y => if (File(y).exists) 1 else 0).sum).maxBy(_._2)
+          val top =
+            vs.map(x => x -> x.output.map(y => if (File(y).exists) 1 else 0).sum).maxBy(_._2)
           top._1
       }
 
@@ -91,94 +94,35 @@ object ProjectMetadata {
         .mapValues(xs => xs.map(x => SourcepathEntry(x.path, x.scope, x.managed)))
         .withDefaultValue(Nil)
 
-    val internalClasspathEntriesMap: Map[String, List[ClasspathEntry]] = {
-      val dependencyMap: Map[String, List[String]] = internalDependencies
-        .map { x =>
-          val module = x.moduleId
-          val platform = versionsMap(module).platform
-          val candidates = Seq(
-            x.dependencyId(platform),
-            x.dependencyId("jvm")
-          )
+    val classpathEntriesMap: Map[String, List[ClasspathEntry]] = {
+      val internalModules = versions.map(x => (x.groupId, x.artifactId, x.version)).toSet
 
-          // we need either the dependency for the platform version of the module or JVM version
-          val dependencyId = candidates.collectFirst {
-            case x if versionsMap.get(x).isDefined => x
-          }
-
-          module -> dependencyId.getOrThrow {
-            val e =
-              new Exception(s"Unable to find dependency ${x.dependencyId("")}, tried $candidates")
-            e
-          }
-        }
-        .groupBy(_._1)
-        .mapValues(_.map(_._2))
-        .withDefaultValue(Nil)
-
-      @tailrec
-      def transitive(consider: List[String], acc: List[String]): List[String] = consider match {
-        case Nil => acc.distinct
-        case x :: xs => transitive(dependencyMap(x) ++ xs, x :: acc)
-      }
-
-      val transitiveDependencies = dependencyMap.mapValues(xs => transitive(xs, Nil))
-
-      transitiveDependencies
-        .mapValues { dependencies =>
-          dependencies.flatMap { dependency =>
-            versionsMap.get(dependency) match {
-              case Some(version) =>
-                val paths =
-                  version.outputClasspaths.map(_ -> "compile") ++
-                    version.outputTestClasspaths.map(_ -> "test")
-
-                paths.map {
-                  case (classpath, scope) =>
-                    ClasspathEntry(
-                      classpath,
-                      version.groupId,
-                      version.artifactId,
-                      version.version,
-                      scope,
-                      internal = true,
-                      managed = true
-                    )
-                }
-              case None =>
-                warnings += new Exception(s"Missing internal dependency $dependency")
-                Seq()
-            }
-          }
-        }
-    }
-
-    val externalClasspathEntriesMap: Map[String, List[ClasspathEntry]] =
-      externalDependencies
+      dependencies
         .groupBy(_.moduleId)
         .mapValues { dependencies =>
           dependencies.map { dependency =>
+            val internal = internalModules.contains(
+              (dependency.groupId, dependency.artifactId, dependency.version))
+
             ClasspathEntry(
               dependency.path,
               dependency.groupId,
               dependency.artifactId,
               dependency.version,
               dependency.scope,
-              internal = false,
-              managed = true
+              internal = internal,
+              managed = true,
+              transitive = dependency.transitive
             )
           }
         }
-
-    // we need to compose the maps, not just concatenate
-    val classpathEntriesMap =
-      (internalClasspathEntriesMap |+| externalClasspathEntriesMap).withDefaultValue(Nil)
+    }.withDefaultValue(Nil)
 
     val semanticdbs: List[Semanticdb] =
       (path / Constants.MergedSemanticdbFilename).inputStream
         .apply(input => Semanticdb.streamFromDelimitedInput(input).toList)
 
-    val subProjects: Seq[SubProjectMetadata] = {
+    val subProjects: Seq[ModuleMetadata] = {
       val semanticdbMap: Map[String, List[s.TextDocument]] = {
         // an output classpath to moduleId
         val inversePathsMap: Map[String, String] =
@@ -230,7 +174,19 @@ object ProjectMetadata {
         sourcepathEntries = sourcepathEntriesMap(moduleId)
         classpath = classpathMap(moduleId)
       } yield
-        SubProjectMetadata(moduleId, classpathEntries, sourcepathEntries, classpath, semanticdbs)
+        ModuleMetadata(
+          moduleId,
+          version.groupId,
+          version.artifactId,
+          version.version,
+          version.scalaVersion,
+          classpathEntries,
+          sourcepathEntries,
+          classpath,
+          semanticdbs,
+          version.outputClasspaths.toList,
+          version.outputTestClasspaths.toList
+        )
     }
 
     val projectId: String = versions.head.projectId

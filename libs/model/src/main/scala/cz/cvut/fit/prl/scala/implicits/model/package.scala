@@ -4,6 +4,11 @@ import scala.meta.internal.semanticdb.Scala._
 
 package object model {
 
+  implicit class XtensionProject(that: Project) {
+    def declarations = that.modules.flatMap(_.declarations)
+    def implicitCallSites = that.modules.flatMap(_.implicitCallSites)
+  }
+
   implicit class XtensionParameterList(that: ParameterList) {
     def isImplicit: Boolean = that.parameters.exists(_.isImplicit)
   }

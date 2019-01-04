@@ -19,7 +19,8 @@ case class SourcePath(
     sloc: SLOC)
 
 object SourcePath {
-  val CsvHeader: Seq[String] = Seq("project_id", "module_id", "scope", "managed", "path") ++ SLOC.CsvHeader
+  val CsvHeader
+    : Seq[String] = Seq("project_id", "module_id", "scope", "managed", "path") ++ SLOC.CsvHeader
 }
 
 case class Version(
@@ -56,39 +57,19 @@ object Version {
     "output_test_classpath")
 }
 
-case class InternalDependency(
-    projectId: String,
-    moduleId: String,
-    dependencyGroupId: String,
-    dependencyArtifactId: String,
-    dependencyVersion: String,
-    scope: String) {
-  def dependencyId(platform: String) = MetadataUtils.moduleId(dependencyGroupId, dependencyArtifactId, dependencyVersion, platform)
-}
-
-object InternalDependency {
-  val CsvHeader: Seq[String] =
-    Seq(
-      "project_id",
-      "module_id",
-      "dependency_group_id",
-      "dependency_artifact_id",
-      "dependency_version",
-      "scope")
-}
-
-case class ExternalDependency(
+case class Dependency(
     projectId: String,
     moduleId: String,
     groupId: String,
     artifactId: String,
     version: String,
     path: String,
-    scope: String)
+    scope: String,
+    transitive: Boolean)
 
-object ExternalDependency {
+object Dependency {
   val CsvHeader: Seq[String] =
-    Seq("project_id", "module_id", "group_id", "artifact_id", "version", "path", "scope")
+    Seq("project_id", "module_id", "group_id", "artifact_id", "version", "path", "scope", "transitive")
 }
 
 case class CleanPath(projectId: String, moduleId: String, path: String)

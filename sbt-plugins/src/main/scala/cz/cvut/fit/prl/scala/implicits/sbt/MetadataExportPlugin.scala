@@ -54,9 +54,6 @@ object MetadataExportPlugin extends AutoPlugin {
     tmp
   }
 
-  private lazy val dependenciesFile =
-    deleteIfExists(new File(analysisDir, InternalDependenciesFilename))
-
   private lazy val sourcepathsFile =
     deleteIfExists(new File(analysisDir, SourcePathsFilename))
 
@@ -64,7 +61,7 @@ object MetadataExportPlugin extends AutoPlugin {
     deleteIfExists(new File(analysisDir, VersionsFilename))
 
   private lazy val classpathFile =
-    deleteIfExists(new File(analysisDir, ExternalDependenciesFilename))
+    deleteIfExists(new File(analysisDir, DependenciesFilename))
 
   private lazy val cleanpathFile =
     deleteIfExists(new File(analysisDir, CleanPathsFilename))
@@ -101,19 +98,15 @@ object MetadataExportPlugin extends AutoPlugin {
         val forcedOrganization = organization.value
         val forcedVersion = version.value
 
-        println(s"** Processing: $forcedOrganization:$forcedModuleName:$forcedVersion in $repositoryRoot")
+        println(
+          s"** Processing: $forcedOrganization:$forcedModuleName:$forcedVersion in $repositoryRoot")
 
         val forcedScalaVersion = (scalaVersion in Compile).value
         val forcedSbtVersion = (sbtVersion in Compile).value
-        val forcedCompileExternalDependencyClasspath =
-          (externalDependencyClasspath in Compile).value
-        val forcedTestExternalDependencyClasspath = (externalDependencyClasspath in Test).value
+        val forcedCompileDependencyClasspath = (dependencyClasspath in Compile).value
+        val forcedTestDependencyClasspath = (dependencyClasspath in Test).value
         val forcedCleanDirectories = (classDirectory in Compile).value :: (classDirectory in Test).value :: Nil
 
-        val forcedCompileProjectDependencies =
-          (projectDependencies in Compile).value
-        val forcedTestProjectDependencies =
-          (projectDependencies in Test).value
         val forcedCompileProductDirectories = (productDirectories in Compile).value
         val forcedTestProductDirectories = (productDirectories in Test).value
 
@@ -168,15 +161,10 @@ object MetadataExportPlugin extends AutoPlugin {
           forcedUnmanagedSourceDirectories,
           forcedUnmanagedTestDirectories)
 
-        exportInternalDependencies(
+        exportDependencyClasspath(
           moduleId,
-          forcedCompileProjectDependencies,
-          forcedTestProjectDependencies)
-
-        exportExternalDependencies(
-          moduleId,
-          forcedCompileExternalDependencyClasspath,
-          forcedTestExternalDependencyClasspath)
+          forcedCompileDependencyClasspath,
+          forcedTestDependencyClasspath)
 
         exportCleanpaths(moduleId, forcedCleanDirectories)
       }
@@ -254,29 +242,18 @@ object MetadataExportPlugin extends AutoPlugin {
     }
   }
 
-  private def projectInternalDependency(projectId: String, moduleId: String, scope: String)(
-      dependencyId: ModuleID): InternalDependency =
-    InternalDependency(
-      projectId,
-      moduleId,
-      dependencyId.organization,
-      dependencyId.name,
-      dependencyId.revision,
-      scope
-    )
-
-  private def projectExternalDependency(projectId: String, moduleId: String, scope: String)(
-      entry: Attributed[File]): ExternalDependency = {
+  private def projectDependency(projectId: String, moduleId: String, scope: String)(
+      entry: Attributed[File]): Dependency = {
 
     val path = entry.data.getAbsolutePath
-    val (groupId, artifactId, version) = entry
+    val (groupId, artifactId, version, transitive) = entry
       .get(moduleID.key)
       .map { module =>
-        (module.organization, module.name, module.revision)
+        (module.organization, module.name, module.revision, module.isTransitive)
       }
-      .getOrElse((NA, NA, NA))
+      .getOrElse((NA, NA, NA, false))
 
-    ExternalDependency(projectId, moduleId, groupId, artifactId, version, path, scope)
+    Dependency(projectId, moduleId, groupId, artifactId, version, path, scope, transitive)
   }
 
   private def deleteIfExists(file: File): File = {
@@ -315,33 +292,19 @@ object MetadataExportPlugin extends AutoPlugin {
     writeCSV(versionsFile, Version.CsvHeader, Seq(version))
   }
 
-  private def exportInternalDependencies(
-      moduleId: String,
-      compileDependencies: Seq[ModuleID],
-      testDependencies: Seq[ModuleID]): Unit = {
-
-    val dependencies =
-      compileDependencies.map(projectInternalDependency(projectId, moduleId, "compile")) ++
-        testDependencies
-          .diff(compileDependencies)
-          .map(projectInternalDependency(projectId, moduleId, "test"))
-
-    writeCSV(dependenciesFile, InternalDependency.CsvHeader, dependencies)
-  }
-
-  private def exportExternalDependencies(
+  private def exportDependencyClasspath(
       moduleId: String,
       compileDependencies: Classpath,
       testDependencies: Classpath): Unit = {
 
     val classpath =
       compileDependencies
-        .map(projectExternalDependency(projectId, moduleId, "compile")) ++
+        .map(projectDependency(projectId, moduleId, "compile")) ++
         testDependencies
           .diff(compileDependencies)
-          .map(projectExternalDependency(projectId, moduleId, "test"))
+          .map(projectDependency(projectId, moduleId, "test"))
 
-    writeCSV(classpathFile, ExternalDependency.CsvHeader, classpath)
+    writeCSV(classpathFile, Dependency.CsvHeader, classpath)
   }
 
   private def exportSourcePaths(

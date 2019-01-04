@@ -12,8 +12,7 @@ object MetadataFilenames {
   val AnalysisDirname = "_analysis_"
   val ProjectsDirname = "projects"
 
-  val InternalDependenciesFilename = s"$Prefix-internal-dependencies.csv"
-  val ExternalDependenciesFilename = s"$Prefix-external-dependencies.csv"
+  val DependenciesFilename = s"$Prefix-dependencies.csv"
   val VersionsFilename = s"$Prefix-versions.csv"
   val SourcePathsFilename = s"$Prefix-sourcepaths.csv"
   val CleanPathsFilename = s"$Prefix-cleanpaths.csv"

@@ -24,6 +24,7 @@ for {
 } {
   val projectImplicits = projectPath / AnalysisDirname / ExtractedImplicitsFilename
   if (projectImplicits.exists) {
+    println(s"Processing $projectImplicits ...")
     val implicits = projectImplicits.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
     implicits.foreach(_.writeDelimitedTo(mergedOutput))
     println(s"Processed $projectImplicits")

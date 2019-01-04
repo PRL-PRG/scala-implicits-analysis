@@ -5,13 +5,13 @@ import cats.Monoid
 import cats.implicits._
 import cats.derived
 import cz.cvut.fit.prl.scala.implicits.Constants._
-import cz.cvut.fit.prl.scala.implicits.{ProjectMetadata, SubProjectMetadata}
+import cz.cvut.fit.prl.scala.implicits.{ProjectMetadata, ModuleMetadata}
 import cz.cvut.fit.prl.scala.implicits.extractor.{
   CallSiteExtractor,
   DeclarationExtractor,
   ExtractionContext
 }
-import cz.cvut.fit.prl.scala.implicits.model.{CallSite, Declaration, PathEntry, Project}
+import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.utils._
 import kantan.csv._
 import kantan.csv.ops._
@@ -20,8 +20,14 @@ import kantan.csv.generic._
 import scala.util.{Failure, Success, Try}
 
 object ExtractImplicits extends App {
-  case class Stats(declarations: Int, callSites: Int, failures: Int) {
-    override def toString: String = s"$declarations, $callSites, $failures"
+  case class Stats(
+      declarations: Int,
+      callSites: Int,
+      implicitDeclarations: Int,
+      implicitCallSites: Int,
+      failures: Int) {
+    override def toString: String =
+      s"$declarations, $callSites, $implicitDeclarations, $implicitCallSites, $failures"
   }
 
   object Stats {
@@ -32,7 +38,13 @@ object ExtractImplicits extends App {
   }
 
   case class Result(project: Project, exceptions: Seq[(String, Throwable)]) {
-    def stats = Stats(project.declarations.size, project.implicitCallSites.size, exceptions.size)
+    def stats =
+      Stats(
+        project.modules.map(_.declarations.size).sum,
+        project.modules.map(_.callSitesCount).sum,
+        project.modules.map(_.declarations.count(_.isImplicit)).sum,
+        project.modules.map(_.implicitCallSites.size).sum,
+        exceptions.size)
   }
 
   class OutputWriter(messageFile: File, exceptionFile: File, statsFile: File) {
@@ -44,8 +56,16 @@ object ExtractImplicits extends App {
     }
 
     object Status {
-      implicit val statusEncoder = RowEncoder.encoder(0, 1, 2, 3, 4)((x: Status) =>
-        (x.projectId, x.failure, x.stats.declarations, x.stats.callSites, x.stats.failures))
+      implicit val statusEncoder = RowEncoder.encoder(0, 1, 2, 3, 4, 5, 6)(
+        (x: Status) =>
+          (
+            x.projectId,
+            x.failure,
+            x.stats.declarations,
+            x.stats.callSites,
+            x.stats.implicitDeclarations,
+            x.stats.implicitCallSites,
+            x.stats.failures))
     }
 
     case class SuccessfulExtraction(projectId: String, stats: Stats) extends Status {
@@ -87,7 +107,14 @@ object ExtractImplicits extends App {
     private val statsOutput =
       statsFile.newOutputStream
         .asCsvWriter[Status](
-          rfc.withHeader("project_id", "failure", "declarations", "callsites", "failures"))
+          rfc.withHeader(
+            "project_id",
+            "failure",
+            "declarations",
+            "callsites",
+            "implicit_declarations",
+            "implicit_callsites",
+            "failures"))
 
     def write(projectId: String, result: Try[Result]): Stats = {
       val stats = result match {
@@ -117,45 +144,35 @@ object ExtractImplicits extends App {
     }
   }
 
-  case class SubProjectResult(
-      declarations: List[Declaration],
-      implicitCallSites: List[CallSite],
-      allCallSitesCount: Int,
-      paths: List[PathEntry],
-      exceptions: List[(String, Throwable)]
-  )
-
-  object SubProjectResult {
-    implicit val monoid: Monoid[SubProjectResult] = {
-      import derived.auto.monoid._
-      derived.semi.monoid
-    }
-  }
-
+//  object Module {
+//    implicit val monoid: Monoid[Module] = {
+//      import derived.auto.monoid._
+//      derived.semi.monoid
+//    }
+//  }
+//
   def extractProject(projectPath: File): Result = {
-
     val (metadata, warnings) = ProjectMetadata(projectPath)
-    val subProjectResult =
-      metadata.subProjects
-        .foldLeft(Monoid[SubProjectResult].empty)((a, b) => a |+| extractSubProject(b))
+    val modulesResult = metadata.modules.map(extractModule)
 
     val project = Project(
       metadata.projectId,
-      metadata.scalaVersion,
       metadata.sbtVersion,
-      subProjectResult.paths.map(x => x.path -> x).toMap,
-      subProjectResult.declarations,
-      subProjectResult.implicitCallSites,
-      subProjectResult.allCallSitesCount
+      modulesResult.map(_._1)
     )
+
+    val modulesExceptions = modulesResult
+      .flatMap {
+        case (module, exceptions) => exceptions.map(e => module.moduleId -> e)
+      }
 
     Result(
       project,
-      subProjectResult.exceptions ++ warnings.map(x => "ROOT" -> x)
+      modulesExceptions ++ warnings.map(x => "ROOT" -> x)
     )
   }
 
-  def extractSubProject(metadata: SubProjectMetadata): SubProjectResult = {
+  def extractModule(metadata: ModuleMetadata): (Module, List[Throwable]) = {
     val ctx = new ExtractionContext(metadata.resolver)
     val declExtractor = new DeclarationExtractor(ctx)
     val csExtractor = new CallSiteExtractor(ctx)
@@ -177,16 +194,30 @@ object ExtractImplicits extends App {
         .map(csExtractor.callSiteCount)
         .sum
 
-    val classpath = metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
-    val exceptions = (declExceptions ++ csExceptions).map(x => metadata.moduleId -> x)
+    val classpath =
+        metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
 
-    SubProjectResult(
+    val exceptions = declExceptions ++ csExceptions
+
+    val paths =
+      (classpath.map(x => x.path -> x) ++
+        metadata.sourcepathEntries.map(x => x.path -> x)).toMap
+
+    val module = Module(
+      moduleId = metadata.moduleId,
+      groupId = metadata.groupId,
+      artifactId = metadata.artifactId,
+      version = metadata.version,
+      scalaVersion = metadata.scalaVersion,
+      paths = paths,
       declarations = ctx.declarations,
       implicitCallSites = callSites,
-      allCallSitesCount = csCount,
-      paths = classpath ++ metadata.sourcepathEntries,
-      exceptions = exceptions
+      callSitesCount = csCount,
+      outputPath = metadata.outputPath,
+      testOutputPath = metadata.testOutputPath
     )
+
+    (module, exceptions)
   }
 
   def run(projectPath: File, outputPath: File): Unit = {

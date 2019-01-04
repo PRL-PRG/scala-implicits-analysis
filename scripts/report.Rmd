@@ -1,13 +1,16 @@
 ---
 title: "Report"
 output:
- html_document:
+  html_document:
     toc: true
-    theme: united
+    toc_float: true
+    toc_collapsed: false
+    theme: lumen
+toc_depth: 3
 editor_options: 
   chunk_output_type: console
 params:
-  base_dir: "~/Research/Projects/scala-corpus/corpora/1-single"
+  base_dir: "/home/krikava/Research/Projects/scala-corpus/corpora/4-top100"
   file_view_prefix: "/files/"
 ---
 
@@ -21,18 +24,45 @@ library(glue)
 
 PROJECTS_DIR <- "projects"
 ANALYSIS_DIR <- "_analysis_"
-STATUS_FILES <- c(
-  "metadata-external-dependencies.csv",
-  "metadata-internal-dependencies.csv",
-  "metadata-sourcepaths.csv",
-  "metadata-versions.csv", 
-  "metadata-status.csv",
-  "metadata.log",
-  "compile-status.csv",
-  "compile.log",
-  "semanticdb-status.csv",
-  "semanticdb.log"
+
+PROJECTS_FILE <- "projects.txt"
+
+METADATA_STATUS <- "metadata-status.csv"
+METADATA_LOG <- "metadata.log"
+
+COMPILE_STATUS <- "compile-status.csv"
+COMPILE_LOG <- "compile.log"
+
+SEMANTICDB_STATUS <- "semanticdb-status.csv"
+SEMANTICDB_STATS <- "semanticdb-stats.csv"
+SEMANTICDB_LOG <- "semanticdb.log"
+
+IMPLICITS_STATUS <- "implicits-status.csv"
+IMPLICITS_STATS <- "implicits-stats.csv"
+IMPLICITS_EXCEPTIONS <- "implicits-exceptions.csv"
+IMPLICITS_LOG <- "implicits.log"
+```
+
+```{r aux}
+merge_project_csvs <- function(project_ids, files, col_types) {
+  stopifnot(length(project_ids) == length(files))
+  
+  existing_files <- file_exists(files)
+
+  df <- map2_dfr(
+    project_ids[existing_files], 
+    files[existing_files], 
+    ~mutate(read_csv(.y, col_types=col_types), project_id=.x)
   )
+  
+  if (nrow(df) == 0) {
+    data_frame(project_id=character())
+  } else {
+    select(df, project_id, everything())
+  }
+}
+
+projects_file <- function(projects, filename) path(params$base_dir, PROJECTS_DIR, projects, ANALYSIS_DIR, filename)
 
 show_dataframe <- function(table) {
   datatable(
@@ -57,20 +87,14 @@ add_project_html_links <- function(df) {
     df, 
     project_id=create_link(origin, project_id), 
     project_path=create_link(
-      str_c(params$file_view_prefix,project_path),
+      str_c(params$file_view_prefix, project_path),
       basename(project_path)
     )
   )
 }
 
 add_log_html_links <- function(df) {
-  mutate(
-    df, 
-    log_file=create_link(
-      str_c(params$file_view_prefix,log_file),
-      basename(log_file)
-    )
-  )
+  mutate_at(df, vars(ends_with("log_file")), function(x) create_link(str_c(params$file_view_prefix, x), basename(x)))
 }
 
 add_html_links <- function(df) {
@@ -82,49 +106,15 @@ add_html_links <- function(df) {
 show_task_all_project_status <- function(df) {
   add_html_links(df) %>%
   select(
-    -status_file,
     -origin
   ) %>% 
     show_dataframe()
 }
-
-# expecting a data_frame with:
-# - project_id, 
-# - origin, 
-# - project_path, 
-# - status, 
-# - status_exists,
-# - log
-load_status <- function(projects, status_file, log_file, col_types="ii") {
-  df <- mutate(
-    projects,
-    status_file=path(project_path, ANALYSIS_DIR, status_file),
-    status_file_exists=file_exists(status_file),
-    log_file=path(project_path, ANALYSIS_DIR, log_file)
-  )
-    
-  existing <- filter(df, status_file_exists)
-  
-  map2_dfr(
-    existing$project_id, 
-    existing$status_file, 
-    ~mutate(read_csv(.y, col_types=col_types), project_id=.x)
-  ) %>%
-    right_join(
-      select(
-        df, 
-        project_id, origin, project_path, status_file, status_file_exists, log_file
-      ),
-      by="project_id"
-    ) %>%
-    select(project_id, everything())
-}
 ```
 
-# Load data
 
-```{r load project ids}
-project_ids <- read_lines(path(params$base_dir, "projects.txt"))
+```{r}
+project_ids <- read_lines(path(params$base_dir, PROJECTS_FILE))
 projects <- data_frame(
     project_id=project_ids,
     origin=str_c("https://github.com/", str_replace(project_id, "--", "/")),
@@ -132,165 +122,232 @@ projects <- data_frame(
 )
 ```
 
-# Metadata
-
 ```{r}
-metadata_status <- load_status(projects, "metadata-status.csv", "metadata.log")
+metadata_status <- read_csv(path(params$base_dir, METADATA_STATUS), col_types="cii")
+compile_status <- read_csv(path(params$base_dir, COMPILE_STATUS), col_types="cii")
+semanticdb_status <- read_csv(path(params$base_dir, SEMANTICDB_STATUS), col_types="cii")
+implicits_status <- read_csv(path(params$base_dir, IMPLICITS_STATUS), col_types="cii")
+implicits_stats <- read_csv(path(params$base_dir, IMPLICITS_STATS), col_types="cciiiii")
 ```
 
-## Metadata - Summary
-
 ```{r}
-show_task_exit_code_summary(metadata_status)
-```
-
-## Metadata - All projects
-
-```{r}
-show_task_all_project_status(metadata_status)
-```
-
-## Metadata - Actions
-
-```{r}
-# delete failed
-# file_delete(filter(metadata_status, exit_code > 0)$status_file)
-
-# delete missing output ones
-# file_delete(missing_successfull_metadata$status_file)
-```
-
-# Compile
-
-```{r}
-compile_status <- 
-  load_status(projects, "compile-status.csv", "compile.log") %>%
-  left_join(
-    select(metadata_status, project_id, metadata_status=exit_code),
+projects <- local({
+  w_metadata <- left_join(
+    projects,
+    select(metadata_status, project_id, metadata_status=exit_code, metadata_duration=duration),
     by="project_id"
   )
-```
-
-## Compile - Summary
-
-```{r}
-show_task_exit_code_summary(compile_status)
-```
-
-## Compile - All projects
-
-```{r}
-show_task_all_project_status(compile_status)
-```
-
-## Compile - Actions
-
-```{r}
-# delete failed
-# file_delete(filter(compile_status, exit_code > 0)$status_file)
-```
-
-
-# Semanticdb
-
-```{r}
-semanticdb_status <- 
-  load_status(projects, "semanticdb-status.csv", "semanticdb.log") %>%
-  left_join(
-    select(compile_status, project_id, compile_status=exit_code),
+  w_compile <- left_join(
+    w_metadata,
+    select(compile_status, project_id, compile_status=exit_code, compile_duration=duration),
     by="project_id"
   )
-```
-
-## Semanticdb - Summary
-
-```{r}
-show_task_exit_code_summary(semanticdb_status)
-```
-
-## Semanticdb - All projects
-
-```{r}
-show_task_all_project_status(semanticdb_status)
-```
-
-## Semanticdb - Actions
-
-```{r}
-# delete failed
-# file_delete(filter(semanticdb_status, exit_code > 0)$status_file)
-```
-
-# Merged Semanticdb
-
-```{r}
-merged_sdbs <- 
-  select(semanticdb_status, project_id, origin, project_path, compile_status, sdb_status=exit_code) %>%
-  mutate(
-    stats_file=path(project_path, ANALYSIS_DIR, "semanticdb-stats-4.1.0.csv"),
-    stats_exists=file_exists(stats_file),
-    bin_file=path(project_path, ANALYSIS_DIR, "semanticdb-4.1.0.bin"),
-    bin_exists=file_exists(bin_file)
+  w_semanticdb <- left_join(
+    w_compile,
+    select(semanticdb_status, project_id, semanticdb_status=exit_code, semanticdb_duration=duration),
+    by="project_id"
   )
-
-merged_sdbs_stats <- local({
-  existing <- filter(merged_sdbs, stats_exists==TRUE)
-  map2_dfr(
-    existing$project_id, 
-    existing$stats_file, 
-    ~mutate(read_csv(.y, col_types = "iii"), project_id=.x)
+  w_implicits <- left_join(
+    w_semanticdb,
+    select(implicits_status, project_id, implicits_status=exit_code, implicits_duration=duration),
+    by="project_id"
   )
+  w_implicits_stats <- left_join(
+    w_implicits,
+    select(
+      implicits_stats, 
+      project_id, 
+      declarations, 
+      callsites, 
+      implicit_declarations,
+      implicit_callsites,
+      implicit_failure=failure, 
+      implicit_problems=failures
+    ),
+    by="project_id"
+  )
+  w_implicits_stats
 })
-
-if (nrow(merged_sdbs_stats) == 0) {
-  merged_sdbs_stats <- data_frame(project_id=character(), occurrences=integer(), synthetics=integer(), symbols=integer())
-}
-
-merged_sdbs_all <-
-  merged_sdbs %>% 
-  left_join(merged_sdbs_stats, by="project_id") %>%
-  mutate(
-    bin_size=file.size(bin_file)
-  )
 ```
 
-## Summary
+# Task summary
+
+## Metadata
 
 ```{r}
-summary(merged_sdbs_all)
+metadata_status %>%
+  show_task_exit_code_summary()
 ```
-
-## Status
+## Compile
 
 ```{r}
-merged_sdbs_all %>%
-  add_project_html_links() %>%
-  select(-origin, -stats_file, -bin_file) %>%
-  show_dataframe()
+compile_status %>%
+  show_task_exit_code_summary()
 ```
 
-# Extracted
+## Semanticdb
 
 ```{r}
-implicits_status <- 
-  load_status(projects, "implicits-status.csv", "implicits.log", "ii") %>%
-  left_join(
-    select(merged_sdbs_all, project_id, compile_status, sdb_status, bin_size),
-    by="project_id"
-  ) %>%
-  mutate(
-    stats_file=path(project_path, ANALYSIS_DIR, "implicits-stats.csv"),
-    stats_exists=file_exists(stats_file)
-  )
+semanticdb_status %>%
+  show_task_exit_code_summary()
 ```
 
+## Implicits
 
 ```{r}
 implicits_status %>%
-  add_project_html_links() %>%
-  add_log_html_links() %>%
-  select(-origin, -status_file_exists, -status_file) %>%
-  show_dataframe()
+  show_task_exit_code_summary()
 ```
 
-## Summary
+## Summary all projects
+
+```{r}
+projects_with_logs <- projects %>%
+  mutate(
+    metadata_log_file=projects_file(project_ids, METADATA_LOG),
+    compile_log_file=projects_file(project_ids, COMPILE_LOG),
+    semanticdb_log_file=projects_file(project_ids, SEMANTICDB_LOG),
+    implicits_log_file=projects_file(project_ids, IMPLICITS_LOG)
+  ) %>%
+  select(
+    project_id, 
+    project_path, 
+    origin, 
+    metadata_status,
+    metadata_log_file,
+    semanticdb_status, 
+    semanticdb_log_file,
+    compile_status,
+    compile_log_file,
+    implicits_status, 
+    implicits_log_file,
+    implicit_declarations, 
+    implicit_callsites, 
+    implicit_failure, 
+    implicit_problems
+    )
+
+projects_with_logs %>% show_task_all_project_status()
+```
+
+## Implicits Exceptions
+
+```{r}
+exceptions <- read_csv(path(params$base_dir, IMPLICITS_EXCEPTIONS), col_types="ccccc")
+```
+
+### Per project summary
+
+```{r}
+count(exceptions, project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Per exception summary
+
+```{r}
+count(exceptions, cause) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Per project and exception summary
+
+```{r}
+count(exceptions, project_id, cause) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Missing symbols
+
+```{r}
+missing_symbols <- 
+  filter(exceptions, cause=="MissingSymbolException", str_detect(message, fixed("symbol:"))) %>%
+    mutate(symbol=str_replace_all(message, ".*symbol: (.*)$", "\\1"))
+```
+
+#### Local symbols
+
+```{r}
+filter(missing_symbols, str_detect(symbol, "local\\d*")) %>% count(project_id) %>% datatable()
+```
+
+```{r}
+missing_nonlocal_symbols <- filter(missing_symbols, !str_detect(symbol, "local\\d*"))
+```
+
+#### Per symbol
+
+```{r}
+count(missing_nonlocal_symbols, symbol) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Per project
+
+```{r}
+count(missing_nonlocal_symbols, project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Per project and symbol
+
+```{r}
+count(missing_nonlocal_symbols, project_id, symbol) %>% arrange(desc(n)) %>% datatable()
+```
+
+
+
+### Metadata loading exceptions (cause=`LoadingMetadataException`)
+
+```{r}
+metadata_exceptions <- filter(exceptions, cause=="LoadingMetadataException")
+```
+
+#### List
+
+```{r}
+metadata_exceptions %>% select(project_id, module_id, message) %>% datatable()
+```
+
+#### Per project
+
+```{r}
+metadata_exceptions %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+
+
+### Uncategorized (cause=`Exception`)
+
+```{r}
+uncategorized_exceptions <- filter(exceptions, cause=="Exception")
+```
+
+#### List
+
+```{r}
+uncategorized_exceptions %>% select(project_id, module_id, message) %>% datatable()
+```
+
+#### Per project
+
+```{r}
+uncategorized_exceptions %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+## Implicits failures
+
+```{r}
+implicits_stats %>% filter(!is.na(failure)) %>% select(project_id, failure) %>% datatable()
+```
+
+## Implicits stats
+
+```{r}
+implicits_stats %>% summarise_at(
+  vars(
+    declarations, 
+    callsites, 
+    implicit_declarations, 
+    implicit_callsites, 
+    failures
+  ), 
+  sum
+) %>% datatable()
+```
+

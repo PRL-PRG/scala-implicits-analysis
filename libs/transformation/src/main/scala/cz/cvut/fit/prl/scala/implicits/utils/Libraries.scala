@@ -26,7 +26,8 @@ object Libraries {
         JvmVersion,
         "compile",
         internal = false,
-        managed = true
+        managed = true,
+        transitive = false
     )
   )
 }
