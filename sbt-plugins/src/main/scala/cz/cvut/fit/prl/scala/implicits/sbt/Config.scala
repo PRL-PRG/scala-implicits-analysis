@@ -25,7 +25,7 @@ object Config {
     case (2, 10) => default210
     case (2, 11) => supported211.find(_ == fullVersion).getOrElse(default211)
     case (2, 12) => supported212.find(_ == fullVersion).getOrElse(default212)
-    case _ => throw new IllegalArgumentException(s"Unsupported Scala version $fullVersion")
+    case _ => default212
   }
 
   // https://github.com/scala-native/scala-native/blob/master/sbt-scala-native/src/main/scala/scala/scalanative/sbtplugin/ScalaNativePluginInternal.scala#L41
