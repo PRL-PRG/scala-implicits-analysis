@@ -70,9 +70,10 @@ object MetadataExportPlugin extends AutoPlugin {
     aggregate.in(MetadataKeys.allProjectsMetadata) := false,
     MetadataKeys.allProjectsMetadata := Def.taskDyn {
       val extracted = Project.extract(state.value)
-      val refs = extracted.structure.allProjectRefs
+      val currentProjectRef = extracted.currentRef
       val filter = ScopeFilter(
-        projects = inProjects(refs: _*),
+        projects = inDependencies(currentProjectRef, transitive = true, includeRoot = true) ||
+          inAggregates(currentProjectRef, transitive = true, includeRoot = true),
         configurations = inConfigurations(Compile, Test))
       MetadataKeys.projectMetadata.all(filter)
     }.value,
