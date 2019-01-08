@@ -70,6 +70,10 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	compile \
 	download-projects \
 	implicits \
+	merge-compile-results \
+	merge-metadata-results \
+	merge-semanticdb-results \
+	merge-implicits-results \
 	metadata \
 	link-projects \
 	redo-failed-compile \
@@ -129,7 +133,7 @@ clean-semanticdb: $(bootstrap)
 
 compile: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(notdir $(COMPILE_STATUS))
+	$(MAKE) -f $(this_makefile) merge-compile-results
 
 download-projects: $(PROJECTS_FILE)
 	-mkdir -p $(PROJECTS_DIR)
@@ -138,10 +142,7 @@ download-projects: $(PROJECTS_FILE)
 
 implicits: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(notdir $(IMPLICITS_STATUS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciiiii" $(notdir $(IMPLICITS_STATS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(notdir $(IMPLICITS_EXCEPTIONS))
-	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
+	$(MAKE) -f $(this_makefile) merge-implicits-results
 
 link-projects: $(PROJECTS_CSV_FILE)
 	-mkdir -p $(PROJECTS_DIR)
@@ -151,26 +152,46 @@ link-projects: $(PROJECTS_CSV_FILE)
       parallel -j1 --bar --colsep "," "ln -s {1} $(PROJECTS_DIR)/{2}"
 	cat $(PROJECTS_CSV_FILE) | csvcut -c project_id | csvformat -K 1 > $(PROJECTS_FILE)
 
-metadata: $(bootstrap)
-	$(parallel) $@
+merge-compile-results:
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(notdir $(COMPILE_STATUS))
+
+merge-implicits-results:
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(notdir $(IMPLICITS_STATUS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciiiii" $(notdir $(IMPLICITS_STATS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(notdir $(IMPLICITS_EXCEPTIONS))
+	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
+
+merge-metadata-results:
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(METADATA_STATUS) "ii" $(notdir $(METADATA_STATUS))
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-versions.csv" "cccccccccccc" "metadata-versions.csv"
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-sourcepaths.csv" "ccclciciii" "metadata-sourcepaths.csv"
 
+merge-semanticdb-results:
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(notdir $(SEMANTICDB_STATUS))
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(MERGED_SEMANTICDB_STATS_FILE) "iii" $(notdir $(MERGED_SEMANTICDB_STATS_FILE))
+
+metadata: $(bootstrap)
+	$(parallel) $@
+	$(MAKE) -f $(this_makefile) merge-metadata-results
+
 redo-failed-compile: $(bootstrap)
 	$(parallel) $@
-
-redo-failed-metadata: $(bootstrap)
-	$(parallel) $@
-
-redo-failed-semanticdb: $(bootstrap)
-	$(parallel) $@
+	$(MAKE) -f $(this_makefile) merge-compile-results
 
 redo-failed-implicits: $(bootstrap)
 	$(parallel) $@
+	$(MAKE) -f $(this_makefile) merge-implicits-results
+
+redo-failed-metadata: $(bootstrap)
+	$(parallel) $@
+	$(MAKE) -f $(this_makefile) merge-metadata-results
+
+redo-failed-semanticdb: $(bootstrap)
+	$(parallel) $@
+	$(MAKE) -f $(this_makefile) merge-semanticdb-results
 
 report:
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(CURDIR)"))'
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(base_dir)", current_dir="$(CURDIR)"))'
 	@echo ">> Report is in report.html"
 
 reset: $(bootstrap)
@@ -178,8 +199,7 @@ reset: $(bootstrap)
 
 semanticdb: $(bootstrap)
 	$(parallel) $@
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(notdir $(SEMANTICDB_STATUS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(MERGED_SEMANTICDB_STATS_FILE) "iii" $(notdir $(MERGED_SEMANTICDB_STATS_FILE))
+	$(MAKE) -f $(this_makefile) merge-semanticdb-results
 
 tail-log: $(LOG_DIR_LATEST)
 	tail -f $(LOG_DIR_LATEST)/parallel.log

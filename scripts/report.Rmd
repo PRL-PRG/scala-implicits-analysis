@@ -10,8 +10,9 @@ toc_depth: 3
 editor_options: 
   chunk_output_type: console
 params:
-  base_dir: "/home/krikava/Research/Projects/scala-corpus/corpora/4-top100"
-  file_view_prefix: "/files/"
+  base_dir: "/home/rstudio/work"
+  current_dir: "/home/rstudio/work/corpora/4-top100"
+  file_view_prefix: "/files//home/rstudio/work/"
 ---
 
 ```{r setup, include=FALSE}
@@ -62,7 +63,7 @@ merge_project_csvs <- function(project_ids, files, col_types) {
   }
 }
 
-projects_file <- function(projects, filename) path(params$base_dir, PROJECTS_DIR, projects, ANALYSIS_DIR, filename)
+projects_file <- function(projects, filename) path(params$current_dir, PROJECTS_DIR, projects, ANALYSIS_DIR, filename)
 
 show_dataframe <- function(table) {
   datatable(
@@ -94,7 +95,7 @@ add_project_html_links <- function(df) {
 }
 
 add_log_html_links <- function(df) {
-  mutate_at(df, vars(ends_with("log_file")), function(x) create_link(str_c(params$file_view_prefix, x), basename(x)))
+  mutate_at(df, vars(ends_with("log_file")), function(x) create_link(str_c(params$file_view_prefix, path_rel(x, params$base_dir)), basename(x)))
 }
 
 add_html_links <- function(df) {
@@ -114,20 +115,20 @@ show_task_all_project_status <- function(df) {
 
 
 ```{r}
-project_ids <- read_lines(path(params$base_dir, PROJECTS_FILE))
+project_ids <- read_lines(path(params$current_dir, PROJECTS_FILE))
 projects <- data_frame(
     project_id=project_ids,
     origin=str_c("https://github.com/", str_replace(project_id, "--", "/")),
-    project_path=path(params$base_dir, PROJECTS_DIR, project_id)
+    project_path=path(params$current_dir, PROJECTS_DIR, project_id)
 )
 ```
 
 ```{r}
-metadata_status <- read_csv(path(params$base_dir, METADATA_STATUS), col_types="cii")
-compile_status <- read_csv(path(params$base_dir, COMPILE_STATUS), col_types="cii")
-semanticdb_status <- read_csv(path(params$base_dir, SEMANTICDB_STATUS), col_types="cii")
-implicits_status <- read_csv(path(params$base_dir, IMPLICITS_STATUS), col_types="cii")
-implicits_stats <- read_csv(path(params$base_dir, IMPLICITS_STATS), col_types="cciiiii")
+metadata_status <- read_csv(path(params$current_dir, METADATA_STATUS), col_types="cii")
+compile_status <- read_csv(path(params$current_dir, COMPILE_STATUS), col_types="cii")
+semanticdb_status <- read_csv(path(params$current_dir, SEMANTICDB_STATUS), col_types="cii")
+implicits_status <- read_csv(path(params$current_dir, IMPLICITS_STATUS), col_types="cii")
+implicits_stats <- read_csv(path(params$current_dir, IMPLICITS_STATS), col_types="cciiiii")
 ```
 
 ```{r}
@@ -233,7 +234,7 @@ projects_with_logs %>% show_task_all_project_status()
 ## Implicits Exceptions
 
 ```{r}
-exceptions <- read_csv(path(params$base_dir, IMPLICITS_EXCEPTIONS), col_types="ccccc")
+exceptions <- read_csv(path(params$current_dir, IMPLICITS_EXCEPTIONS), col_types="ccccc")
 ```
 
 ### Per project summary

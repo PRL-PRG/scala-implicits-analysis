@@ -38,7 +38,7 @@ $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 
 $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
-    if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' \
+    if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' \
       -a $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
         $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc > $(IMPLICITS_LOG) 2>&1; \
         exit_code=$$?; \
