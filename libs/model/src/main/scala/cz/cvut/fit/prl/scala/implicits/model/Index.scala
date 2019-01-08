@@ -6,31 +6,49 @@ import cats.syntax.semigroup._
 
 case class Index(
     projects: List[Project],
+    moduleMap: Map[Module, Project],
     implicitDeclarations: List[Declaration],
-    declarationMap: Map[Declaration, Project],
-    implicitCallSiteMap: Map[CallSite, Project],
-    locationMap: Map[Int, Project]
+    implicitCallSites: List[CallSite],
+    declarationMap: Map[Int, Module],
+    callSiteMap: Map[Int, Module],
+    locationMap: Map[Int, Module]
 )
 
 case class Library(groupId: String, artifactId: String, version: String)
 
 object Index {
-
   implicit val semigroup = new Semigroup[Index] {
     override def combine(x: Index, y: Index) = {
       Index(
         x.projects ++ y.projects,
+        x.moduleMap ++ y.moduleMap,
         x.implicitDeclarations ++ y.implicitDeclarations,
+        x.implicitCallSites ++ y.implicitCallSites,
         x.declarationMap ++ y.declarationMap,
-        x.implicitCallSiteMap ++ y.implicitCallSiteMap,
+        x.callSiteMap ++ y.callSiteMap,
         x.locationMap ++ y.locationMap
       )
     }
-}
+  }
 
   implicit class IdentityHashCode(x: AnyRef) {
     def identityHashCode: Int = System.identityHashCode(x)
   }
+
+  implicit class ModuleOps(that: Module)(implicit idx: Index) {
+    def project: Project = idx.moduleMap(that)
+  }
+
+//  trait LocationOps {
+//    def location: Location
+//    def inModule(implicit idx: Index): Boolean =
+//
+//  }
+
+  implicit class DeclarationOps(that: Declaration)(implicit idx: Index) {
+    //def inModule: Boolean = that.location.map(location => idx.declarationMap(that.identityHashCode) == idx.locationMap(location))
+  }
+
   //  implicit class LocationOps(that: Location)(implicit idx: Index) {
   //    def githubURL: String = ???
   //    def isLocal: Boolean = ???
@@ -42,62 +60,52 @@ object Index {
   def apply(path: File): Index = {
     val projects = path.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
 
-    def buildIndex(project: Project): Index = {
-      val (declarations, implicitDeclarations, declLocations) = {
-        val empty = (Map[Declaration, Project](), List[Declaration](), Map[Int, Project]())
+    def buildModuleIndex(project: Project, module: Module): Index = {
+      val empty = (Map[Int, Module](), List[Declaration](), Map[Int, Module]())
 
-        project.declarations
-          .foldLeft(empty) {
-            case ((map, impls, locations), decl) =>
-              (
-                map + (decl -> project),
-                if (decl.isImplicit) decl :: impls else impls,
-                decl.location.map(x => locations + (x.identityHashCode -> project)).getOrElse(locations)
-              )
-          }
-      }
+      val (declarationMap, implicitDeclarations, declarationsLocations) =
+        module.declarations.foldLeft(empty) {
+          case ((map, implicits, locations), declaration) =>
+            (
+              map + (declaration.identityHashCode -> module),
+              if (declaration.isImplicit) declaration :: implicits else implicits,
+              declaration.location
+                .map(x => locations + (x.identityHashCode -> module))
+                .getOrElse(locations)
+            )
+        }
 
-      val (callSites, csLocations) = {
-        val empty = (Map[CallSite, Project](), Map[Int, Project]())
+      val (callSiteMap, implicitCallSites, callSitesLocations) = {
+        val empty = (Map[Int, Module](), List[CallSite](), Map[Int, Module]())
 
         project.implicitCallSites
           .foldLeft(empty) {
-            case ((map, locations), cs) =>
+            case ((map, callSites, locations), callSite) =>
               (
-                map + (cs -> project),
-                cs.location.map(x => locations + (x.identityHashCode -> project)).getOrElse(locations)
+                map + (callSite.identityHashCode -> module),
+                callSite :: callSites,
+                callSite.location
+                  .map(x => locations + (x.identityHashCode -> module))
+                  .getOrElse(locations)
               )
           }
       }
 
       Index(
         List(project),
+        Map(module -> project),
         implicitDeclarations,
-        declarations,
-        callSites,
-        declLocations ++ csLocations
+        implicitCallSites,
+        declarationMap,
+        callSiteMap,
+        declarationsLocations ++ callSitesLocations
       )
     }
 
-    projects.toStream.map(buildIndex).reduce((a, b) => a |+| b)
-  }
+    def buildIndex(project: Project): Index = {
+      project.modules.toStream.map(buildModuleIndex(project, _)).reduce(_ |+| _)
+    }
 
-  def parseLibrary(location: Location): Option[Library] = {
-    val tries: Stream[Option[Library]] = Stream(
-      parseIvy(location.uri),
-      parseCoursier(location.uri)
-    )
-
-    tries.collectFirst { case Some(library) => library }
-  }
-
-  // /usr/lib/jvm/java-8-openjdk/jre/lib/rt.jar!java/util/List.class
-  // /home/krikava/.cache/coursier/v1/https/repo1.maven.org/maven2/com/chuusai/shapeless_2.12/2.3.3/shapeless_2.12-2.3.3.jar!shapeless/Strict.class
-  // /home/krikava/Research/Projects/scala-corpus/corpora/1-single/projects/ensime--ensime-server/.sbt-boot/scala-2.12.4/lib/scala-library.jar!scala/Function1.class
-  def parseIvy(str: String): Option[Library] = {
-    None
-  }
-  def parseCoursier(str: String): Option[Library] = {
-    None
+    projects.toStream.map(buildIndex).reduce(_ |+| _)
   }
 }
