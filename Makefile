@@ -8,7 +8,7 @@ libs:
 	$(MAKE) -C libs
 
 sbt-plugins:
-	$(MAKE) -C sbt-plugins
+	$(MAKE) -C sbt-plugins uninstall all
 
 sync-prl4:
 	rsync \

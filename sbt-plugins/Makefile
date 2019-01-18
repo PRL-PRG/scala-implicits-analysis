@@ -31,3 +31,4 @@ install: $(PLUGIN_013) $(PLUGIN_10)
 uninstall:
 	-rm ~/.sbt/0.13/plugins/$(FILENAME)
 	-rm ~/.sbt/1.0/plugins/$(FILENAME)
+	-rm $(JAR)
