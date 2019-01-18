@@ -78,17 +78,14 @@ object MetadataExportPlugin extends AutoPlugin {
       MetadataKeys.projectMetadata.all(filter)
     }.value,
     commands += Command.command("metadata") { state =>
-      val extracted = Project.extract(state)
-      val settings: Seq[Setting[_]] = for {
-        p <- extracted.structure.allProjectRefs
-        s <- List(
-          sources.in(p).in(Compile) := Seq.empty,
-          sources.in(p).in(Test) := Seq.empty
-        )
-      } yield s
-
-      val installed = extracted.append(settings, state)
-      "allProjectsMetadata" :: installed
+      // for example in scala--scala, asking for dependencyClasspath in Test
+      // triggers running scala.tools.docutil.ManMaker which however
+      // is not compiled yet as the manual project will not be scheduled in
+      // neither inAggregate aor inDependencies
+      "set every resourceGenerators := Seq.empty" ::
+        "set every sources := Seq.empty" ::
+        "allProjectsMetadata" ::
+        state
     }
   )
 
