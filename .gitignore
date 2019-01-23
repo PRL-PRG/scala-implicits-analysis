@@ -10,3 +10,5 @@ projects.txt
 scala-projects*.csv
 target
 /corpora/
+/scripts/tools/js-tokenizer/build
+/scripts/tools/sccpreprocessor/src/*.class

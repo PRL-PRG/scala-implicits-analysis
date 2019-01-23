@@ -62,6 +62,7 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	clean \
 	clean-classes \
 	clean-compile \
+	clean-dejavu \
 	clean-implicits \
 	clean-metadata \
 	clean-repo-metadata \
@@ -69,6 +70,7 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	clean-semanticdb \
 	clean-classes \
 	compile \
+	dejavu \
 	download-projects \
 	implicits \
 	fetch-github-info \
@@ -105,6 +107,31 @@ $(notdir $(REPO_METADATA)):
 $(notdir $(REPO_SLOC)):
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(REPO_SLOC) "iciii" $(notdir $(REPO_SLOC))
 
+$(DEJAVU_INPUT):
+	[ -d $(DEJAVU_HOME) ] || mkdir $(DEJAVU_HOME)
+	[ -d $(DEJAVU_DOWNLOAD) ] || mkdir $(DEJAVU_DOWNLOAD) && \
+	  parallel --bar -a projects.txt ln -s '$$(pwd)/$(PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
+
+	$(SCRIPTS_DIR)/generate-dejavu-input.R $(PROJECTS_FILE) $(DEJAVU_INPUT)
+	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
+
+dejavu/files.csv: $(DEJAVU_INPUT)
+	cd $(DEJAVU_HOME) && \
+      $(SCRIPTS_DIR)/tools/js-tokenizer/build/tokenizer Scala $(notdir $(DEJAVU_INPUT)) 1 0 .; \
+      echo "Done tokenizing";
+
+	mv $(DEJAVU_HOME)/files_0.csv $(DEJAVU_HOME)/files.csv
+	mv $(DEJAVU_HOME)/stats_0.csv $(DEJAVU_HOME)/stats.csv
+	mv $(DEJAVU_HOME)/summary_0.txt $(DEJAVU_HOME)/summary.txt
+	mv $(DEJAVU_HOME)/projects_0.csv $(DEJAVU_HOME)/projects.csv
+
+dejavu/files.csv.h2i: dejavu/files.csv
+	cd $(SCRIPTS_DIR)/tools/sccpreprocessor/src && \
+      java SccPreprocessor h2i $(CURDIR)/$(DEJAVU_HOME)
+
+$(DEJAVU_FILES_HASH): dejavu/files.csv.h2i
+	$(SCRIPTS_DIR)/merge-dejavu-files-hash.R $(DEJAVU_FILES_HASH)
+
 all:
 	$(MAKE) -f $(this_makefile) metadata
 	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-metadata; done
@@ -127,12 +154,17 @@ clean: $(bootstrap)
 	-rm -f $(notdir $(IMPLICITS_EXCEPTIONS))
 	-rm -f $(PROJECTS_GITHUB_DATA)
 	-rm -f $(notdir $(REPO_METADATA)) $(notdir $(REPO_SLOC))
+	$(MAKE) -f $(this_makefile) clean-dejavu
 
 clean-classes: $(bootstrap)
 	$(parallel) $@
 
 clean-compile: $(bootstrap)
 	$(parallel) $@
+
+clean-dejavu:
+	-rm -fr $(DEJAVU_HOME) \
+       $(DEJAVU_FILES_HASH)
 
 clean-implicits: $(bootstrap)
 	$(parallel) $@
@@ -152,6 +184,8 @@ clean-semanticdb: $(bootstrap)
 compile: $(bootstrap)
 	$(parallel) $@
 	$(MAKE) -f $(this_makefile) merge-compile-results
+
+dejavu: $(DEJAVU_FILES_HASH)
 
 download-projects: $(PROJECTS_FILE)
 	-mkdir -p $(PROJECTS_DIR)

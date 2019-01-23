@@ -37,6 +37,10 @@ REPO_SLOC := $(ANALYSIS_DIR)/repo-sloc.csv
 
 PROJECTS_GITHUB_INFO := projects-github-info.csv
 
+DEJAVU_HOME := dejavu
+DEJAVU_DOWNLOAD := $(DEJAVU_HOME)/download
+DEJAVU_INPUT := $(DEJAVU_HOME)/dejavu-projects.csv
+DEJAVU_FILES_HASH := dejavu-files-hash-h2i.csv
 
 METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv
 METADATA_LOG := $(ANALYSIS_DIR)/metadata.log
