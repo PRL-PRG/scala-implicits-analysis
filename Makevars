@@ -26,7 +26,7 @@ SBT_MEM ?= 16000
 TIMEOUT ?= 120m
 MAX_MEM ?= 128000
 
-MAX_REPEAT := 3
+MAX_REPEAT := 2
 ANALYSIS_DIR := _analysis_
 SCRIPTS_DIR := $(base_dir)scripts
 IVY_DIR := .ivy

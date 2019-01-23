@@ -136,9 +136,7 @@ all:
 	$(MAKE) -f $(this_makefile) metadata
 	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-metadata; done
 	$(MAKE) -f $(this_makefile) compile
-	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-compile; done
 	$(MAKE) -f $(this_makefile) semanticdb
-	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-semanticdb; done
 	$(MAKE) -f $(this_makefile) implicits
 
 clean: $(bootstrap)
