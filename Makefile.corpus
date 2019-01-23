@@ -64,6 +64,7 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	clean-compile \
 	clean-implicits \
 	clean-metadata \
+	clean-repo-metadata \
 	clean-sbt \
 	clean-semanticdb \
 	clean-classes \
@@ -75,12 +76,14 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	merge-metadata-results \
 	merge-semanticdb-results \
 	merge-implicits-results \
+	merge-repo-metadata \
 	metadata \
 	link-projects \
 	redo-failed-compile \
 	redo-failed-metadata \
 	redo-failed-semanticdb \
 	redo-failed-implicits \
+    repo-metadata \
 	report \
 	reset \
 	semanticdb \
@@ -95,6 +98,12 @@ $(LOG_DIR):
 
 $(PROJECTS_GITHUB_INFO):
 	$(SCRIPTS_DIR)/fetch-github-info.R $(PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
+
+$(notdir $(REPO_METADATA)):
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(REPO_METADATA) "iciii" $(notdir $(REPO_METADATA))
+
+$(notdir $(REPO_SLOC)):
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(REPO_SLOC) "iciii" $(notdir $(REPO_SLOC))
 
 all:
 	$(MAKE) -f $(this_makefile) metadata
@@ -117,6 +126,7 @@ clean: $(bootstrap)
 	-rm -f $(notdir $(IMPLICITS_STATS))
 	-rm -f $(notdir $(IMPLICITS_EXCEPTIONS))
 	-rm -f $(PROJECTS_GITHUB_DATA)
+	-rm -f $(notdir $(REPO_METADATA)) $(notdir $(REPO_SLOC))
 
 clean-classes: $(bootstrap)
 	$(parallel) $@
@@ -128,6 +138,9 @@ clean-implicits: $(bootstrap)
 	$(parallel) $@
 
 clean-metadata: $(bootstrap)
+	$(parallel) $@
+
+clean-repo-metadata: $(bootstrap)
 	$(parallel) $@
 
 clean-sbt: $(bootstrap)
@@ -173,6 +186,8 @@ merge-metadata-results:
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-versions.csv" "cccccccccccc" "metadata-versions.csv"
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-sourcepaths.csv" "ccclciciii" "metadata-sourcepaths.csv"
 
+merge-repo-metadata: $(notdir $(REPO_METADATA)) $(notdir $(REPO_SLOC))
+
 merge-semanticdb-results:
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(notdir $(SEMANTICDB_STATUS))
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(MERGED_SEMANTICDB_STATS_FILE) "iii" $(notdir $(MERGED_SEMANTICDB_STATS_FILE))
@@ -196,6 +211,12 @@ redo-failed-metadata: $(bootstrap)
 redo-failed-semanticdb: $(bootstrap)
 	$(parallel) $@
 	$(MAKE) -f $(this_makefile) merge-semanticdb-results
+
+repo-metadata: $(bootstrap)
+	$(parallel) $@
+	-rm $(notdir $(REPO_METADATA))
+	-rm $(notdir $(REPO_SLOC))
+	$(MAKE) -f $(this_makefile) merge-repo-metadata
 
 report:
 	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(base_dir)", current_dir="$(CURDIR)"))'

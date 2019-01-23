@@ -67,6 +67,19 @@ $(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
       $(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc; \
     fi
 
+$(REPO_METADATA):
+	commit_count=$$(git rev-list --count HEAD); \
+    commit=$$(git log --pretty=format:'%H' -n 1); \
+    commit_date=$$(git log --date=unix --pretty=format:'%cd' -n 1); \
+    first_commit_date=$$(git log --reverse --date=unix --pretty=format:'%cd' | sed -n 1p); \
+    size=$$(du -sb . | awk '{print $$1}'); \
+    echo "commit_count,commit,first_commit_date,commit_date,size" > $(REPO_METADATA); \
+    echo "$$commit_count,$$commit,$$first_commit_date,$$commit_date,$$size" >> $(REPO_METADATA)
+
+$(REPO_SLOC):
+	echo "files,language,blank,comment,code" > $(REPO_SLOC)
+	cloc -q --csv . | tail +3 >> $(REPO_SLOC)
+
 # removes the artifacts created by running tasks from this Makefile
 clean:
 	rm -fr $(ANALYSIS_DIR)
@@ -88,6 +101,10 @@ clean-metadata:
 	rm -f $(METADATA_STATUS) \
       $(METADATA_LOG) \
       $(ANALYSIS_DIR)/metadata-*
+
+clean-repo-metadata:
+	rm -f $(REPO_METADATA) \
+      $(REPO_SLOC)
 
 # removes whatever sbt was configured to remove
 clean-sbt:
@@ -138,9 +155,7 @@ redo-failed-implicits:
       fi; \
     fi
 
-repo-metadata:
-	$(base_dir)/scripts/generate-repo-metadata.sh .
-	$(base_dir)/scripts/generate-sloc.sh .
+repo-metadata: $(REPO_METADATA) $(REPO_SLOC)
 
 # removes all that was not original part of the repository
 reset:
