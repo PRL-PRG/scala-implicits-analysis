@@ -70,6 +70,7 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	compile \
 	download-projects \
 	implicits \
+	fetch-github-info \
 	merge-compile-results \
 	merge-metadata-results \
 	merge-semanticdb-results \
@@ -92,6 +93,9 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
+$(PROJECTS_GITHUB_INFO):
+	$(SCRIPTS_DIR)/fetch-github-info.R $(PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
+
 all:
 	$(MAKE) -f $(this_makefile) metadata
 	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-metadata; done
@@ -112,6 +116,7 @@ clean: $(bootstrap)
 	-rm -f $(notdir $(IMPLICITS_STATUS))
 	-rm -f $(notdir $(IMPLICITS_STATS))
 	-rm -f $(notdir $(IMPLICITS_EXCEPTIONS))
+	-rm -f $(PROJECTS_GITHUB_DATA)
 
 clean-classes: $(bootstrap)
 	$(parallel) $@
@@ -151,6 +156,8 @@ link-projects: $(PROJECTS_CSV_FILE)
       csvformat -K 1 | \
       parallel -j1 --bar --colsep "," "ln -s {1} $(PROJECTS_DIR)/{2}"
 	cat $(PROJECTS_CSV_FILE) | csvcut -c project_id | csvformat -K 1 > $(PROJECTS_FILE)
+
+fetch-github-info: $(PROJECTS_GITHUB_INFO)
 
 merge-compile-results:
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(notdir $(COMPILE_STATUS))

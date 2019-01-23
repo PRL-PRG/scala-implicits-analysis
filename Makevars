@@ -33,6 +33,8 @@ IVY_DIR := .ivy
 SBT_BOOT_DIR := .sbt-boot
 SCALAMETA_VERSION := 4.1.0
 REPO_METADATA := $(ANALYSIS_DIR)/repo-metadata.csv
+PROJECTS_GITHUB_INFO := projects-github-info.csv
+
 
 METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv
 METADATA_LOG := $(ANALYSIS_DIR)/metadata.log
