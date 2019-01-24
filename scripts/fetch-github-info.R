@@ -55,7 +55,7 @@ main <- function(projects_file, output_file) {
     projects <- mutate(projects, reponame=str_replace(project_id, "--", "/"))
 
     gh_list <- call_github(projects$reponame, function(content) {
-        data_frame(name=content$full_name, content$stargazers_count)
+        data_frame(name=content$full_name, stars=content$stargazers_count)
     })
     gh_df <- bind_rows(gh_list)
     result <- left_join(projects, gh_df, by="reponame") %>% select(-reponame)

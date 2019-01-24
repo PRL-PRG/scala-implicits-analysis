@@ -4,13 +4,16 @@ suppressPackageStartupMessages(library(fs))
 suppressPackageStartupMessages(library(tidyverse))
 
 args <- commandArgs(trailingOnly=T)
+stopifnot(length(args) == 5)
+
 projects_file <- args[1]
-file <- args[2]
-col_types <- args[3]
-output_file <- args[4]
+projects_dir <- args[2]
+file <- args[3]
+col_types <- args[4]
+output_file <- args[5]
 
 project_ids <- read_lines(projects_file)
-files <- path("projects", project_ids, file)
+files <- path(projects_dir, project_ids, file)
 
 existing_files <- file_exists(files)
 

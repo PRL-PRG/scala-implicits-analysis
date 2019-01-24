@@ -9,6 +9,8 @@ SHELL := /bin/bash
 
 SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
 
+REDO ?= 0
+
 .PHONY: \
 	clean \
 	clean-classes \
@@ -17,15 +19,16 @@ SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=t
 	clean-metadata \
 	clean-sbt \
 	clean-semanticdb \
+	clean-repo-build-system \
+	clean-repo-metadata \
+	clean-repo-sloc \
 	compile \
 	implicits \
 	metadata \
 	semanticdb \
-	redo-failed-compile \
-	redo-failed-metadata \
-	redo-failed-semanticdb \
-	redo-failed-implicits \
+	repo-build-system \
 	repo-metadata \
+	repo-sloc \
 	reset
 
 $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
@@ -67,6 +70,11 @@ $(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
       $(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc; \
     fi
 
+$(REPO_BUILD_SYSTEM):
+	build_system=$$($(SCRIPTS_DIR)/guess-build-system.R .); \
+    echo "build_system" > $(REPO_BUILD_SYSTEM); \
+    echo "$$build_system" >> $(REPO_BUILD_SYSTEM)
+
 $(REPO_METADATA):
 	commit_count=$$(git rev-list --count HEAD); \
     commit=$$(git log --pretty=format:'%H' -n 1); \
@@ -102,9 +110,14 @@ clean-metadata:
       $(METADATA_LOG) \
       $(ANALYSIS_DIR)/metadata-*
 
+clean-repo-build-system:
+	rm -f $(REPO_BUILD_SYSTEM)
+
 clean-repo-metadata:
-	rm -f $(REPO_METADATA) \
-      $(REPO_SLOC)
+	rm -f $(REPO_METADATA)
+
+clean-repo-sloc:
+	rm -f $(REPO_SLOC)
 
 # removes whatever sbt was configured to remove
 clean-sbt:
@@ -116,49 +129,44 @@ clean-semanticdb:
       $(MERGED_SEMANTICDB_FILE) \
       $(MERGED_SEMANTICDB_STATS_FILE)
 
-compile: $(COMPILE_STATUS)
+compile:
+ifeq ($(REDO), 1)
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 0) -ne '0' ] && \
+    rm $(COMPILE_STATUS)
+endif
+	$(MAKE) -f $(this_makefile) $(COMPILE_STATUS)
 
-implicits: $(IMPLICITS_STATUS)
+implicits:
+ifeq ($(REDO), 1)
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
+    [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
+    [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
+    rm $(IMPLICITS_STATUS)
+endif
+	$(MAKE) -f $(this_makefile) $(IMPLICITS_STATUS)
 
-metadata: $(METADATA_STATUS)
+metadata:
+ifeq ($(REDO), 1)
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -ne '0' ] && \
+    rm $(METADATA_STATUS)
+endif
+	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
-merge-semanticdbs: $(MERGED_SEMANTICDB_FILE)
+repo-build-system: $(REPO_BUILD_SYSTEM)
 
-redo-failed-compile:
-	if [ $$(Rscript -e 'cat(read.csv("$(COMPILE_STATUS)")$$exit_code[1])') -ne '0' ]; then \
-      echo "Redoing"; \
-      $(MAKE) -f $(this_makefile) clean-compile compile; \
-    fi
+repo-metadata: $(REPO_METADATA)
 
-redo-failed-metadata:
-	Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])'
-	if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -ne '0' ]; then \
-      echo "Redoing"; \
-      $(MAKE) -f $(this_makefile) clean-metadata metadata; \
-    fi
-
-redo-failed-semanticdb:
-	if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -ne '0' ]; then \
-      if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-        echo "Redoing"; \
-        $(MAKE) -f $(this_makefile) clean-semanticdb semanticdb; \
-      fi; \
-    fi
-
-redo-failed-implicits:
-	if [ $$(Rscript -e 'cat(read.csv("$(IMPLICITS_STATUS)")$$exit_code[1])') -ne '0' ]; then \
-      if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-        if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
-          echo "Redoing"; \
-          $(MAKE) -f $(this_makefile) clean-implicits implicits; \
-        fi; \
-      fi; \
-    fi
-
-repo-metadata: $(REPO_METADATA) $(REPO_SLOC)
+repo-sloc: $(REPO_SLOC)
 
 # removes all that was not original part of the repository
 reset:
 	git clean -fdx
 
-semanticdb: $(SEMANTICDB_STATUS)
+semanticdb:
+ifeq ($(REDO), 1)
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
+    [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
+    rm $(SEMANTICDB_STATUS)
+endif
+	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS)
+

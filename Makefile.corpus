@@ -6,56 +6,29 @@ this_makefile := $(lastword $(MAKEFILE_LIST))
 
 include $(base_dir)/Makevars
 
-PROJECTS_DIR := projects
 LOG_DIR_BASE := logs
 TIMESTAMP := $(shell LC_LOCALE=C date)
 LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
 CORPUS := $(shell basename $$(pwd))
 
-# it cannot be simply be ?= because that one is not immediate, but deferred so
-# it will be evaluated multiple times
-ifeq ($(origin LOG_DIR), undefined)
-    ifeq ($(origin LOG_DIR_BASE), undefined)
-		LOG_DIR := $(LOG_DIR_BASE)/1
-	else
-		LOG_DIR := $(LOG_DIR_BASE)/$(shell ls -1 $(LOG_DIR_BASE) | awk 'BEGIN {max = 0} /[0-9][0-9]*/ {if ($$1 > max) max=$$1} END {print max+1}' )
-	endif
+ifeq ($(origin LOG_DIR_BASE), undefined)
+	LOG_DIR := $(LOG_DIR_BASE)/1
+else
+	LOG_DIR := $(LOG_DIR_BASE)/$(shell ls -1 $(LOG_DIR_BASE) | awk 'BEGIN {max = 0} /[0-9][0-9]*/ {if ($$1 > max) max=$$1} END {print max+1}' )
 endif
 
-# contains the list of projects used in the corpus
-PROJECTS_FILE := projects.txt
-PROJECTS_CSV_FILE := projects.csv
+
 # a file controlling the number of parallel tasks it can be updated while the
 # task is run, but gets reset before a task is run
 JOBS_FILE := jobsfile.txt
 
+REDO ?= 0
+
 # --------------------------------------------------------------------------------
 
-# parallel exit code is based on how many jobs has failed there will for sure be
-# some so we just say keep going this will run make on each package with tasks
-# given in as parameters
-define parallel =
-@echo $(N_JOBS) > jobsfile.txt
-@echo ">> Running parallel with logs in $(LOG_DIR) using $(PROJECTS_FILE)..."
-cp $(PROJECTS_FILE) $(LOG_DIR)/projects.txt
-touch "$(LOG_DIR)/$@"
--parallel \
-  --jobs $(JOBS_FILE) \
-  -a "$(PROJECTS_FILE)" \
-  --files \
-  --bar \
-  --tagstring "$@ - {}:" \
-  --result "$(PROJECTS_DIR)/{1}/$(ANALYSIS_DIR)/parallel/{2}" \
-  --joblog "$(LOG_DIR)/$@-parallel.log" \
-  --timeout $(TIMEOUT) \
-  --shuf \
-  make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project "{2}" \
-  :::
-endef
+parallel := $(MAKE) -f $(this_makefile) parallel
 
-# there is no direct rule how to create PROJECTS_DIR this has to be done manually
-# using either download-projects or link-ghtorrent-projects tasks
-bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
+bootstrap :=
 
 .PHONY: \
   all \
@@ -65,7 +38,9 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	clean-dejavu \
 	clean-implicits \
 	clean-metadata \
+	clean-repo-build-system \
 	clean-repo-metadata \
+	clean-repo-sloc \
 	clean-sbt \
 	clean-semanticdb \
 	clean-classes \
@@ -74,23 +49,26 @@ bootstrap := $(LOG_DIR) $(PROJECTS_DIR)
 	download-projects \
 	implicits \
 	fetch-github-info \
+	filter-sbt-projects \
+	filter-so-projects \
+	filter-duplicate-projects \
 	merge-compile-results \
-	merge-metadata-results \
 	merge-semanticdb-results \
 	merge-implicits-results \
-	merge-repo-metadata \
 	metadata \
-	link-projects \
+	parallel \
+	patch-downloaded-projects \
 	redo-failed-compile \
 	redo-failed-metadata \
 	redo-failed-semanticdb \
 	redo-failed-implicits \
+    repo-build-system \
     repo-metadata \
+    repo-sloc \
 	report \
 	reset \
 	semanticdb \
-	sync-from-prl4 \
-	tail-log
+	sync-from-prl4
 
 $(LOG_DIR):
 	@mkdir -p $(LOG_DIR)
@@ -98,21 +76,27 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-$(PROJECTS_GITHUB_INFO):
-	$(SCRIPTS_DIR)/fetch-github-info.R $(PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
+$(PROJECTS_GITHUB_INFO): $(SBT_PROJECTS_FILE)
+	$(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
 
-$(notdir $(REPO_METADATA)):
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(REPO_METADATA) "iciii" $(notdir $(REPO_METADATA))
+$(GLOBAL_REPO_BUILD_SYSTEM): $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
+	$(parallel) TASK=repo-build-system PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
+	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_BUILD_SYSTEM) "c" $(GLOBAL_REPO_BUILD_SYSTEM)
 
-$(notdir $(REPO_SLOC)):
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(REPO_SLOC) "iciii" $(notdir $(REPO_SLOC))
+$(GLOBAL_REPO_METADATA): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
+	$(parallel) TASK=repo-metadata PROJECTS_FILE=$(SO_PROJECTS_FILE) PROJECTS_DIR=$(SO_PROJECTS_DIR)
+	$(SCRIPTS_DIR)/merge-csvs.R $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR) $(REPO_METADATA) "iciin" $(GLOBAL_REPO_METADATA)
 
-$(DEJAVU_INPUT):
+$(GLOBAL_REPO_SLOC): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
+	$(parallel) TASK=repo-sloc PROJECTS_FILE=$(SO_PROJECTS_FILE) PROJECTS_DIR=$(SO_PROJECTS_DIR)
+	$(SCRIPTS_DIR)/merge-csvs.R $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR) $(REPO_SLOC) "iciii" $(GLOBAL_REPO_SLOC)
+
+$(DEJAVU_INPUT): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 	[ -d $(DEJAVU_HOME) ] || mkdir $(DEJAVU_HOME)
 	[ -d $(DEJAVU_DOWNLOAD) ] || mkdir $(DEJAVU_DOWNLOAD) && \
-	  parallel --bar -a projects.txt ln -s '$$(pwd)/$(PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
+	  parallel --bar -a $(SO_PROJECTS_FILE) ln -s '$$(pwd)/$(SO_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
 
-	$(SCRIPTS_DIR)/generate-dejavu-input.R $(PROJECTS_FILE) $(DEJAVU_INPUT)
+	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SO_PROJECTS_FILE) $(DEJAVU_INPUT)
 	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
 
 dejavu/files.csv: $(DEJAVU_INPUT)
@@ -132,137 +116,199 @@ dejavu/files.csv.h2i: dejavu/files.csv
 $(DEJAVU_FILES_HASH): dejavu/files.csv.h2i
 	$(SCRIPTS_DIR)/merge-dejavu-files-hash.R $(DEJAVU_FILES_HASH)
 
+$(ALL_PROJECTS_DIR): $(ALL_PROJECTS_FILE)
+	-mkdir -p $(ALL_PROJECTS_DIR)
+	-cat $(ALL_PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
+        parallel -C, --bar -j4 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
+	$(MAKE) -f $(this_makefile) path-downloaded-projects
+
+$(SBT_PROJECTS_FILE): $(GLOBAL_REPO_BUILD_SYSTEM)
+	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_BUILD_SYSTEM)"), build_system=="sbt")$$project_id, "$(SBT_PROJECTS_FILE)")'
+
+$(SBT_PROJECTS_DIR): $(SBT_PROJECTS_FILE)
+	mkdir -p $(SBT_PROJECTS_DIR)
+	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(SBT_PROJECTS_DIR)/{1}'
+
+$(SO_PROJECTS_FILE): $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
+	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
+
+$(SO_PROJECTS_DIR): $(SO_PROJECTS_FILE)
+	mkdir -p $(SO_PROJECTS_DIR)
+	parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(SO_PROJECTS_DIR)/{1}'
+
+# TODO: filter out duplicate projects
+$(PROJECTS_FILE): $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC) $(DEJAVU_FILES_HASH)
+	cp $(SO_PROJECTS_FILE) $(PROJECTS_FILE)
+
+$(PROJECTS_DIR): $(PROJECTS_FILE)
+	mkdir -p $(PROJECTS_DIR)
+	parallel --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)/{1}'
+
+$(GLOBAL_METADATA_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
+	$(parallel) TASK=metadata REDO=$(REDO)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_STATUS) "ii" $(GLOBAL_METADATA_STATUS)
+
+$(GLOBAL_METADATA_VERSIONS): $(PROJECTS_FILE) $(PROJECTS_DIR) $(GLOBAL_METADATA_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_VERSIONS) "cccccccccccc" $(GLOBAL_METADATA_VERSIONS)
+
+$(GLOBAL_METADATA_SOURCEPATHS): $(PROJECTS_FILE) $(PROJECTS_DIR) $(GLOBAL_METADATA_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_SOURCEPATHS) "ccclciciii" $(GLOBAL_METADATA_SOURCEPATHS)
+
+$(GLOBAL_COMPILE_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
+	$(parallel) TASK=compile REDO=$(REDO)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(COMPILE_STATUS) "ii" $(GLOBAL_COMPILE_STATUS)
+
+$(GLOBAL_SEMANTICDB_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
+	$(parallel) TASK=semanticdb REDO=$(REDO)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SEMANTICDB_STATUS) "ii" $(GLOBAL_SEMANTICDB_STATUS)
+
+$(GLOBAL_MERGED_SEMANTICDB_STATS_FILE): $(GLOBAL_SEMANTICDB_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(MERGED_SEMANTICDB_STATS_FILE) "iii" $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
+
+$(GLOBAL_IMPLICITS_STATUS):
+	$(parallel) TASK=implicits REDO=$(REDO)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_STATUS) "ii" $(GLOBAL_IMPLICITS_STATUS)
+
+$(GLOBAL_IMPLICITS): $(GLOBAL_IMPLICITS_STATUS)
+	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
+
+$(GLOBAL_IMPLICITS_STATS): $(GLOBAL_IMPLICITS_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_STATS) "cciiiii" $(GLOBAL_IMPLICITS_STATS)
+
+$(GLOBAL_IMPLICITS_EXCEPTIONS):
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_EXCEPTIONS) "ccccc" $(GLOBAL_IMPLICITS_EXCEPTIONS)
+
 all:
 	$(MAKE) -f $(this_makefile) metadata
-	for i in $$(seq $(MAX_REPEAT)); do $(MAKE) -f $(this_makefile) redo-failed-metadata; done
+	$(MAKE) -f $(this_makefile) redo-metadata-metadata
 	$(MAKE) -f $(this_makefile) compile
 	$(MAKE) -f $(this_makefile) semanticdb
 	$(MAKE) -f $(this_makefile) implicits
 
-clean: $(bootstrap)
-	$(parallel) $@
-	-rm -f $(GLOBAL_IMPLICITS)
+clean:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -fr $(LOG_DIR_BASE)
-	-rm -f $(notdir $(METADATA_STATUS))
-	-rm -f $(notdir $(COMPILE_STATUS))
-	-rm -f $(notdir $(SEMANTICDB_STATUS))
-	-rm -f $(notdir $(MERGED_SEMANTICDB_STATS_FILE))
-	-rm -f $(notdir $(IMPLICITS_STATUS))
-	-rm -f $(notdir $(IMPLICITS_STATS))
-	-rm -f $(notdir $(IMPLICITS_EXCEPTIONS))
+	-rm -f $(GLOBAL_REPO_BUILD_SYSTEM)
 	-rm -f $(PROJECTS_GITHUB_DATA)
-	-rm -f $(notdir $(REPO_METADATA)) $(notdir $(REPO_SLOC))
+	-rm -f $(GLOBAL_REPO_METADATA)
+	-rm -f $(GLOBAL_REPO_SLOC)
 	$(MAKE) -f $(this_makefile) clean-dejavu
+	$(MAKE) -f $(this_makefile) clean-sbt-projects
+	$(MAKE) -f $(this_makefile) clean-so-projects
+	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_VERSIONS) $(GLOBAL_METADATA_SOURCEPATHS)
+	-rm -f $(GLOBAL_COMPILE_STATUS)
+	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
+	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_STATUS)
 
-clean-classes: $(bootstrap)
-	$(parallel) $@
+clean-classes:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
 
-clean-compile: $(bootstrap)
-	$(parallel) $@
+clean-compile:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -f $(GLOBAL_COMPILE_STATUS)
 
 clean-dejavu:
-	-rm -fr $(DEJAVU_HOME) \
-       $(DEJAVU_FILES_HASH)
+	-rm -fr $(DEJAVU_HOME) $(DEJAVU_FILES_HASH)
 
-clean-implicits: $(bootstrap)
-	$(parallel) $@
+clean-implicits:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_STATUS)
 
-clean-metadata: $(bootstrap)
-	$(parallel) $@
+clean-metadata:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_VERSIONS) $(GLOBAL_METADATA_SOURCEPATHS)
 
-clean-repo-metadata: $(bootstrap)
-	$(parallel) $@
+clean-repo-build-system:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
 
-clean-sbt: $(bootstrap)
-	$(parallel) $@
+clean-repo-metadata:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
 
-clean-semanticdb: $(bootstrap)
-	$(parallel) $@
+clean-repo-sloc:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
 
-compile: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-compile-results
+clean-sbt:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
+
+clean-sbt-projects:
+	-rm -fr $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
+
+clean-so-projects:
+	-rm -fr $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
+
+clean-semanticdb:
+	$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
+
+compile: $(GLOBAL_COMPILE_STATUS)
 
 dejavu: $(DEJAVU_FILES_HASH)
 
-download-projects: $(PROJECTS_FILE)
-	-mkdir -p $(PROJECTS_DIR)
-	cat $(PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
-        parallel -C, --bar -j4 git clone "https://github.com/{1}/{2}" $(PROJECTS_DIR)/"{1}--{2}"
+download-projects: $(ALL_PROJECTS_DIR)
 
-implicits: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-implicits-results
-
-link-projects: $(PROJECTS_CSV_FILE)
-	-mkdir -p $(PROJECTS_DIR)
-	cat $(PROJECTS_CSV_FILE) | \
-      csvcut -c path,project_id | \
-      csvformat -K 1 | \
-      parallel -j1 --bar --colsep "," "ln -s {1} $(PROJECTS_DIR)/{2}"
-	cat $(PROJECTS_CSV_FILE) | csvcut -c project_id | csvformat -K 1 > $(PROJECTS_FILE)
+implicits: $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
 
 fetch-github-info: $(PROJECTS_GITHUB_INFO)
 
-merge-compile-results:
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(COMPILE_STATUS) "ii" $(notdir $(COMPILE_STATUS))
+filter-sbt-projects: $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
 
-merge-implicits-results:
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATUS) "ii" $(notdir $(IMPLICITS_STATUS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_STATS) "cciiiii" $(notdir $(IMPLICITS_STATS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(IMPLICITS_EXCEPTIONS) "ccccc" $(notdir $(IMPLICITS_EXCEPTIONS))
-	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
+filter-so-projects: $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 
-merge-metadata-results:
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(METADATA_STATUS) "ii" $(notdir $(METADATA_STATUS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-versions.csv" "cccccccccccc" "metadata-versions.csv"
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) "_analysis_/metadata-sourcepaths.csv" "ccclciciii" "metadata-sourcepaths.csv"
+filter-duplicate-projects: $(PROJECTS_FILE) $(PROJECTS_DIR)
 
-merge-repo-metadata: $(notdir $(REPO_METADATA)) $(notdir $(REPO_SLOC))
+metadata: $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_VERSIONS) $(GLOBAL_METADATA_SOURCEPATHS)
 
-merge-semanticdb-results:
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(SEMANTICDB_STATUS) "ii" $(notdir $(SEMANTICDB_STATUS))
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(MERGED_SEMANTICDB_STATS_FILE) "iii" $(notdir $(MERGED_SEMANTICDB_STATS_FILE))
+parallel:
+	-mkdir -p $(LOG_DIR)
+	@echo $(N_JOBS) > jobsfile.txt
+	@echo ">> Running parallel task $(TASK) (REDO=$(REDO)) with logs in $(LOG_DIR) using $(PROJECTS_FILE)..."
+	cp $(PROJECTS_FILE) $(LOG_DIR)/projects.txt
+	touch "$(LOG_DIR)/$(TASK)"
+	-parallel \
+      --jobs $(JOBS_FILE) \
+      -a "$(PROJECTS_FILE)" \
+      --files \
+      --bar \
+      --tagstring "$(TASK) - {}:" \
+      --result "$(PROJECTS_DIR)/{1}/$(ANALYSIS_DIR)/parallel/$(TASK)" \
+      --joblog "$(LOG_DIR)/$(TAKS)-parallel.log" \
+      --timeout $(TIMEOUT) \
+      --shuf \
+      make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project $(TASK) REDO=$(REDO)
 
-metadata: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-metadata-results
+patch-downloaded-projects: $(ALL_PROJECTS_DIR)
+	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
 
-redo-failed-compile: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-compile-results
+redo-failed-compile:
+	-rm $(GLOBAL_COMPILE_STATUS)
+	$(MAKE) -f $(this_makefile) compile REDO=1
 
-redo-failed-implicits: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-implicits-results
+redo-failed-implicits:
+	-rm $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	$(MAKE) -f $(this_makefile) implicits REDO=1
 
-redo-failed-metadata: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-metadata-results
+redo-failed-metadata:
+	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_VERSIONS) $(GLOBAL_METADATA_SOURCEPATHS)
+	$(MAKE) -f $(this_makefile) metadata REDO=1
 
 redo-failed-semanticdb: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-semanticdb-results
+	-rm $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
+	$(MAKE) -f $(this_makefile) semanticdb REDO=1
 
-repo-metadata: $(bootstrap)
-	$(parallel) $@
-	-rm $(notdir $(REPO_METADATA))
-	-rm $(notdir $(REPO_SLOC))
-	$(MAKE) -f $(this_makefile) merge-repo-metadata
+repo-build-system: $(GLOBAL_REPO_BUILD_SYSTEM)
 
-report:
+repo-metadata: $(GLOBAL_REPO_METADATA)
+
+repo-sloc: $(GLOBAL_REPO_SLOC)
+
+report: $(GLOBAL_METADATA_STATUS) $(GLOBAL_COMPILE_STATUS) $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE) $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
 	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(base_dir)", current_dir="$(CURDIR)"))'
 	@echo ">> Report is in report.html"
 
 reset: $(bootstrap)
 	$(parallel) $@
 
-semanticdb: $(bootstrap)
-	$(parallel) $@
-	$(MAKE) -f $(this_makefile) merge-semanticdb-results
-
-tail-log: $(LOG_DIR_LATEST)
-	tail -f $(LOG_DIR_LATEST)/parallel.log
+semanticdb: $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
 
 sync-from-prl4:
 	rsync \
