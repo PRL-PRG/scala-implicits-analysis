@@ -1,0 +1,14 @@
+project_id,version
+scala--scala,"git checkout v2.12.6"
+twitter--finagle,"git checkout finagle-18.10.0"
+twitter--finatra,"git checkout finatra-18.9.1"
+laurilehmijoki--s3_website,"echo sbt.version=0.13.7 > project/build.properties"
+tpolecat--doobiei,"git checkout f082793e"
+lhartikk--ArnoldC,"echo sbt.version=0.13.7 > project/build.properties"
+lampepfl--dotty,"git submodule update --init"
+excilys--gatling,"git checkout 4665c4a79"
+scala-native--scala-native,"git checkout 365482e2"
+foundweekends--giter8,"git checkout v0.11.0"
+twitter--twitter-server,"git checkout twitter-server-18.12.0"
+tumblr--colossus,"git checkout v0.9.1"
+
