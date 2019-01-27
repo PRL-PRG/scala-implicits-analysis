@@ -67,8 +67,7 @@ bootstrap :=
     repo-sloc \
 	report \
 	reset \
-	semanticdb \
-	sync-from-prl4
+	semanticdb
 
 $(LOG_DIR):
 	@mkdir -p $(LOG_DIR)
@@ -310,13 +309,3 @@ reset: $(bootstrap)
 
 semanticdb: $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
 
-sync-from-prl4:
-	rsync \
-      -avhm \
-      --progress \
-      --exclude='Makefile' \
-      --exclude='jobsfile.txt' \
-      --exclude='.ivy' \
-      --exclude='.sbt-boot' \
-      prl4:Research/Projects/scala-corpus/corpora/$(CORPUS)/ \
-      ./
