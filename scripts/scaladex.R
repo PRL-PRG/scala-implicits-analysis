@@ -1,22 +1,26 @@
-library(tidyverse)
+#!/usr/bin/env Rscript
+
 library(fs)
 library(httr)
+suppressPackageStartupMessages(library(tidyverse))
 library(pbapply)
 
-is_in_scaladex <- function(reponame) {
-  url <- str_c("https://index.scala-lang.org/", reponame)
-  tryCatch(GET(url, config=list(followlocation=1))$status_code, error=function(e)-1)
+PAGES_TO_FETCH <- 100
+SCALA_VERSIONS <- c("2.11", "2.12")
+
+pboptions(type="txt")
+
+fetch_page <- function(page, version) {
+  url <- str_glue("https://index.scala-lang.org/api/search?q=*&target=JVM&scalaVersion={version}&total=100&page={as.integer(page)}")
+  GET(url)
 }
 
-process <- function(gh) {
-  res <- pblapply(gh, is_in_scaladex, cl=4)
-  is_err <- map_lgl(res, ~is(., "try-error"))
-  err <- res[is_err]
-  data_frame(gh=gh[!is_err], status=sapply(res[!is_err], function(x) x$status_code))
-}
+pages <- pbapply(expand.grid(1:PAGES_TO_FETCH, SCALA_VERSIONS), 1, function(x) fetch_page(x[1], x[2]))
+errors <- map_lgl(pages, ~ .$status_code != 200)
+any(errors)
 
-gh <- read_csv("projects.csv", col_names=FALSE) %>% select(gh=X3) %>% mutate(gh=str_replace_all(gh, "\\\\_", "")) %>% .$gh
-res <- pblapply(gh, is_in_scaladex, cl=1)
+pages_json <- map(pages, ~content(.)) %>% unlist(recursive = F)
 
-df <- data_frame(project_id=gh, scaladex=unlist(res))
-write_csv(df, "scaladex.csv")
+projects <- pages_json %>% map_dfr(~data_frame(project_id=str_c(.$organization, "--", .$repository))) %>% distinct()
+
+write_lines(projects$project_id, "all-projects.txt")
