@@ -7,6 +7,8 @@ library(httr)
 
 GH_LIMIT <- 5000
 
+pboptions(type="txt")
+
 get_gh_repo <- function(reponame, content_extraction_fun) {
   result <- tryCatch({
     url <- str_c("https://api.github.com/repos/", reponame, "?client_id=", client_id, "&client_secret=", client_secret)
@@ -20,7 +22,6 @@ get_gh_repo <- function(reponame, content_extraction_fun) {
   }, error=function(e) {
     data_frame(error=str_c("Status ", e$message))
   })
-  message('Done: ', reponame)
   mutate(result, reponame=reponame)
 }
 
@@ -36,7 +37,7 @@ call_github <- function(projects, fun) {
 
         project_batch <- projects[batch]
         start <- Sys.time()
-        result[batch] <- lapply(project_batch, get_gh_repo, content_extraction_fun=fun)
+        result[batch] <- pblapply(project_batch, get_gh_repo, content_extraction_fun=fun)
         end <- Sys.time()
 
         if (any(is.na(result))) {
