@@ -35,6 +35,8 @@ lazy val model = (project in file("model"))
       Semanticdb,
       ScalaProtocolBuffers,
       BetterFiles,
+      ScalaLogging,
+      LogBack,
       ScalaTest,
       ScalaCheck
     ),
