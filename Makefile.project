@@ -71,9 +71,7 @@ $(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
     fi
 
 $(REPO_BUILD_SYSTEM):
-	build_system=$$($(SCRIPTS_DIR)/guess-build-system.R .); \
-    echo "build_system" > $(REPO_BUILD_SYSTEM); \
-    echo "$$build_system" >> $(REPO_BUILD_SYSTEM)
+	$(SCRIPTS_DIR)/guess-build-system.R . $(REPO_BUILD_SYSTEM)
 
 $(REPO_METADATA):
 	commit_count=$$(git rev-list --count HEAD); \

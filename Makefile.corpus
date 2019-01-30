@@ -122,7 +122,7 @@ $(ALL_PROJECTS_DIR): $(ALL_PROJECTS_FILE)
 	$(MAKE) -f $(this_makefile) path-downloaded-projects
 
 $(SBT_PROJECTS_FILE): $(GLOBAL_REPO_BUILD_SYSTEM)
-	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_BUILD_SYSTEM)"), build_system=="sbt")$$project_id, "$(SBT_PROJECTS_FILE)")'
+	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_BUILD_SYSTEM)"), startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
 
 $(SBT_PROJECTS_DIR): $(SBT_PROJECTS_FILE)
 	mkdir -p $(SBT_PROJECTS_DIR)

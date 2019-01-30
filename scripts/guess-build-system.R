@@ -1,9 +1,10 @@
 #!/usr/bin/env Rscript
 
 args <- commandArgs(trailingOnly=T)
-stopifnot(length(args) == 1)
+stopifnot(length(args) == 2)
 
 dir <- args[1]
+output <- args[2]
 
 systems_def <- c(
     "sbt"="build.sbt",
@@ -22,7 +23,8 @@ systems_def <- c(
 )
 
 systems <- names(systems_def)
-system <- "NA"
+system <- NA
+sbt_version <- NA
 
 for (i in seq_along(systems_def)) {
     if (file.exists(file.path(dir, systems_def[i]))) {
@@ -31,4 +33,24 @@ for (i in seq_along(systems_def)) {
     }
 }
 
-cat(paste0(system, "\n"))
+if (system == "sbt") {
+    if (file.exists(file.path(dir, "project", "build.properties"))) {
+        props <- read.table(
+            "project/build.properties",
+            header=FALSE,
+            sep="=",
+            row.names=1,
+            strip.white=TRUE,
+            na.strings="NA",
+            stringsAsFactors=FALSE
+        )
+        version <- props["sbt.version", 1]
+        if (!is.null(version)) {
+            sbt_version <- version
+        }
+    }
+}
+
+df <- tibble::data_frame(build_system=system, sbt_version=sbt_version)
+
+readr::write_csv(df, output)
