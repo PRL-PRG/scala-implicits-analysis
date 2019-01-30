@@ -11,7 +11,7 @@ editor_options:
   chunk_output_type: console
 params:
   base_dir: "/home/rstudio/work"
-  current_dir: "/home/rstudio/work/corpora/4-top100"
+  current_dir: "/home/rstudio/work/Research/Projects/scala-corpus/corpora/top100"
   file_view_prefix: "/files//home/rstudio/work/"
 ---
 
@@ -44,7 +44,7 @@ IMPLICITS_EXCEPTIONS <- "implicits-exceptions.csv"
 IMPLICITS_LOG <- "implicits.log"
 ```
 
-```{r aux}
+```{r aux, include=FALSE}
 merge_project_csvs <- function(project_ids, files, col_types) {
   stopifnot(length(project_ids) == length(files))
   
@@ -77,6 +77,13 @@ show_dataframe <- function(table) {
 show_task_exit_code_summary <- function(status) {
   count(status, exit_code) %>% 
     knitr::kable()
+}
+
+show_task_failed_projects <- function(status) {
+  status %>%
+  filter(exit_code != 0) %>%
+  .$project_id %>%
+  cat(sep = "\n")
 }
 
 create_link <- Vectorize(function(href, text) {
@@ -175,29 +182,58 @@ projects <- local({
 
 ## Metadata
 
-```{r}
-metadata_status %>%
-  show_task_exit_code_summary()
-```
-## Compile
+### Exit code
 
 ```{r}
-compile_status %>%
-  show_task_exit_code_summary()
+metadata_status %>% show_task_exit_code_summary()
+```
+
+### Failed projects
+
+```{r comment=NA}
+metadata_status %>% show_task_failed_projects()
+```
+
+## Compile
+
+### Exit code
+
+```{r}
+compile_status %>% show_task_exit_code_summary()
+```
+
+### Failed projects
+
+```{r comment=NA}
+compile_status %>% show_task_failed_projects()
 ```
 
 ## Semanticdb
 
+### Exit code
+
 ```{r}
-semanticdb_status %>%
-  show_task_exit_code_summary()
+semanticdb_status %>% show_task_exit_code_summary()
+```
+
+### Failed projects
+
+```{r comment=NA}
+semanticdb_status %>% show_task_failed_projects()
 ```
 
 ## Implicits
 
+### Exit code
+
 ```{r}
-implicits_status %>%
-  show_task_exit_code_summary()
+implicits_status %>% show_task_exit_code_summary()
+```
+
+### Failed projects
+
+```{r comment=NA}
+implicits_status %>% show_task_failed_projects()
 ```
 
 ## Summary all projects
