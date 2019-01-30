@@ -3,7 +3,7 @@ package cz.cvut.fit.prl.scala.implicits.extractor
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.utils._
 
-class CallSiteExtractorSuite extends ExtractionContextSuite {
+class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplification  {
 
 //  callSites("implicit conversion from scala",
 //    """

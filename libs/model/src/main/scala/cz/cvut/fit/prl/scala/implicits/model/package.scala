@@ -1,12 +1,32 @@
 package cz.cvut.fit.prl.scala.implicits
 
+import scala.language.implicitConversions
 import scala.meta.internal.semanticdb.Scala._
 
 package object model {
 
+  implicit class IdentityHashCode(x: AnyRef) {
+    def identityHashCode: Int = System.identityHashCode(x)
+  }
+
   implicit class XtensionProject(that: Project) {
-    def declarations = that.modules.flatMap(_.declarations)
-    def implicitCallSites = that.modules.flatMap(_.implicitCallSites)
+    def declarations: Seq[Declaration] = that.modules.flatMap(_.declarations)
+    def implicitCallSites: Seq[CallSite] = that.modules.flatMap(_.implicitCallSites)
+    def githubUserName: String = that.projectId.split("--").apply(0)
+    def githubRepoName: String = that.projectId.split("--").apply(1)
+    def githubURL: String = s"https://github.com/${that.githubUserName}/${that.githubRepoName}"
+  }
+
+  implicit class XtensionLocation(that: Location) {
+    def project(implicit idx: Index): Project = idx.project(that)
+    def module(implicit idx: Index): Module = idx.module(that)
+    def githubURL(implicit idx: Index): String = project.githubURL + "/" + that.relativeUri
+  }
+
+  implicit class XtensionModule(that: Module) {
+    def project(implicit idx: Index): Project = idx.project(that)
+    def library: Library = Library(that.groupId, that.artifactId, that.version)
+    def githubURL(implicit idx: Index): String = project.githubURL
   }
 
   implicit class XtensionParameterList(that: ParameterList) {
@@ -88,6 +108,35 @@ package object model {
     def isMethodDeclaration: Boolean = that.signature.isMethod
     def isTypeDeclaration: Boolean = that.signature.isType
 
+    /**
+    * The following code will create two implicit definitions
+    * {{{
+    *   implicit class A(x: Int) { ... }
+    * }}}
+    *
+    * 1. an implicit class `A#`
+    * 2. an implicit def `A().`
+    *
+    * This method identifies such declarations for the def part.
+    *
+    * @param resolver
+    * @return
+    */
+  def isImplicitClassCompanionDef(implicit resolver: TypeResolver): Boolean =
+    that.implicitClassCompanion.isDefined
+
+    def implicitClassCompanion(implicit resolver: TypeResolver): Option[Declaration] =
+    if (that.isMethod && that.parameterLists.headOption.exists(_.parameters.size == 1)) {
+      val rt = that.returnType
+      if (rt.isImplicit && rt.isClass) {
+        Some(rt)
+      } else {
+        None
+      }
+    } else {
+      None
+    }
+
     // TODO: also any MethodSignature that extends FunctionX
     def isFunctionLike: Boolean = that.isMethod
 
@@ -128,5 +177,17 @@ package object model {
         case _ =>
           throw new Exception(s"Trying to get parents on ${that.signature}")
       }
+
+    def module(implicit idx: Index): Module = idx.module(that)
+
+//    def isLocal: Boolean = {
+//      that.location.map()
+//    }
   }
+
+  implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
+    Declaration.Signature.Type(x)
+
+  implicit def methodSignature2method(x: MethodSignature): Declaration.Signature.Method =
+    Declaration.Signature.Method(x)
 }

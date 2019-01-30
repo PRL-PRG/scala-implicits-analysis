@@ -4,7 +4,7 @@ import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import cz.cvut.fit.prl.scala.implicits.model._
 
-class DeclarationExtractorSuite extends ExtractionContextSuite {
+class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplification {
 
   declarations(
     "java reference",

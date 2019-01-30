@@ -1,74 +1,103 @@
 package cz.cvut.fit.prl.scala.implicits.model
 
 import better.files._
-import cats.Semigroup
-import cats.syntax.semigroup._
+import cats.Monoid
+import cats.syntax.monoid._
+import com.typesafe.scalalogging.LazyLogging
 
+/**
+    *
+    * @param projects
+    * @param modulesProjects
+    * @param implicitDeclarations
+    * @param implicitCallSites
+    * @param declarationsModules - a map from Declaration identity hashCode to a Module
+    * @param callSitesModules - a map from CallSite identity hashCode to a Module
+    * @param locationsModules - a map from Location identity hashCode to a Module
+    */
 case class Index(
     projects: List[Project],
-    moduleMap: Map[Module, Project],
-    implicitDeclarations: List[Declaration],
+    modulesProjects: Map[Module, Project],
+    implicitDeclarations: Map[String, Declaration],
     implicitCallSites: List[CallSite],
-    declarationMap: Map[Int, Module],
-    callSiteMap: Map[Int, Module],
-    locationMap: Map[Int, Module]
-)
+    declarationsModules: Map[Int, Module],
+    callSitesModules: Map[Int, Module],
+    locationsModules: Map[Int, Module]
+) extends TypeResolver {
+    def project(module: Module): Project = modulesProjects(module)
+    def project(declaration: Declaration): Project = modulesProjects(module(declaration))
+    def project(callSite: CallSite): Project = modulesProjects(module(callSite))
+    def project(location: Location): Project = modulesProjects(module(location))
+    def module(declaration: Declaration): Module = declarationsModules(declaration.identityHashCode)
+    def module(callSite: CallSite): Module = callSitesModules(callSite.identityHashCode)
+    def module(location: Location): Module = locationsModules(location.identityHashCode)
 
-case class Library(groupId: String, artifactId: String, version: String)
-
-object Index {
-  implicit val semigroup = new Semigroup[Index] {
-    override def combine(x: Index, y: Index) = {
-      Index(
-        x.projects ++ y.projects,
-        x.moduleMap ++ y.moduleMap,
-        x.implicitDeclarations ++ y.implicitDeclarations,
-        x.implicitCallSites ++ y.implicitCallSites,
-        x.declarationMap ++ y.declarationMap,
-        x.callSiteMap ++ y.callSiteMap,
-        x.locationMap ++ y.locationMap
-      )
+    override def resolveType(tpe: Type): Declaration = {
+      implicitDeclarations(tpe.declarationRef)
     }
   }
 
-  implicit class IdentityHashCode(x: AnyRef) {
-    def identityHashCode: Int = System.identityHashCode(x)
+object Index extends LazyLogging {
+  implicit val monoid: Monoid[Index] = new Monoid[Index] {
+    override def combine(x: Index, y: Index) = {
+      Index(
+        x.projects ++ y.projects,
+        x.modulesProjects ++ y.modulesProjects,
+        x.implicitDeclarations ++ y.implicitDeclarations,
+        x.implicitCallSites ++ y.implicitCallSites,
+        x.declarationsModules ++ y.declarationsModules,
+        x.callSitesModules ++ y.callSitesModules,
+        x.locationsModules ++ y.locationsModules
+      )
+    }
+    override def empty: Index = Index(List(), Map(), Map(), List(), Map(), Map(), Map())
   }
 
-  implicit class ModuleOps(that: Module)(implicit idx: Index) {
-    def project: Project = idx.moduleMap(that)
+  private def task[T](name: String, thunk: => T): T = {
+    logger.debug(name + "...")
+
+    val time = System.currentTimeMillis()
+
+    try {
+      val result = thunk
+      val elapsed = System.currentTimeMillis() - time
+      logger.debug(name + " in " + elapsed)
+      result
+    } catch {
+      case e: Throwable =>
+        logger.warn(name + " FAILED")
+        throw e
+    }
   }
 
-//  trait LocationOps {
-//    def location: Location
-//    def inModule(implicit idx: Index): Boolean =
-//
-//  }
+  def apply(path: File): Index =
+    task("Building index", {
+      val projects = task(s"Loading implicits from $path", {
+        path.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
+      })
 
-  implicit class DeclarationOps(that: Declaration)(implicit idx: Index) {
-    //def inModule: Boolean = that.location.map(location => idx.declarationMap(that.identityHashCode) == idx.locationMap(location))
-  }
+      task(s"Indexing", {
+        projects.toStream.map(buildIndex).reduce(_ |+| _)
+      })
+    })
 
-  //  implicit class LocationOps(that: Location)(implicit idx: Index) {
-  //    def githubURL: String = ???
-  //    def isLocal: Boolean = ???
-  //    def isJDK: Boolean = ???
-  //    def library: Option[Library] = idx.libraries.get(that)
-  //    def project: Option[Project] = idx.locations.get(System.identityHashCode(that))
-  //  }
+  private def buildIndex(project: Project): Index =
+    task(s"Index for project ${project.projectId}", {
+      project.modules.toStream
+        .map(buildModuleIndex(project, _))
+        .foldLeft(Index.monoid.empty)(_ |+| _)
+    })
 
-  def apply(path: File): Index = {
-    val projects = path.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
-
-    def buildModuleIndex(project: Project, module: Module): Index = {
-      val empty = (Map[Int, Module](), List[Declaration](), Map[Int, Module]())
+  private def buildModuleIndex(project: Project, module: Module): Index =
+    task(s"Index for module ${module.moduleId}", {
+      val empty = (Map[Int, Module](), Map[String, Declaration](), Map[Int, Module]())
 
       val (declarationMap, implicitDeclarations, declarationsLocations) =
         module.declarations.foldLeft(empty) {
           case ((map, implicits, locations), declaration) =>
             (
               map + (declaration.identityHashCode -> module),
-              if (declaration.isImplicit) declaration :: implicits else implicits,
+              if (declaration.isImplicit) implicits + (declaration.fqn -> declaration) else implicits,
               declaration.location
                 .map(x => locations + (x.identityHashCode -> module))
                 .getOrElse(locations)
@@ -100,12 +129,5 @@ object Index {
         callSiteMap,
         declarationsLocations ++ callSitesLocations
       )
-    }
-
-    def buildIndex(project: Project): Index = {
-      project.modules.toStream.map(buildModuleIndex(project, _)).reduce(_ |+| _)
-    }
-
-    projects.toStream.map(buildIndex).reduce(_ |+| _)
-  }
+    })
 }
