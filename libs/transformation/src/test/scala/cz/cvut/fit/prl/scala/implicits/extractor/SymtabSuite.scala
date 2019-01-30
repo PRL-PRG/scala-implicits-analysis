@@ -4,6 +4,8 @@ import org.scalatest.Matchers
 class SymtabSuite extends SemanticdbSuite with Matchers {
 
   test("symbol resolution") {
+    val symtab = GlobalSymbolTable(classpath)
+
     symtab.resolve("java/util/ArrayList#size.") shouldBe defined
     symtab.resolve("java/lang/String#") shouldBe defined
     //symtab.resolve("java/lang/String#`+`().") shouldBe defined

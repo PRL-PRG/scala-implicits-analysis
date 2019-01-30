@@ -15,12 +15,13 @@ trait CaseClassAssertions extends DiffAssertions with Matchers {
   }
 
   def checkElement[T](actual: T, expected: T): Unit = {
-    val expectedText =
-      pprint.apply(expected, height = Integer.MAX_VALUE, indent = 2).plainText
-    val actualText =
-      pprint.apply(actual, height = Integer.MAX_VALUE, indent = 2).plainText
+    if (actual != expected) {
+      val expectedText =
+        pprint.apply(expected, height = Integer.MAX_VALUE, indent = 2).plainText
+      val actualText =
+        pprint.apply(actual, height = Integer.MAX_VALUE, indent = 2).plainText
 
-    assertNoDiffOrPrintExpected(expectedText, actualText)
+      assertNoDiffOrPrintExpected(expectedText, actualText)
+    }
   }
-
 }

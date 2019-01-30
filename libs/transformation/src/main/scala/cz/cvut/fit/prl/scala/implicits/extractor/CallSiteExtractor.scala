@@ -77,7 +77,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
     def convert(synthetic: s.Synthetic): List[m.CallSite] = {
 
-      val syntheticLocation = Location(db.uri, Some(synthetic.range.get))
+      val path = ctx.relaxedSourcePath(db.uri)
+      val relativeUri = db.uri.substring(path.length)
+      val syntheticLocation = Location(path, relativeUri, Some(synthetic.range.get))
 
       def convertInternal(tree: s.Tree, inCall: Boolean): List[Call] = tree match {
 
@@ -112,7 +114,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
             qualifier match {
               case s.OriginalTree(Some(range)) =>
-                val location = m.Location(db.uri, Some(range))
+                val location = m.Location(path, relativeUri, Some(range))
                 cs.copy(location = Some(location)) :: Nil
               case _ =>
                 cs :: convertInternal(qualifier, false)
@@ -165,7 +167,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                 }
 
                 val declaration = ctx.resolveDeclaration(symbol)
-                val location = m.Location(db.uri, Some(range))
+                val location = m.Location(path, relativeUri, Some(range))
                 val code = declaration.name
                 Call(declaration, code, Some(location))
               }

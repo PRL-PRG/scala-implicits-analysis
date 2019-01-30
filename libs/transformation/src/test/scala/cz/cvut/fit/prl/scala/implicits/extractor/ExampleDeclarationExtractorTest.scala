@@ -26,7 +26,7 @@ class ExampleDeclarationExtractorTest extends FunSuite with Matchers {
     val (metadata, warnings) = ProjectMetadata(ProjectPath)
     warnings should have size 0
     val subProjectMetadata = metadata.modules.head
-    val ctx = new ExtractionContext(subProjectMetadata.resolver)
+    val ctx = new ExtractionContext(subProjectMetadata.resolver, metadata.sourcepathEntries.map(_.path))
     val extractor = new DeclarationExtractor(ctx)
     val db = subProjectMetadata.semanticdbs.find(_.uri.endsWith("JsonExample.scala")).get
 

@@ -1,6 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{DeclarationResolver, TypeResolver}
+import cz.cvut.fit.prl.scala.implicits.model.{DeclarationResolver, SourcepathEntry, TypeResolver}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
@@ -9,17 +9,27 @@ import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.util.Try
 
-class ExtractionContext(resolver: SemanticdbSymbolResolver)
+class ExtractionContext(resolver: SemanticdbSymbolResolver, val sourcePaths: List[String])
     extends TypeResolver
     with SymbolResolver
     with DeclarationResolver {
 
   private val declarationIndex: mutable.Map[String, m.Declaration] = mutable.Map()
+  private val sourcePathIndex: mutable.Map[String, Option[String]] = mutable.Map()
 
   def resolveDeclaration(symbol: String): m.Declaration =
     resolveDeclaration(resolveSymbol(symbol))
 
   def declarations: List[m.Declaration] = declarationIndex.values.toList
+
+  def sourcePath(uri: String): Option[String] = {
+    sourcePathIndex.getOrElseUpdate(
+      uri,
+      sourcePaths.collectFirst { case x if uri.startsWith(x) => x }
+    )
+  }
+
+  def relaxedSourcePath(uri: String): String = sourcePath(uri).getOrElse("")
 
   override def resolveType(tpe: m.Type): m.Declaration =
     declarationIndex(tpe.declarationRef)

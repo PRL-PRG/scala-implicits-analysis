@@ -94,7 +94,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite {
       SCALA,
       true,
       TypeSignature(
-        parents = List(
+        parents = Vector(
           TypeRef("p/o.T#")
         )
       )

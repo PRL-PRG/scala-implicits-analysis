@@ -79,7 +79,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   class A
       |   class B
       |   object B {
-      |     implicit def apply(x: String)(implicit y: A)
+      |     implicit def apply(x: String)(implicit y: A) = ???
       |   }
       |
       |   implicit val a = new A
@@ -98,7 +98,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       | object o {
       |   class B
       |   object B {
-      |     implicit def apply(x: String)
+      |     implicit def apply(x: String) = ???
       |   }
       |
       |   B("A")
@@ -116,7 +116,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       | object o {
       |   class A
       |
-      |   implicit def pipe[T](x: T)(implicit y: A)
+      |   implicit def pipe[T](x: T)(implicit y: A) = ???
       |   implicit val a = new A
       |
       |   pipe(1)
@@ -145,7 +145,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       | object o {
       |   class A
       |
-      |   implicit def pipe[T](x: T)(implicit y: T)
+      |   implicit def pipe[T](x: T)(implicit y: T) = ???
       |   implicit val a = new A
       |
       |   pipe(new A)
@@ -173,7 +173,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       | object o {
       |   class A
       |
-      |   implicit def pipe[T](x: T)(implicit y: A)
+      |   implicit def pipe[T](x: T)(implicit y: A) = ???
       |   implicit val a = new A
       |
       |   pipe(1)(a)
@@ -191,7 +191,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       |   class A
       |
       |   implicit def a: A = new A
-      |   def f(x: Int)(implicit y: A)
+      |   def f(x: Int)(implicit y: A) = ???
       |   f(1)
       | }
     """.stripMargin
@@ -546,7 +546,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       | object o {
       |   class B
       |   object B {
-      |     def apply(x: String)
+      |     def apply(x: String) = ???
       |   }
       |
       |   B("A")
@@ -563,7 +563,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite {
       | object o {
       |   class B
       |   object B {
-      |     def apply(x: String)(implicit y: Int)
+      |     def apply(x: String)(implicit y: Int) = ???
       |   }
       |
       |   B("A")(1)

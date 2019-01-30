@@ -1,3 +1,3 @@
 #!/bin/sh
 
-make -f ../../Makefile.project clean metadata semanticdb
+make -f ../../Makefile.project clean implicits

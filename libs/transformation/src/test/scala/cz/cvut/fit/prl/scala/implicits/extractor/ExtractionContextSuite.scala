@@ -34,8 +34,8 @@ abstract class ExtractionContextSuite
     with Inside
     with CaseClassAssertions {
 
-  val TestLocalLocation = m.Location("test-location", Some(m.Position(0, 0, 0, 0)))
-  val TestExternalLocation = m.Location("test-external-location", None)
+  val TestLocalLocation = m.Location("test-location", "", Some(m.Position(0, 0, 0, 0)))
+  val TestExternalLocation = m.Location("test-external-location", "", None)
 
   def extraction(
       name: String,
@@ -48,10 +48,12 @@ abstract class ExtractionContextSuite
       }
     }
 
-    database(name, code) { db =>
-      val resolver = SemanticdbSymbolResolver(Seq(db), symtab)
-      val ctx = new ExtractionContext(resolver)
-      val extractor = new DeclarationExtractor(ctx)
+    database(name, code) { (outputPath, db) =>
+      val symtab = GlobalSymbolTable(classpath ++ Classpath(outputPath.path))
+      val sourcePaths = List(outputPath.pathAsString)
+      val resolver = SemanticdbSymbolResolver(Seq(db), symtab, sourcePaths)
+      val ctx = new ExtractionContext(resolver, sourcePaths)
+
       fn(ctx, db)
     }
   }
@@ -66,7 +68,7 @@ abstract class ExtractionContextSuite
       val (declarations, failures) = result.split()
 
       checkNoFailures(failures)
-      fn(DeclarationsResult(declarations.map(_.simplify), ctx, db))
+      fn(DeclarationsResult(declarations.map(_.simplify(ctx)), ctx, db))
     }
   }
 
@@ -82,7 +84,7 @@ abstract class ExtractionContextSuite
       val count = extractor.callSiteCount(ast)
 
       checkNoFailures(failures)
-      fn(CallSitesResult(callSites.map(_.simplify), callSites, count, ctx, db))
+      fn(CallSitesResult(callSites.map(_.simplify(ctx)), callSites, count, ctx, db))
     }
   }
 
@@ -93,8 +95,8 @@ abstract class ExtractionContextSuite
 
   implicit class SimplifyCallSite(that: m.CallSite) {
 
-    def simplify: m.CallSite = that.copy(
-      location = that.location.map(_.simplify),
+    def simplify(ctx: ExtractionContext): m.CallSite = that.copy(
+      location = that.location.map(_.simplify(ctx)),
       typeArguments = that.typeArguments.map(_.simplify),
       implicitArgumentTypes = that.implicitArgumentTypes.map(_.simplify)
     )
@@ -102,9 +104,9 @@ abstract class ExtractionContextSuite
 
   implicit class SimplifyDeclaration(that: m.Declaration) {
 
-    def simplify: m.Declaration =
+    def simplify(ctx: ExtractionContext): m.Declaration =
       that.copy(
-        location = that.location.map(_.simplify),
+        location = that.location.map(_.simplify(ctx)),
         signature = that.signature.simplify
       )
   }
@@ -114,7 +116,7 @@ abstract class ExtractionContextSuite
       case y @ m.Declaration.Signature.Method(v) =>
         m.Declaration.Signature.Method(v.simplify)
       case y @ m.Declaration.Signature.Type(v) => m.Declaration.Signature.Type(v.simplify)
-      case y                       => y
+      case y => y
     }
   }
 
@@ -172,17 +174,23 @@ abstract class ExtractionContextSuite
 
   implicit class SimplifyLocation(that: m.Location) {
 
-    def simplify: m.Location = that match {
-      case m.Location(_, Some(_)) => TestLocalLocation
-      case m.Location(_, None)    => TestExternalLocation
+    def simplify(ctx: ExtractionContext): m.Location = {
+      that match {
+        // coming from a class file from the locally compiled project
+        case m.Location(path, _, _) if ctx.sourcePaths.contains(path) =>
+          TestLocalLocation
+        // coming from a local symbol from sdb.symbols
+        case m.Location("", _, _) =>
+          TestLocalLocation
+        case _ => TestExternalLocation
+      }
     }
   }
 
   implicit def typeSignature2type(x: m.TypeSignature): m.Declaration.Signature.Type =
     m.Declaration.Signature.Type(x)
 
-  implicit def methodSignature2method(
-      x: m.MethodSignature): m.Declaration.Signature.Method =
+  implicit def methodSignature2method(x: m.MethodSignature): m.Declaration.Signature.Method =
     m.Declaration.Signature.Method(x)
 
 }

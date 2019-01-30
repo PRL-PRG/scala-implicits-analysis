@@ -33,7 +33,8 @@ class GlobalSymbolTableTest extends FunSuite with Matchers with OptionValues wit
 
     val location = symbol.value.location.get
 
-    location.uri should endWith("scala-library-2.12.7.jar!scala/Int.class")
+    location.path should endWith("scala-library-2.12.7.jar")
+    location.relativeUri should endWith("scala/Int.class")
     location.position should not be defined
   }
 
@@ -46,7 +47,8 @@ class GlobalSymbolTableTest extends FunSuite with Matchers with OptionValues wit
 
     val location = symbol.value.location.get
 
-    location.uri should endWith("target/scala-2.12/classes/cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable.class")
+    location.path should endWith("target/scala-2.12/classes")
+    location.relativeUri should endWith("cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable.class")
     location.position should not be defined
   }
 }

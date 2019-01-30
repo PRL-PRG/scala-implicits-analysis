@@ -16,9 +16,11 @@ message Position {
 }
 
 message Location {
-    required string uri = 1;
+    required string path = 1;
+    // the relative path within the path, for example within a jar file
+    required string relativeUri = 2;
     // position, in case it is a source path
-    optional Position position = 2;
+    optional Position position = 3;
 }
 
 message PathEntry {

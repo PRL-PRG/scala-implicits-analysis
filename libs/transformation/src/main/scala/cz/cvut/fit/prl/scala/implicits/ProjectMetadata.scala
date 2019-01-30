@@ -41,7 +41,8 @@ case class ModuleMetadata(
   private val asts: TrieMap[String, Source] = TrieMap()
 
   lazy val symbolTable: SymbolTable = GlobalSymbolTable(classpath)
-  lazy val resolver: SemanticdbSymbolResolver = SemanticdbSymbolResolver(semanticdbs, symbolTable)
+  lazy val resolver: SemanticdbSymbolResolver =
+    SemanticdbSymbolResolver(semanticdbs, symbolTable, sourcepathEntries.map(_.path))
 
   def ast(filename: String): Source =
     asts.getOrElseUpdate(filename, semanticdbs.find(_.uri == filename).head.text.parse[Source].get)
@@ -53,7 +54,10 @@ case class ProjectMetadata(
     scalaVersion: String,
     sbtVersion: String,
     modules: Seq[ModuleMetadata]
-)
+) {
+  lazy val sourcepathEntries: List[SourcepathEntry] =
+    modules.foldLeft(List[SourcepathEntry]())(_ ++ _.sourcepathEntries)
+}
 
 object ProjectMetadata {
   def apply(path: File): (ProjectMetadata, Seq[Throwable]) = {

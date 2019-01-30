@@ -173,7 +173,7 @@ object ExtractImplicits extends App {
   }
 
   def extractModule(metadata: ModuleMetadata): (Module, List[Throwable]) = {
-    val ctx = new ExtractionContext(metadata.resolver)
+    val ctx = new ExtractionContext(metadata.resolver, metadata.sourcepathEntries.map(_.path))
     val declExtractor = new DeclarationExtractor(ctx)
     val csExtractor = new CallSiteExtractor(ctx)
 
