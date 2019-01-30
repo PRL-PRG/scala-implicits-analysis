@@ -130,7 +130,7 @@ clean-semanticdb:
 compile:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 0) -ne '0' ] && \
-    rm $(COMPILE_STATUS)
+    rm $(COMPILE_STATUS) || echo "No need to redo"
 endif
 	$(MAKE) -f $(this_makefile) $(COMPILE_STATUS)
 
@@ -139,14 +139,14 @@ ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
-    rm $(IMPLICITS_STATUS)
+    rm $(IMPLICITS_STATUS) || echo "No need to redo"
 endif
 	$(MAKE) -f $(this_makefile) $(IMPLICITS_STATUS)
 
 metadata:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -ne '0' ] && \
-    rm $(METADATA_STATUS)
+    rm $(METADATA_STATUS) || echo "No need to redo"
 endif
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
@@ -164,7 +164,7 @@ semanticdb:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
-    rm $(SEMANTICDB_STATUS)
+    rm $(SEMANTICDB_STATUS) || echo "No need to redo"
 endif
 	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS)
 
