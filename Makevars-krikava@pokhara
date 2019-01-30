@@ -1,0 +1,8 @@
+# -*- mode: makefile -*-
+
+GLOBAL_IVY_DIR := ~/.ivy2
+GLOBAL_SBT_BOOT_DIR := ~/.sbt/boot
+N_JOBS := 2
+TIMEOUT := 60m
+SBT_MEM := 8196
+MAX_MEM := 8196
