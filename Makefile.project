@@ -62,7 +62,7 @@ $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 $(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
-    $(SBT) semanticdb >$(SEMANTICDB_LOG) 2>&1; \
+    $(SBT) clean semanticdb >$(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(SEMANTICDB_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS); \
