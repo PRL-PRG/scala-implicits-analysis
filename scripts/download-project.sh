@@ -7,18 +7,19 @@ if [ $# -ne 2 ]; then
     exit 1;
 fi
 
+REDO=${REDO:-0}
 URL="$1"
 DIR="$2"
 
-[ -d "$DIR" ] && [ $REDO -ne 1 ] && exit 0
+[ $REDO -eq 0 ] || rm -fr "$DIR"
 
-GIT_TERMINAL_PROMPT=0 git clone "$URL" "$DIR"
+[ -d "$DIR" ] || GIT_TERMINAL_PROMPT=0 git clone "$URL" "$DIR"
 
-cd $DIR
+cd "$DIR"
 
-git submodule update --init --recursive
+[ -f .gitmodules ] && git submodule update --init --recursive
 
-# checkout the latest tag
-if git describe --abbrev=0; then
-    git checkout $(git describe --abbrev=0)
-fi
+TAG=$(git log --tags --simplify-by-decoration --pretty="format:%ct %h %D" | grep 'tag:' | sort -k 1 -n -r | head -1 | cut -f 2 -d ' ')
+
+[ -n $TAG ] && git checkout $TAG
+
