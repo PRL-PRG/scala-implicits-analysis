@@ -38,11 +38,14 @@ bootstrap :=
 	clean-dejavu \
 	clean-implicits \
 	clean-metadata \
+	clean-projects \
 	clean-repo-build-system \
 	clean-repo-metadata \
 	clean-repo-sloc \
 	clean-sbt \
+	clean-sbt-projects \
 	clean-semanticdb \
+	clean-so-projects \
 	clean-classes \
 	compile \
 	dejavu \
@@ -80,7 +83,7 @@ $(PROJECTS_GITHUB_INFO): $(SBT_PROJECTS_FILE)
 
 $(GLOBAL_REPO_BUILD_SYSTEM): $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
 	$(parallel) TASK=repo-build-system PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
-	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_BUILD_SYSTEM) "c" $(GLOBAL_REPO_BUILD_SYSTEM)
+	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_BUILD_SYSTEM) "cc" $(GLOBAL_REPO_BUILD_SYSTEM)
 
 $(GLOBAL_REPO_METADATA): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 	$(parallel) TASK=repo-metadata PROJECTS_FILE=$(SO_PROJECTS_FILE) PROJECTS_DIR=$(SO_PROJECTS_DIR)
@@ -93,7 +96,7 @@ $(GLOBAL_REPO_SLOC): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 $(DEJAVU_INPUT): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 	[ -d $(DEJAVU_HOME) ] || mkdir $(DEJAVU_HOME)
 	[ -d $(DEJAVU_DOWNLOAD) ] || mkdir $(DEJAVU_DOWNLOAD) && \
-	  parallel --bar -a $(SO_PROJECTS_FILE) ln -s '$$(pwd)/$(SO_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
+	  parallel --bar -a $(SO_PROJECTS_FILE) ln -sf '$$(pwd)/$(SO_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
 
 	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SO_PROJECTS_FILE) $(DEJAVU_INPUT)
 	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
@@ -118,22 +121,24 @@ $(DEJAVU_FILES_HASH): dejavu/files.csv.h2i
 $(ALL_PROJECTS_DIR): $(ALL_PROJECTS_FILE)
 	-mkdir -p $(ALL_PROJECTS_DIR)
 	-cat $(ALL_PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
-        parallel -C, --bar -j4 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
-	$(MAKE) -f $(this_makefile) path-downloaded-projects
+        parallel --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
+	$(MAKE) -f $(this_makefile) patch-downloaded-projects
 
 $(SBT_PROJECTS_FILE): $(GLOBAL_REPO_BUILD_SYSTEM)
 	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_BUILD_SYSTEM)"), startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
 
 $(SBT_PROJECTS_DIR): $(SBT_PROJECTS_FILE)
+	rm -fr $(SBT_PROJECTS_DIR)
 	mkdir -p $(SBT_PROJECTS_DIR)
-	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(SBT_PROJECTS_DIR)/{1}'
+	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(SBT_PROJECTS_DIR)/{1}'
 
 $(SO_PROJECTS_FILE): $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
 	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
 
 $(SO_PROJECTS_DIR): $(SO_PROJECTS_FILE)
+	rm -fr $(SO_PROJECTS_DIR)
 	mkdir -p $(SO_PROJECTS_DIR)
-	parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(SO_PROJECTS_DIR)/{1}'
+	parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(SO_PROJECTS_DIR)/{1}'
 
 # TODO: filter out duplicate projects
 $(PROJECTS_FILE): $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC) $(DEJAVU_FILES_HASH)
@@ -141,7 +146,7 @@ $(PROJECTS_FILE): $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC) $(DEJAVU_FILES_HAS
 
 $(PROJECTS_DIR): $(PROJECTS_FILE)
 	mkdir -p $(PROJECTS_DIR)
-	parallel --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)/{1}'
+	parallel --bar -j1 -a $(PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)/{1}'
 
 $(GLOBAL_METADATA_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
 	$(parallel) TASK=metadata REDO=$(REDO)
@@ -179,25 +184,29 @@ $(GLOBAL_IMPLICITS_EXCEPTIONS):
 
 all:
 	$(MAKE) -f $(this_makefile) metadata
-	$(MAKE) -f $(this_makefile) redo-metadata-metadata
+	$(MAKE) -f $(this_makefile) redo-failed-metadata
 	$(MAKE) -f $(this_makefile) compile
 	$(MAKE) -f $(this_makefile) semanticdb
+	$(MAKE) -f $(this_makefile) redo-failed-semanticdb
 	$(MAKE) -f $(this_makefile) implicits
+	$(MAKE) -f $(this_makefile) report
 
 clean:
-	$(MAKE) -f $(this_makefile) parallel TASK=$@
-	-rm -fr $(LOG_DIR_BASE)
+	-$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -fr $(LOG_DIR_BASE) $(JOBSFILE)
 	-rm -f $(GLOBAL_REPO_BUILD_SYSTEM)
-	-rm -f $(PROJECTS_GITHUB_DATA)
+	-rm -f $(PROJECTS_GITHUB_INFO)
 	-rm -f $(GLOBAL_REPO_METADATA)
 	-rm -f $(GLOBAL_REPO_SLOC)
-	$(MAKE) -f $(this_makefile) clean-dejavu
-	$(MAKE) -f $(this_makefile) clean-sbt-projects
-	$(MAKE) -f $(this_makefile) clean-so-projects
+	-$(MAKE) -f $(this_makefile) clean-dejavu
+	-$(MAKE) -f $(this_makefile) clean-sbt-projects
+	-$(MAKE) -f $(this_makefile) clean-so-projects
+	-$(MAKE) -f $(this_makefile) clean-projects
 	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_VERSIONS) $(GLOBAL_METADATA_SOURCEPATHS)
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
-	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_STATUS)
+	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	-rm -f report.html
 
 clean-classes:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -217,6 +226,9 @@ clean-metadata:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_VERSIONS) $(GLOBAL_METADATA_SOURCEPATHS)
 
+clean-projects:
+	-rm -fr $(PROJECTS_FILE) $(PROJECTS_DIR)
+
 clean-repo-build-system:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
 
@@ -232,12 +244,12 @@ clean-sbt:
 clean-sbt-projects:
 	-rm -fr $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
 
-clean-so-projects:
-	-rm -fr $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
-
 clean-semanticdb:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
+
+clean-so-projects:
+	-rm -fr $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 
 compile: $(GLOBAL_COMPILE_STATUS)
 
@@ -275,7 +287,7 @@ parallel:
       --shuf \
       make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project $(TASK) REDO=$(REDO)
 
-patch-downloaded-projects: $(ALL_PROJECTS_DIR)
+patch-downloaded-projects:
 	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
 
 redo-failed-compile:
