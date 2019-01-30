@@ -12,3 +12,5 @@ target
 /corpora/
 /scripts/tools/js-tokenizer/build
 /scripts/tools/sccpreprocessor/src/*.class
+/libs/example/.sbt-boot
+/scripts/analysis/.ipynb_checkpoints/
