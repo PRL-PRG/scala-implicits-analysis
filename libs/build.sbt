@@ -35,7 +35,8 @@ lazy val model = (project in file("model"))
       Semanticdb,
       ScalaProtocolBuffers,
       BetterFiles,
-      ScalaTest
+      ScalaTest,
+      ScalaCheck
     ),
     PB.targets in Compile := Seq(
       scalapb.gen(
@@ -64,6 +65,8 @@ lazy val transformation = (project in file("transformation"))
       KantanCsv,
       TypeLevelCats,
       TypeLevelKittens,
+      ScalaLogging,
+      LogBack,
       ScalaTest,
       ScalaCheck
     ),
@@ -134,6 +137,8 @@ lazy val ScalaProtocolBuffers = "com.thesamet.scalapb" %% "scalapb-runtime" % sc
 lazy val BetterFiles = "com.github.pathikrit" %% "better-files" % "3.4.0"
 lazy val KantanCsv = "com.nrinaudo" %% "kantan.csv-generic" % "0.4.0"
 lazy val PPrint = "com.lihaoyi" %% "pprint" % "0.5.3"
+lazy val ScalaLogging = "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
+lazy val LogBack = "ch.qos.logback" % "logback-classic" % "1.2.3"
 
 lazy val ScalaTest = "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test
 // ScalaTest missing dependency
