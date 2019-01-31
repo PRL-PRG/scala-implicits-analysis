@@ -86,7 +86,7 @@ message Declaration {
     required Kind kind = 1;
     required string fqn = 2;
     required string name = 3;
-    optional Location location = 4;
+    required Location location = 4;
     required Language language = 5;
     required bool isImplicit = 6;
 

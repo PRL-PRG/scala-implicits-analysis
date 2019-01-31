@@ -1,19 +1,22 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model.Location
+import cz.cvut.fit.prl.scala.implicits.utils.BuildInfo
 
 import scala.collection.concurrent.TrieMap
 import scala.meta.cli._
 import scala.meta.internal.classpath._
 import scala.meta.internal.metacp._
 import scala.meta.internal.scalacp.Scalalib
+import scala.meta.internal.semanticdb.Language.SCALA
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.semanticdb.SymbolInformation
+import scala.meta.internal.semanticdb.SymbolInformation.Kind.PACKAGE
 import scala.meta.io._
 import scala.meta.metacp._
 import scala.reflect.NameTransformer
 
-case class ResolvedSymbol(symbolInfo: SymbolInformation, location: Option[Location])
+case class ResolvedSymbol(symbolInfo: SymbolInformation, location: Location)
 
 trait SymbolTable {
   def resolve(symbol: String): Option[ResolvedSymbol]
@@ -27,21 +30,42 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
   private val classpathIndex = ClasspathIndex(classpath)
   private val symbolCache = TrieMap.empty[String, ResolvedSymbol]
 
+  private val scalaLibraryLocation = {
+    Location("_synthetics_", "_synthetics_", None)
+  }
+
   Scalalib.synthetics.foreach(
-    x => enter(x, None)
+    x => enter(x, scalaLibraryLocation)
   )
 
   override def resolve(symbol: String): Option[ResolvedSymbol] = {
     if (symbol.isNone) None
     else if (symbol.isPackage) {
-      if (symbol.isRootPackage || symbol.isEmptyPackage || classpathIndex
-            .isClassdir(symbol)) {
+      if (symbol.isRootPackage ||
+          symbol.isEmptyPackage ||
+          classpathIndex.isClassdir(symbol)) {
+
+        val location = {
+          val tmp = classpathIndex.dirs
+            .get(symbol)
+            .flatMap(_.members.collectFirst {
+              case (_, UncompressedClassfile(_, path)) =>
+                Location(path.toFile.getAbsolutePath, symbol)
+              case (_, CompressedClassfile(_, path)) =>
+                Location(path.getAbsolutePath, symbol)
+            })
+
+          tmp.getOrElse(Location("_package_", symbol))
+        }
+
         val info = SymbolInformation(
           symbol = symbol,
-          kind = SymbolInformation.Kind.PACKAGE,
+          kind = PACKAGE,
+          language = SCALA,
           displayName = symbol.desc.value
         )
-        Some(ResolvedSymbol(info, None))
+
+        Some(ResolvedSymbol(info, location))
       } else {
         None
       }
@@ -67,7 +91,7 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
         ClassfileInfos.fromClassNode(node, classpathIndex, settings, reporter) match {
           case Some(infos) =>
             val location = createLocation(classfile)
-            enter(infos, Some(location))
+            enter(infos, location)
           case _ =>
             ()
         }
@@ -76,7 +100,7 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
     }
   }
 
-  private def enter(infos: ClassfileInfos, location: Option[Location]): Unit =
+  private def enter(infos: ClassfileInfos, location: Location): Unit =
     infos.infos.foreach { info =>
       symbolCache(info.symbol) = ResolvedSymbol(info, location)
     }

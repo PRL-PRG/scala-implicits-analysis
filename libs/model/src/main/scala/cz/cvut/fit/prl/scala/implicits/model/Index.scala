@@ -98,9 +98,7 @@ object Index extends LazyLogging {
             (
               map + (declaration.identityHashCode -> module),
               if (declaration.isImplicit) implicits + (declaration.fqn -> declaration) else implicits,
-              declaration.location
-                .map(x => locations + (x.identityHashCode -> module))
-                .getOrElse(locations)
+              locations + (declaration.location.identityHashCode -> module)
             )
         }
 

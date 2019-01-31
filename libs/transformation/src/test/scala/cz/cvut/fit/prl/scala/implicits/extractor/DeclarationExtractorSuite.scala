@@ -18,7 +18,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       DEF,
       "p/o.x().",
       "x",
-      Some(TestLocalLocation),
+      TestLocalLocation,
       SCALA,
       true,
       MethodSignature(
@@ -43,7 +43,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       DEF,
       "p/o.C#x().",
       "x",
-      Some(TestLocalLocation),
+      TestLocalLocation,
       SCALA,
       true,
       MethodSignature(
@@ -66,7 +66,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       VAR,
       "p/o.x().",
       "x",
-      Some(TestLocalLocation),
+      TestLocalLocation,
       SCALA,
       true,
       MethodSignature(
@@ -90,7 +90,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       OBJECT,
       "p/o.x.",
       "x",
-      Some(TestLocalLocation),
+      TestLocalLocation,
       SCALA,
       true,
       TypeSignature(
@@ -119,7 +119,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         d.kind shouldBe DEF
         d.name shouldBe "i2s"
         d.isImplicit shouldBe true
-        d.location shouldBe Some(TestLocalLocation)
+        d.location shouldBe TestLocalLocation
         d.language.isScala shouldBe true
         d.returnType.name shouldBe "String"
 
@@ -159,7 +159,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         CLASS,
         "p/o.XtensionJson#",
         "XtensionJson",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         SCALA,
         true,
         TypeSignature(List(TypeParameter("T")))
@@ -168,7 +168,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         VAL,
         "p/o.XtensionJson#ev.",
         "ev",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(
@@ -187,7 +187,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         DEF,
         "p/o.XtensionJson().",
         "XtensionJson",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(
@@ -259,7 +259,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         VAL,
         "p/o.XtensionJson#evidence$1.",
         "evidence$1",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(
@@ -278,7 +278,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         CLASS,
         "p/o.XtensionJson#",
         "XtensionJson",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         SCALA,
         true,
         TypeSignature(List(TypeParameter("T")))
@@ -287,7 +287,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         DEF,
         "p/o.XtensionJson().",
         "XtensionJson",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         SCALA,
         true,
         MethodSignature(

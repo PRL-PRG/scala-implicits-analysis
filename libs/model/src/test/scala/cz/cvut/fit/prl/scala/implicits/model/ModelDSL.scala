@@ -37,7 +37,7 @@ trait ModelDSL {
       DEF,
       fqn,
       fqn.desc.name.value,
-      None,
+      Location("path", "uri", None),
       SCALA,
       false,
       MethodSignature(returnType = typeRef("scala/Unit#")))
@@ -46,7 +46,8 @@ trait ModelDSL {
   }
 
   def clazz(fqn: String, updates: Update[Declaration]*): Declaration = {
-    val d = Declaration(CLASS, fqn, fqn.desc.name.value, None, SCALA, false)
+    val d =
+      Declaration(CLASS, fqn, fqn.desc.name.value, Location("path", "uri", None), SCALA, false)
 
     d.update(updates: _*)
   }

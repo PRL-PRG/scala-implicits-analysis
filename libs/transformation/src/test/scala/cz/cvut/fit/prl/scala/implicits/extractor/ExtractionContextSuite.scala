@@ -27,7 +27,7 @@ trait ModelSimplification {
 
       def simplify(ctx: ExtractionContext): m.Declaration =
         that.copy(
-          location = that.location.map(_.simplify(ctx)),
+          location = that.location.simplify(ctx),
           signature = that.signature.simplify
         )
     }

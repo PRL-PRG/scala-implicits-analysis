@@ -33,8 +33,7 @@ object SemanticdbSymbolResolver {
         s.SymbolOccurrence(rangeOpt, symbol, s.SymbolOccurrence.Role.DEFINITION) <- db.occurrences
         symbolInfo <- db.symbols.find(_.symbol == symbol)
         range = rangeOpt.map(_.toLocal)
-      } yield
-        symbolInfo.symbol -> ResolvedSymbol(symbolInfo, Some(Location(path, relativeUri, range)))
+      } yield symbolInfo.symbol -> ResolvedSymbol(symbolInfo, Location(path, relativeUri, range))
     }.toMap
 
     val localRangeIndex = {
@@ -81,8 +80,8 @@ class SemanticdbSymbolResolver(
 
   private def updateCache(symbol: ResolvedSymbol): ResolvedSymbol = {
     symbol match {
-      case ResolvedSymbol(info, Some(Location(path, uri, None))) =>
-        val updated = ResolvedSymbol(info, Some(Location(path, uri, fixPosition(symbol))))
+      case ResolvedSymbol(info, Location(path, uri, None)) =>
+        val updated = ResolvedSymbol(info, Location(path, uri, fixPosition(symbol)))
         symbolCache += info.symbol -> updated
         updated
       case _ => symbol
@@ -90,13 +89,13 @@ class SemanticdbSymbolResolver(
   }
 
   private def fixPosition(symbol: ResolvedSymbol): Option[Position] = {
-    assert(symbol.location.get.position.isEmpty)
+    assert(symbol.location.position.isEmpty)
 
     symbol.symbolInfo match {
       case si @ s.SymbolInformation(fqn, SCALA, PARAMETER, _, EvidenceParam(), _, _, _)
           if si.isImplicit =>
         for {
-          ResolvedSymbol(owner, Some(loc @ Location(_, _, Some(pos)))) <- localSymbolIndex.get(
+          ResolvedSymbol(owner, loc @ Location(_, _, Some(pos))) <- localSymbolIndex.get(
             fqn.owner) if owner.isMethod
         } yield pos.withStartCol(pos.endCol)
       case _ => None
