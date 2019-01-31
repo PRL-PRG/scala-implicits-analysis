@@ -122,6 +122,20 @@ object MetadataExportPlugin extends AutoPlugin {
           .map { case (maj, min) => Config.updateVersion(maj, min, forcedScalaVersion) }
           .getOrElse("NA")
 
+        val (updatedCompileProductDirectories, updatedTestProductDirectories) =
+      (
+        CrossVersion.partialVersion(forcedScalaVersion),
+        CrossVersion.partialVersion(updatedVersion)
+      ) match {
+        case (Some((_, from)), Some((_, to))) if from != to =>
+          (
+            forcedCompileProductDirectories.map(x => replaceScalaMinorVersionInPath(x, from, to)),
+            forcedTestProductDirectories.map(x => replaceScalaMinorVersionInPath(x, from, to))
+          )
+        case _ =>
+          (forcedCompileProductDirectories, forcedTestProductDirectories)
+      }
+
         // we need to check if the project might build for multiple platforms
         // a better way would be to somehow ask the
         // crossplatform plugin (https://github.com/portable-scala/sbt-crossproject), but
@@ -149,8 +163,8 @@ object MetadataExportPlugin extends AutoPlugin {
           forcedScalaVersion,
           forcedSbtVersion,
           updatedVersion,
-          forcedCompileProductDirectories,
-          forcedTestProductDirectories)
+          updatedCompileProductDirectories,
+          updatedTestProductDirectories)
 
         exportSourcePaths(
           moduleId,
@@ -166,6 +180,17 @@ object MetadataExportPlugin extends AutoPlugin {
 
         exportCleanpaths(moduleId, forcedCleanDirectories)
       }
+    )
+
+  private def replaceScalaMinorVersionInPath(in: File, from: Long, to: Long): File =
+    replaceScalaMinorVersionInPath(in, from.toInt, to.toInt)
+
+  private def replaceScalaMinorVersionInPath(in: File, from: Int, to: Int): File =
+    new File(
+      in.getAbsolutePath.replace(
+        s"target/scala-2.$from/",
+        s"target/scala-2.$to/"
+      )
     )
 
   private def computeSLOC(path: Path): Try[Seq[SLOC]] = {
