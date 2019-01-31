@@ -19,7 +19,3 @@ cd "$DIR"
 
 [ -f .gitmodules ] && git submodule update --init --recursive
 
-TAG=$(git log --tags --simplify-by-decoration --pretty="format:%ct %h %D" | grep 'tag:' | sort -k 1 -n -r | head -1 | cut -f 2 -d ' ')
-
-[ -n $TAG ] && git checkout $TAG
-
