@@ -153,7 +153,7 @@ object ExtractImplicits extends App {
 //
   def extractProject(projectPath: File): Result = {
     val (metadata, warnings) = ProjectMetadata(projectPath)
-    val modulesResult = metadata.modules.map(extractModule)
+    val modulesResult = metadata.modules.map(extractModule(metadata.projectId))
 
     val project = Project(
       metadata.projectId,
@@ -172,8 +172,11 @@ object ExtractImplicits extends App {
     )
   }
 
-  def extractModule(metadata: ModuleMetadata): (Module, List[Throwable]) = {
-    val ctx = new ExtractionContext(metadata.resolver, metadata.sourcepathEntries.map(_.path))
+  def extractModule(projectId: String)(metadata: ModuleMetadata): (Module, List[Throwable]) = {
+    val ctx = new ExtractionContext(
+      metadata.moduleId,
+      metadata.resolver,
+      metadata.sourcepathEntries.map(_.path))
     val declExtractor = new DeclarationExtractor(ctx)
     val csExtractor = new CallSiteExtractor(ctx)
 
@@ -185,7 +188,7 @@ object ExtractImplicits extends App {
     val (callSites, csExceptions) =
       metadata.semanticdbs
         .map(x => x -> metadata.ast(x.uri))
-        .flatMap { case (db, ast) => csExtractor.extractImplicitCallSites(db, ast) }
+        .flatMap { case (db, ast) => csExtractor.extractImplicitCallSites(metadata.moduleId, db, ast) }
         .split()
 
     val csCount =
@@ -199,11 +202,27 @@ object ExtractImplicits extends App {
 
     val exceptions = declExceptions ++ csExceptions
 
+    def classPathEntry(path: String, scope: String): ClasspathEntry =
+      ClasspathEntry(
+        path,
+        metadata.groupId,
+        metadata.artifactId,
+        metadata.version,
+        scope,
+        true,
+        false,
+        false)
+
     val paths =
-      (classpath.map(x => x.path -> x) ++
-        metadata.sourcepathEntries.map(x => x.path -> x)).toMap
+      (
+    classpath.map(x => x.path -> x) ++
+      metadata.sourcepathEntries.map(x => x.path -> x) ++
+      metadata.outputPath.map(x => x -> classPathEntry(x, "compile")) ++
+      metadata.testOutputPath.map(x => x -> classPathEntry(x, "test"))
+  ).toMap
 
     val module = Module(
+      projectId = projectId,
       moduleId = metadata.moduleId,
       groupId = metadata.groupId,
       artifactId = metadata.artifactId,
@@ -212,9 +231,7 @@ object ExtractImplicits extends App {
       paths = paths,
       declarations = ctx.declarations,
       implicitCallSites = callSites,
-      callSitesCount = csCount,
-      outputPath = metadata.outputPath,
-      testOutputPath = metadata.testOutputPath
+      callSitesCount = csCount
     )
 
     (module, exceptions)

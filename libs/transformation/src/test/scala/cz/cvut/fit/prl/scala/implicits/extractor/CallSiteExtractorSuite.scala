@@ -1,6 +1,7 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model._
+import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 import cz.cvut.fit.prl.scala.implicits.utils._
 
 class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplification  {
@@ -126,6 +127,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     // There shall be only one call - adding the implicit arguments
     val expected = List(
       CallSite(
+        TestModuleId,
         "p/o.pipe().",
         "pipe[scala/Int#]",
         Some(TestLocalLocation),
@@ -155,6 +157,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     // There shall be only one call - adding the implicit arguments
     val expected = List(
       CallSite(
+        TestModuleId,
         "p/o.pipe().",
         "pipe[p/o.A#]",
         Some(TestLocalLocation),
@@ -198,12 +201,14 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
   ) { res =>
     val expected = List(
       CallSite(
+        TestModuleId,
         "p/o.a().",
         "a",
         Some(TestLocalLocation),
         List(),
       ),
       CallSite(
+        TestModuleId,
         "p/o.f().",
         "f",
         Some(TestLocalLocation),
@@ -243,11 +248,13 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
   ) { res =>
     val expected = List(
       CallSite(
+        TestModuleId,
         "p/o.RichPath().",
         "RichPath(raw.file)",
         Some(TestLocalLocation)
       ),
       CallSite(
+        TestModuleId,
         "p/o.RichPath#readString().",
         "readString",
         Some(TestLocalLocation),
@@ -285,12 +292,14 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
   ) { res =>
     val expected = List(
       CallSite(
+        TestModuleId,
         "p/o.a().",
         "a",
         Some(TestLocalLocation),
         List()
       ),
       CallSite(
+        TestModuleId,
         "p/o.a2b().",
         "a2b",
         Some(TestLocalLocation),
@@ -302,6 +311,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         )
       ),
       CallSite(
+        TestModuleId,
         "p/o.b2c().",
         "b2c",
         Some(TestLocalLocation),
@@ -313,6 +323,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         )
       ),
       CallSite(
+        TestModuleId,
         "p/o.f().",
         "f",
         Some(TestLocalLocation),
@@ -365,12 +376,14 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
   ) { res =>
     val expected = List(
       CallSite(
+        TestModuleId,
         "p/o.a().",
         "a[scala/Int#]",
         Some(TestLocalLocation),
         List(TypeRef("scala/Int#", List())),
       ),
       CallSite(
+        TestModuleId,
         "p/o.c().",
         "c[scala/Int#](1)",
         Some(TestLocalLocation),
@@ -429,6 +442,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
   ) { res =>
     val expected = List(
       CallSite(
+        TestModuleId,
         "scala/concurrent/Future.apply().",
         ".apply[scala/Int#]",
         Some(TestLocalLocation),
@@ -441,6 +455,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         )
       ),
       CallSite(
+        TestModuleId,
         "scala/concurrent/Future#map().",
         ".map[scala/Int#]",
         Some(TestLocalLocation),
@@ -453,6 +468,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         )
       ),
       CallSite(
+        TestModuleId,
         "scala/concurrent/Future.apply().",
         ".apply[scala/Int#]",
         Some(TestLocalLocation),
@@ -465,6 +481,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         )
       ),
       CallSite(
+        TestModuleId,
         "scala/concurrent/Future#flatMap().",
         ".flatMap[scala/Int#]",
         Some(TestLocalLocation),
@@ -496,6 +513,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = CallSite(
+      TestModuleId,
       "p/o.A#`<init>`().",
       "<init>",
       Some(TestLocalLocation),
@@ -525,6 +543,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = CallSite(
+      TestModuleId,
       "p/o.B.apply().",
       ".apply",
       Some(TestLocalLocation),

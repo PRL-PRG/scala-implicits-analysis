@@ -1,7 +1,7 @@
 package cz.cvut.fit.prl.scala.implicits.model
 
 class TypeResolverStub(table: Map[String, Declaration]) extends TypeResolver {
-  override def resolveType(tpe: Type): Declaration = table(tpe.declarationRef)
+  override def resolveType(ref: DeclarationRef): Declaration = table(ref.declarationFqn)
 }
 
 object TypeResolverStub {

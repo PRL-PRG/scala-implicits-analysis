@@ -2,7 +2,7 @@ package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.utils._
-import cz.cvut.fit.prl.scala.implicits.{model => m}
+import cz.cvut.fit.prl.scala.implicits.{ModuleMetadata, model => m}
 
 import scala.meta._
 import scala.meta.internal.semanticdb.Scala._
@@ -13,7 +13,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
   implicit val _ctx = ctx
 
-  class Converter(db: s.TextDocument, terms: Map[s.Range, Term]) {
+  class Converter(moduleId: String, db: s.TextDocument, terms: Map[s.Range, Term]) {
 
     def findFunctionTerm(t: Term): Option[Tree] = t match {
       case Term.Select(_, name) => Some(t)
@@ -52,6 +52,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         }
 
         m.CallSite(
+          moduleId,
           declaration.fqn,
           code,
           location,
@@ -196,12 +197,15 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     }
   }
 
-  def extractImplicitCallSites(db: s.TextDocument, ast: Source): Seq[Try[m.CallSite]] = {
+  def extractImplicitCallSites(
+      moduleId: String,
+      db: s.TextDocument,
+      ast: Source): Seq[Try[m.CallSite]] = {
     val terms = ast.collect {
       case x: Term => x.pos.toRange -> x
     }.toMap
 
-    val converter = new Converter(db, terms)
+    val converter = new Converter(moduleId, db, terms)
     db.synthetics.toList
       .map(x => x -> Try(converter.convert(x)))
       .collect {

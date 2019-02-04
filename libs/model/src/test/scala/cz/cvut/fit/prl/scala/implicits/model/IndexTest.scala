@@ -6,7 +6,7 @@ class IndexTest extends FunSuite {
 
   test("parsing examples") {
     val idx = Index(File("example/_analysis_/implicits.bin"))
-    println(idx)
+    idx
   }
 
 //  test("parsing top100") {

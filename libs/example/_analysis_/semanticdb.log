@@ -4,7 +4,7 @@
 [info] Loading project definition from /home/krikava/Research/Projects/scala-corpus/libs/example/project
 [info] Loading settings for project example from build.sbt ...
 [info] Set current project to example (in build file:/home/krikava/Research/Projects/scala-corpus/libs/example/)
-[success] Total time: 0 s, completed Jan 31, 2019 11:53:40 AM
+[success] Total time: 0 s, completed Feb 4, 2019 2:11:53 PM
 ** SEMANTICDB VERSION: 4.1.0
 ** SEMANTICDB OPTIONS: List(-Yrangepos, -P:semanticdb:text:on, -P:semanticdb:symbols:all, -P:semanticdb:synthetics:on, -P:semanticdb:diagnostics:off, -P:semanticdb:failures:warning)
 ** Updated version for example 2.12.7 -> 2.12.7
@@ -13,5 +13,5 @@
 [info] Done updating.
 [info] Compiling 5 Scala sources to /home/krikava/Research/Projects/scala-corpus/libs/example/target/scala-2.12/classes ...
 [info] Done compiling.
-[success] Total time: 3 s, completed Jan 31, 2019 11:53:43 AM
-[success] Total time: 0 s, completed Jan 31, 2019 11:53:44 AM
+[success] Total time: 3 s, completed Feb 4, 2019 2:11:56 PM
+[success] Total time: 0 s, completed Feb 4, 2019 2:11:57 PM

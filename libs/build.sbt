@@ -49,7 +49,7 @@ lazy val model = (project in file("model"))
 
 lazy val transformation = (project in file("transformation"))
   .enablePlugins(BuildInfoPlugin)
-  .dependsOn(model)
+  .dependsOn(model % "compile->compile;test->test")
   .settings(commonSettings)
   .settings(
     name := "transformation",

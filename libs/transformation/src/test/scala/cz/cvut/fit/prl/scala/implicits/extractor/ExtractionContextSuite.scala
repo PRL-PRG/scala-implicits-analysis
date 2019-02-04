@@ -1,6 +1,7 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.TypeResolver
+import cz.cvut.fit.prl.scala.implicits.model.{DeclarationRef, TypeResolver}
+import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.scalatest.{Inside, Matchers, OptionValues}
@@ -8,13 +9,11 @@ import org.scalatest.{Inside, Matchers, OptionValues}
 import scala.language.implicitConversions
 import scala.meta.internal.{semanticdb => s}
 import scala.meta._
+import scala.meta.io.Classpath
 
 trait ModelSimplification {
 
-    val TestLocalLocation = m.Location("test-location", "", Some(m.Position(0, 0, 0, 0)))
-    val TestExternalLocation = m.Location("test-external-location", "", None)
-
-    implicit class SimplifyCallSite(that: m.CallSite) {
+  implicit class SimplifyCallSite(that: m.CallSite) {
 
       def simplify(ctx: ExtractionContext): m.CallSite = that.copy(
         location = that.location.map(_.simplify(ctx)),
@@ -23,7 +22,7 @@ trait ModelSimplification {
       )
     }
 
-    implicit class SimplifyDeclaration(that: m.Declaration) {
+  implicit class SimplifyDeclaration(that: m.Declaration) {
 
       def simplify(ctx: ExtractionContext): m.Declaration =
         that.copy(
@@ -31,7 +30,7 @@ trait ModelSimplification {
           signature = that.signature.simplify
         )
     }
-    implicit class SimplifySignature(that: m.Declaration.Signature) {
+  implicit class SimplifySignature(that: m.Declaration.Signature) {
 
       def simplify: m.Declaration.Signature = that match {
         case m.Declaration.Signature.Method(v) =>
@@ -41,7 +40,7 @@ trait ModelSimplification {
       }
     }
 
-    implicit class SimplifyMethodSignature(that: m.MethodSignature) {
+  implicit class SimplifyMethodSignature(that: m.MethodSignature) {
 
       def simplify: m.MethodSignature = that.copy(
         typeParameters = that.typeParameters.map(_.simplify),
@@ -50,7 +49,7 @@ trait ModelSimplification {
       )
     }
 
-    implicit class SimplifyTypeSignature(that: m.TypeSignature) {
+  implicit class SimplifyTypeSignature(that: m.TypeSignature) {
 
       def simplify: m.TypeSignature = that.copy(
         parents = that.parents.map(_.simplify),
@@ -58,24 +57,24 @@ trait ModelSimplification {
       )
     }
 
-    implicit class SimplifyParameterList(that: m.ParameterList) {
+  implicit class SimplifyParameterList(that: m.ParameterList) {
       def simplify: m.ParameterList = that.copy(that.parameters.map(_.simplify))
     }
 
-    implicit class SimplifyParameter(that: m.Parameter) {
+  implicit class SimplifyParameter(that: m.Parameter) {
       def simplify: m.Parameter = that.copy(tpe = that.tpe.simplify)
     }
 
-    implicit class SimplifyTypeParameter(that: m.TypeParameter) {
+  implicit class SimplifyTypeParameter(that: m.TypeParameter) {
 
-      def simplify: m.TypeParameter =
+    def simplify: m.TypeParameter =
         that.copy(
           typeParameters = that.typeParameters.map(_.simplify),
           upperBound = that.upperBound.simplify,
           lowerBound = that.lowerBound.simplify)
     }
 
-    implicit class SimplifyType(that: m.Type) {
+  implicit class SimplifyType(that: m.Type) {
 
       def simplify: m.Type = that match {
         case y: m.TypeRef => y.simplify
@@ -85,7 +84,7 @@ trait ModelSimplification {
       }
     }
 
-    implicit class SimplifyTypeRef(that: m.TypeRef) {
+  implicit class SimplifyTypeRef(that: m.TypeRef) {
 
       def simplify: m.TypeRef =
         that.copy(
@@ -93,7 +92,7 @@ trait ModelSimplification {
         )
     }
 
-    implicit class SimplifyLocation(that: m.Location) {
+  implicit class SimplifyLocation(that: m.Location) {
 
       def simplify(ctx: ExtractionContext): m.Location = {
         that match {
@@ -107,7 +106,7 @@ trait ModelSimplification {
         }
       }
     }
-  }
+}
 
 case class DeclarationsResult(
     declarations: Seq[m.Declaration],
@@ -116,19 +115,20 @@ case class DeclarationsResult(
     ctx: ExtractionContext,
     db: s.TextDocument)
     extends TypeResolver {
-  override def resolveType(tpe: m.Type): m.Declaration = ctx.resolveType(tpe)
+
+  override def resolveType(ref: DeclarationRef): m.Declaration = ctx.resolveType(ref)
 }
 
 object DeclarationsResult extends ModelSimplification {
 
-    def apply(ctx: ExtractionContext, db: s.TextDocument): DeclarationsResult = {
+  def apply(ctx: ExtractionContext, db: s.TextDocument): DeclarationsResult = {
       val extractor = new DeclarationExtractor(ctx)
-      val result = extractor.extractImplicitDeclarations(db)
+    val result = extractor.extractImplicitDeclarations(db)
       val (declarations, failures) = result.split()
 
       DeclarationsResult(declarations.map(_.simplify(ctx)), declarations, failures, ctx, db)
     }
-  }
+}
 
 case class CallSitesResult(
     callSites: Seq[m.CallSite],
@@ -138,29 +138,30 @@ case class CallSitesResult(
     ctx: ExtractionContext,
     db: s.TextDocument)
     extends TypeResolver {
-  override def resolveType(tpe: m.Type): m.Declaration = ctx.resolveType(tpe)
+
+  override def resolveType(ref: DeclarationRef): m.Declaration = ctx.resolveType(ref)
 }
 
 object CallSitesResult extends ModelSimplification {
 
-    def apply(ctx: ExtractionContext, db: s.TextDocument): CallSitesResult = {
+  def apply(ctx: ExtractionContext, db: s.TextDocument): CallSitesResult = {
       val ast = db.text.parse[Source].get
       val extractor = new CallSiteExtractor(ctx)
-      val result = extractor.extractImplicitCallSites(db, ast)
+      val result = extractor.extractImplicitCallSites(TestModuleId, db, ast)
       val (callSites, failures) = result.split()
       val count = extractor.callSiteCount(ast)
 
       CallSitesResult(callSites.map(_.simplify(ctx)), callSites, failures, count, ctx, db)
     }
-  }
+}
 
 abstract class ExtractionContextSuite
     extends SemanticdbSuite
     with Matchers
     with OptionValues
     with Inside
-    with CaseClassAssertions {
-
+    with CaseClassAssertions
+    with ModelSimplification {
 
   def extraction(
       name: String,
@@ -177,7 +178,7 @@ abstract class ExtractionContextSuite
       val symtab = GlobalSymbolTable(classpath ++ Classpath(outputPath.path))
       val sourcePaths = List(outputPath.pathAsString)
       val resolver = SemanticdbSymbolResolver(Seq(db), symtab, sourcePaths)
-      val ctx = new ExtractionContext(resolver, sourcePaths)
+      val ctx = new ExtractionContext(TestModuleId, resolver, sourcePaths)
 
       fn(ctx, db)
     }

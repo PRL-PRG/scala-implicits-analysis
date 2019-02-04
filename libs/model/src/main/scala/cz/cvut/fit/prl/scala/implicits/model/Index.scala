@@ -16,41 +16,39 @@ import com.typesafe.scalalogging.LazyLogging
     * @param locationsModules - a map from Location identity hashCode to a Module
     */
 case class Index(
-    projects: List[Project],
-    modulesProjects: Map[Module, Project],
-    implicitDeclarations: Map[String, Declaration],
+    projects: Map[String, Project],
+    modules: Map[String, Module],
+    declarations: Map[DeclarationRef, Declaration],
+    implicitDeclarations: List[Declaration],
     implicitCallSites: List[CallSite],
-    declarationsModules: Map[Int, Module],
-    callSitesModules: Map[Int, Module],
     locationsModules: Map[Int, Module]
 ) extends TypeResolver {
-    def project(module: Module): Project = modulesProjects(module)
-    def project(declaration: Declaration): Project = modulesProjects(module(declaration))
-    def project(callSite: CallSite): Project = modulesProjects(module(callSite))
-    def project(location: Location): Project = modulesProjects(module(location))
-    def module(declaration: Declaration): Module = declarationsModules(declaration.identityHashCode)
-    def module(callSite: CallSite): Module = callSitesModules(callSite.identityHashCode)
+    def project(module: Module): Project = projects(module.projectId)
+  //    def project(declaration: Declaration): Project = declaration.
+//    def project(callSite: CallSite): Project = modulesProjects(module(callSite))
+  def project(location: Location): Project = module(location).project(this)
+  //    def module(declaration: Declaration): Module = declarationsModules(declaration.identityHashCode)
+//    def module(callSite: CallSite): Module = callSitesModules(callSite.identityHashCode)
     def module(location: Location): Module = locationsModules(location.identityHashCode)
 
-    override def resolveType(tpe: Type): Declaration = {
-      implicitDeclarations(tpe.declarationRef)
+    override def resolveType(ref: DeclarationRef): Declaration = {
+      declarations(ref)
     }
   }
 
 object Index extends LazyLogging {
   implicit val monoid: Monoid[Index] = new Monoid[Index] {
-    override def combine(x: Index, y: Index) = {
+    override def combine(x: Index, y: Index): Index = {
       Index(
         x.projects ++ y.projects,
-        x.modulesProjects ++ y.modulesProjects,
+        x.modules ++ y.modules,
+        x.declarations ++ y.declarations,
         x.implicitDeclarations ++ y.implicitDeclarations,
         x.implicitCallSites ++ y.implicitCallSites,
-        x.declarationsModules ++ y.declarationsModules,
-        x.callSitesModules ++ y.callSitesModules,
         x.locationsModules ++ y.locationsModules
       )
     }
-    override def empty: Index = Index(List(), Map(), Map(), List(), Map(), Map(), Map())
+    override def empty: Index = Index(Map(), Map(), Map(), List(), List(), Map())
   }
 
   private def task[T](name: String, thunk: => T): T = {
@@ -90,26 +88,24 @@ object Index extends LazyLogging {
 
   private def buildModuleIndex(project: Project, module: Module): Index =
     task(s"Index for module ${module.moduleId}", {
-      val empty = (Map[Int, Module](), Map[String, Declaration](), Map[Int, Module]())
+      val empty = (List[Declaration](), Map[Int, Module]())
 
-      val (declarationMap, implicitDeclarations, declarationsLocations) =
+      val (implicitDeclarations, declarationsLocations) =
         module.declarations.foldLeft(empty) {
-          case ((map, implicits, locations), declaration) =>
+          case ((implicits, locations), declaration) =>
             (
-              map + (declaration.identityHashCode -> module),
-              if (declaration.isImplicit) implicits + (declaration.fqn -> declaration) else implicits,
+              if (declaration.isImplicit) declaration :: implicits else implicits,
               locations + (declaration.location.identityHashCode -> module)
             )
         }
 
-      val (callSiteMap, implicitCallSites, callSitesLocations) = {
-        val empty = (Map[Int, Module](), List[CallSite](), Map[Int, Module]())
+      val (implicitCallSites, callSitesLocations) = {
+        val empty = (List[CallSite](), Map[Int, Module]())
 
         project.implicitCallSites
           .foldLeft(empty) {
-            case ((map, callSites, locations), callSite) =>
+            case ((callSites, locations), callSite) =>
               (
-                map + (callSite.identityHashCode -> module),
                 callSite :: callSites,
                 callSite.location
                   .map(x => locations + (x.identityHashCode -> module))
@@ -119,12 +115,11 @@ object Index extends LazyLogging {
       }
 
       Index(
-        List(project),
-        Map(module -> project),
+        Map(project.projectId -> project),
+        Map(module.moduleId -> module),
+        project.declarations.map(x => x.ref -> x).toMap,
         implicitDeclarations,
         implicitCallSites,
-        declarationMap,
-        callSiteMap,
         declarationsLocations ++ callSitesLocations
       )
     })

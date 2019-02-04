@@ -54,17 +54,16 @@ message Project {
 }
 
 message Module {
-    required string module_id = 1;
-    required string group_id = 2;
-    required string artifact_id = 3;
-    required string version = 4;
-    required string scala_version = 5;
-    map<string, PathEntry> paths = 6;
-    repeated Declaration declarations = 7;
-    repeated CallSite implicit_call_sites = 8;
-    required int32 call_sites_count = 9;
-    repeated string output_path = 10;
-    repeated string test_output_path = 11;
+    required string project_id = 1;
+    required string module_id = 2;
+    required string group_id = 3;
+    required string artifact_id = 4;
+    required string version = 5;
+    required string scala_version = 6;
+    map<string, PathEntry> paths = 7;
+    repeated Declaration declarations = 8;
+    repeated CallSite implicit_call_sites = 9;
+    required int32 call_sites_count = 10;
 }
 
 message Declaration {
@@ -83,12 +82,13 @@ message Declaration {
         PARAMETER = 11;
     };
 
-    required Kind kind = 1;
+    required string module_id = 1;
     required string fqn = 2;
-    required string name = 3;
-    required Location location = 4;
-    required Language language = 5;
-    required bool isImplicit = 6;
+    required Kind kind = 3;
+    required string name = 4;
+    required Location location = 5;
+    required Language language = 6;
+    required bool isImplicit = 7;
 
     oneof signature {
         TypeSignature type = 8;
@@ -137,18 +137,19 @@ message Type {
 }
 
 message TypeRef {
-    required string declaration_ref = 1;
+    required string declaration_fqn = 1;
     repeated Type type_arguments = 2;
 }
 
 message TypeParameterRef {
-    required string declaration_ref = 1;
+    required string declaration_fqn = 1;
     required string name = 2;
     repeated Type type_arguments = 3;
 }
 
 message CallSite {
-    required string declaration_ref = 1;
+    required string module_id = 1;
+    required string declaration_fqn = 2;
     required string code = 3;
     optional Location location = 4;
     repeated Type type_arguments = 5;

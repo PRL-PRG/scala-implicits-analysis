@@ -2,6 +2,7 @@ package cz.cvut.fit.prl.scala.implicits.extractor
 
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
+import cz.cvut.fit.prl.scala.implicits.model.ModelDSL
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.scalatest.{FunSuite, Matchers}
 
@@ -26,7 +27,10 @@ class ExampleDeclarationExtractorTest extends FunSuite with Matchers {
     val (metadata, warnings) = ProjectMetadata(ProjectPath)
     warnings should have size 0
     val subProjectMetadata = metadata.modules.head
-    val ctx = new ExtractionContext(subProjectMetadata.resolver, metadata.sourcepathEntries.map(_.path))
+    val ctx = new ExtractionContext(
+      ModelDSL.TestModuleId,
+      subProjectMetadata.resolver,
+      metadata.sourcepathEntries.map(_.path))
     val extractor = new DeclarationExtractor(ctx)
     val db = subProjectMetadata.semanticdbs.find(_.uri.endsWith("JsonExample.scala")).get
 

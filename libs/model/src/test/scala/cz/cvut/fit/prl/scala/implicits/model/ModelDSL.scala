@@ -6,7 +6,15 @@ import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import scalapb.lenses.{Lens, Mutation}
 import scala.meta.internal.semanticdb.Scala._
 
+object ModelDSL {
+    val TestLocalLocation = Location("test-location", "", Some(Position(0, 0, 0, 0)))
+    val TestExternalLocation = Location("test-external-location", "", None)
+    val TestModuleId = "test-module"
+  }
+
 trait ModelDSL {
+  import ModelDSL._
+
   type Update[A] = Lens[A, A] => Mutation[A]
 
   class OverloadHack1
@@ -27,17 +35,19 @@ trait ModelDSL {
   def parameter(name: String, ref: String, isImplicit: Boolean = false): Parameter =
     Parameter(name, typeRef(ref), isImplicit)
 
-  def typeRef(ref: String): TypeRef = TypeRef(ref)
+  def typeRef(ref: String, typeArguments: List[TypeRef] = Nil): TypeRef =
+    TypeRef(ref, typeArguments)
 
-  def returnType(ref: String): Update[Declaration] =
-    _.method.returnType := typeRef(ref)
+  def returnType(ref: String, typeArguments: List[TypeRef] = Nil): Update[Declaration] =
+    _.method.returnType := typeRef(ref, typeArguments)
 
   def method(fqn: String, updates: Update[Declaration]*): Declaration = {
     val d = Declaration(
-      DEF,
+      TestModuleId,
       fqn,
+      DEF,
       fqn.desc.name.value,
-      Location("path", "uri", None),
+      TestLocalLocation,
       SCALA,
       false,
       MethodSignature(returnType = typeRef("scala/Unit#")))
@@ -47,7 +57,7 @@ trait ModelDSL {
 
   def clazz(fqn: String, updates: Update[Declaration]*): Declaration = {
     val d =
-      Declaration(CLASS, fqn, fqn.desc.name.value, Location("path", "uri", None), SCALA, false)
+      Declaration(TestModuleId, fqn, CLASS, fqn.desc.name.value, TestLocalLocation, SCALA, false)
 
     d.update(updates: _*)
   }

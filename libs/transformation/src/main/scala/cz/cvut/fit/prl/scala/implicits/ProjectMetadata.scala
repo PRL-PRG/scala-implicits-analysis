@@ -5,9 +5,9 @@ import cats.instances.list._
 import cats.instances.map._
 import cats.syntax.semigroup._
 import cz.cvut.fit.prl.scala.implicits.extractor.{
-  LoadingMetadataException,
-  SemanticdbSymbolResolver
-}
+    LoadingMetadataException,
+    SemanticdbSymbolResolver
+  }
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
@@ -43,6 +43,8 @@ case class ModuleMetadata(
   lazy val symbolTable: SymbolTable = GlobalSymbolTable(classpath)
   lazy val resolver: SemanticdbSymbolResolver =
     SemanticdbSymbolResolver(semanticdbs, symbolTable, sourcepathEntries.map(_.path))
+
+  def sourcePaths: List[String] = sourcepathEntries.map(_.path)
 
   def ast(filename: String): Source =
     asts.getOrElseUpdate(filename, semanticdbs.find(_.uri == filename).head.text.parse[Source].get)

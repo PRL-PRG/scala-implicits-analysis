@@ -1,6 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{DeclarationResolver, SourcepathEntry, TypeResolver}
+import cz.cvut.fit.prl.scala.implicits.model.{DeclarationRef, TypeResolver}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
@@ -9,10 +9,12 @@ import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.util.Try
 
-class ExtractionContext(resolver: SemanticdbSymbolResolver, val sourcePaths: List[String])
+class ExtractionContext(
+      moduleId: String,
+      resolver: SemanticdbSymbolResolver,
+      val sourcePaths: List[String])
     extends TypeResolver
-    with SymbolResolver
-    with DeclarationResolver {
+    with SymbolResolver {
 
   private val declarationIndex: mutable.Map[String, m.Declaration] = mutable.Map()
   private val sourcePathIndex: mutable.Map[String, Option[String]] = mutable.Map()
@@ -31,8 +33,11 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver, val sourcePaths: Lis
 
   def relaxedSourcePath(uri: String): String = sourcePath(uri).getOrElse("")
 
-  override def resolveType(tpe: m.Type): m.Declaration =
-    declarationIndex(tpe.declarationRef)
+  override def resolveType(ref: DeclarationRef): m.Declaration = {
+    assert(ref.moduleId == moduleId)
+
+    declarationIndex(ref.declarationFqn)
+  }
 
   override def resolveSymbol(symbol: String): ResolvedSymbol =
     resolver.resolveSymbol(symbol)
@@ -151,6 +156,7 @@ class ExtractionContext(resolver: SemanticdbSymbolResolver, val sourcePaths: Lis
     }
 
     m.Declaration(
+      moduleId = moduleId,
       kind = kind,
       fqn = symbolInfo.symbol,
       name = symbolInfo.displayName,

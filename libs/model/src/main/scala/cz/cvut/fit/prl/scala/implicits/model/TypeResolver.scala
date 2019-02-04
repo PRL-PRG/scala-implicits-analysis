@@ -1,5 +1,5 @@
 package cz.cvut.fit.prl.scala.implicits.model
 
 trait TypeResolver {
-  def resolveType(tpe: Type): Declaration
+  def resolveType(ref: DeclarationRef): Declaration
 }

@@ -3,6 +3,7 @@ package cz.cvut.fit.prl.scala.implicits.extractor
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import cz.cvut.fit.prl.scala.implicits.model._
+import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 
 class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplification {
 
@@ -15,8 +16,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      DEF,
+      TestModuleId,
       "p/o.x().",
+      DEF,
       "x",
       TestLocalLocation,
       SCALA,
@@ -40,8 +42,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      DEF,
+      TestModuleId,
       "p/o.C#x().",
+      DEF,
       "x",
       TestLocalLocation,
       SCALA,
@@ -63,8 +66,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      VAR,
+      TestModuleId,
       "p/o.x().",
+      VAR,
       "x",
       TestLocalLocation,
       SCALA,
@@ -87,8 +91,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      OBJECT,
+      TestModuleId,
       "p/o.x.",
+      OBJECT,
       "x",
       TestLocalLocation,
       SCALA,
@@ -133,7 +138,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
               case p =>
                 p.isImplicit shouldBe false
                 p.name shouldBe "that"
-                p.tpe.declaration.name shouldBe "Int"
+                p.tpe.declarationFqn shouldBe "scala/Int#"
             }
         }
     }
@@ -156,8 +161,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
   ) { implicit res =>
     val expected = List(
       Declaration(
-        CLASS,
+        TestModuleId,
         "p/o.XtensionJson#",
+        CLASS,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
@@ -165,8 +171,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         TypeSignature(List(TypeParameter("T")))
       ),
       Declaration(
-        VAL,
+        TestModuleId,
         "p/o.XtensionJson#ev.",
+        VAL,
         "ev",
         TestLocalLocation,
         SCALA,
@@ -184,8 +191,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         )
       ),
       Declaration(
-        DEF,
+        TestModuleId,
         "p/o.XtensionJson().",
+        DEF,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
@@ -256,8 +264,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
   ) { implicit res =>
     val expected = List(
       Declaration(
-        VAL,
+        TestModuleId,
         "p/o.XtensionJson#evidence$1.",
+        VAL,
         "evidence$1",
         TestLocalLocation,
         SCALA,
@@ -275,8 +284,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         )
       ),
       Declaration(
-        CLASS,
+        TestModuleId,
         "p/o.XtensionJson#",
+        CLASS,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
@@ -284,8 +294,9 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         TypeSignature(List(TypeParameter("T")))
       ),
       Declaration(
-        DEF,
+        TestModuleId,
         "p/o.XtensionJson().",
+        DEF,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
