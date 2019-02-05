@@ -106,7 +106,7 @@ object Index extends LazyLogging {
       val (implicitCallSites, callSitesLocations) = {
         val empty = (List[CallSite](), Map[Int, Module]())
 
-        project.implicitCallSites
+        module.implicitCallSites
           .foldLeft(empty) {
             case ((callSites, locations), callSite) =>
               (
