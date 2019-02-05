@@ -6,15 +6,12 @@ import cats.syntax.monoid._
 import com.typesafe.scalalogging.LazyLogging
 
 /**
-    *
-    * @param projects
-    * @param modulesProjects
-    * @param implicitDeclarations
-    * @param implicitCallSites
-    * @param declarationsModules - a map from Declaration identity hashCode to a Module
-    * @param callSitesModules - a map from CallSite identity hashCode to a Module
-    * @param locationsModules - a map from Location identity hashCode to a Module
-    */
+  * @param projects - a map from projects' ids to projects
+  * @param modules - a map from modules' ids to modules
+  * @param implicitDeclarations - a list of implicit declarations
+  * @param implicitCallSites - a list of implicit call sites
+  * @param locationsModules - a map from Locations identity hashCodes to a modules
+  */
 case class Index(
     projects: Map[String, Project],
     modules: Map[String, Module],
@@ -22,18 +19,17 @@ case class Index(
     implicitCallSites: List[CallSite],
     locationsModules: Map[Int, Module]
 ) extends TypeResolver {
-    def project(module: Module): Project = projects(module.projectId)
-  //    def project(declaration: Declaration): Project = declaration.
-//    def project(callSite: CallSite): Project = modulesProjects(module(callSite))
-  def project(location: Location): Project = module(location).project(this)
-  //    def module(declaration: Declaration): Module = declarationsModules(declaration.identityHashCode)
-//    def module(callSite: CallSite): Module = callSitesModules(callSite.identityHashCode)
-    def module(location: Location): Module = locationsModules(location.identityHashCode)
 
-    override def resolveType(ref: DeclarationRef): Declaration = {
+  def project(module: Module): Project = projects(module.projectId)
+
+  def project(location: Location): Project = module(location).project(this)
+
+  def module(location: Location): Module = locationsModules(location.identityHashCode)
+
+  override def resolveType(ref: DeclarationRef): Declaration = {
       modules(ref.moduleId).declarations(ref.declarationFqn)
     }
-  }
+}
 
 object Index extends LazyLogging {
   implicit val monoid: Monoid[Index] = new Monoid[Index] {

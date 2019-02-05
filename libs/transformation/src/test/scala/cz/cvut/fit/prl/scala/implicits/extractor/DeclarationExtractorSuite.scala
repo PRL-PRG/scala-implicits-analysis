@@ -138,7 +138,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
               case p =>
                 p.isImplicit shouldBe false
                 p.name shouldBe "that"
-                p.tpe.declarationFqn shouldBe "scala/Int#"
+                p.tpe.declarationId shouldBe "scala/Int#"
             }
         }
     }

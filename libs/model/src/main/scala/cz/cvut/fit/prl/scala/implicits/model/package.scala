@@ -5,11 +5,6 @@ import scala.meta.internal.semanticdb.Scala._
 
 package object model {
 
-  case class DeclarationRef(moduleId: String, declarationFqn: String) {
-    def declaration(implicit resolver: TypeResolver): Declaration =
-      resolver.resolveType(this)
-  }
-
   implicit class IdentityHashCode(x: AnyRef) {
     def identityHashCode: Int = System.identityHashCode(x)
   }
@@ -20,7 +15,8 @@ package object model {
     def githubUserName: String = that.projectId.split("--").apply(0)
     def githubRepoName: String = that.projectId.split("--").apply(1)
     def githubURL: String = s"https://github.com/${that.githubUserName}/${that.githubRepoName}"
-    def paths: Map[String, PathEntry] = that.modules.foldLeft(Map[String, PathEntry]())(_ ++ _.paths)
+    def paths: Map[String, PathEntry] =
+    that.modules.foldLeft(Map[String, PathEntry]())(_ ++ _.paths)
   }
 
   implicit class XtensionLocation(that: Location) {
@@ -39,7 +35,7 @@ package object model {
     def isImplicit: Boolean = that.parameters.exists(_.isImplicit)
   }
 
-  implicit class XtenstionPathEntry(that: PathEntry) {
+  implicit class XtensionPathEntry(that: PathEntry) {
     def path: String = that match {
       case x: SourcepathEntry => x.path
       case x: ClasspathEntry => x.path
@@ -54,23 +50,21 @@ package object model {
       case Type.Empty => ""
     }
 
-    def declarationFqn: String = that match {
+    def declarationId: String = that match {
       case TypeRef(r, _) => r
       case TypeParameterRef(r, _, _) => r
-      case _ => throw new Exception(s"Trying to get declarationRef on $that")
+      case _ => throw new Exception(s"Trying to get declarationId on $that")
     }
   }
 
   implicit class XtensionTypeRef(that: TypeRef) {
-
     def asCode: String = {
       val args = that.typeArguments.map(_.asCode)
-      that.declarationFqn + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
+      that.declarationId + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
     }
   }
 
   implicit class XtensionTypeParameterRef(that: TypeParameterRef) {
-
     def asCode: String = {
       val args = that.typeArguments.map(_.asCode)
       that.name + (if (args.nonEmpty) args.mkString("[", ",", "]") else "")
@@ -78,7 +72,6 @@ package object model {
   }
 
   implicit class XtensionCallSite(that: CallSite) {
-
     def isImplicit(implicit resolver: TypeResolver): Boolean = {
       val declaration = that.declaration
       declaration.signature.isMethod && (
@@ -110,30 +103,30 @@ package object model {
 
     /**
       * The following code will create two implicit definitions
-    * {{{
-    *   implicit class A(x: Int) { ... }
-    * }}}
-    *
-    * 1. an implicit class `A#`
-    * 2. an implicit def `A().`
-    *
-    * This method identifies such declarations for the def part.
-    *
-    * @param resolver
-    * @return
-    */
+      * {{{
+  *   implicit class A(x: Int) { ... }
+  * }}}
+  *
+  * 1. an implicit class `A#`
+  * 2. an implicit def `A().`
+  *
+  * This method identifies such declarations for the def part.
+  *
+  * @param resolver
+  * @return
+  */
     def isImplicitClassCompanionDef(implicit resolver: TypeResolver): Boolean =
       that.implicitClassCompanion.isDefined
 
     def implicitClassCompanion(implicit resolver: TypeResolver): Option[Declaration] =
       if (that.isMethod && that.parameterLists.headOption.exists(_.parameters.size == 1)) {
-    val rt = that.returnType
-    if (rt.isImplicit && rt.isClass) {
+        val rt = that.returnType
+        if (rt.isImplicit && rt.isClass) {
       Some(rt)
     } else {
       None
     }
-  } else {
+      } else {
     None
   }
 
@@ -157,23 +150,29 @@ package object model {
     def hasImplicitParameters: Boolean =
       that.parameterLists.exists(_.isImplicit)
 
-    def returnType(implicit resolver: TypeResolver): Declaration =
+    def returnTypeRef: DeclarationRef =
       that.signature.value match {
         case x: MethodSignature =>
-      resolver.resolveType(DeclarationRef(that.moduleId, x.returnType.declarationFqn))
+          DeclarationRef(that.moduleId, x.returnType.declarationId)
         case _ =>
           throw new Exception(s"Trying to get returnType on ${that.signature}")
       }
 
-    def declaringType(implicit ctx: TypeResolver): Declaration =
+    def returnType(implicit resolver: TypeResolver): Declaration =
+    returnTypeRef.declaration
+
+    def declaringTypeRef: DeclarationRef =
       that.signature.value match {
         case _: MethodSignature =>
-      ctx.resolveType(DeclarationRef(that.moduleId, that.declarationId.owner))
+          DeclarationRef(that.moduleId, that.declarationId.owner)
         case _: ValueSignature =>
-      ctx.resolveType(DeclarationRef(that.moduleId, that.declarationId.owner))
+          DeclarationRef(that.moduleId, that.declarationId.owner)
         case _ =>
           throw new Exception(s"Trying to get declaringType on ${that.signature}")
       }
+
+    def declaringType(implicit ctx: TypeResolver): Declaration =
+    declaringTypeRef.declaration
 
     def parents: Seq[Type] =
       that.signature.value match {
@@ -193,14 +192,14 @@ package object model {
     def isProjectLocal(implicit idx: Index): Boolean = isLocal(that.project.paths)
 
     private def isLocal(paths: Map[String, PathEntry]): Boolean = {
-    paths
+      paths
       .get(that.location.path)
       .collectFirst {
         case _: SourcepathEntry => true
         case x: ClasspathEntry => x.internal
       }
       .getOrElse(false)
-  }
+    }
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
