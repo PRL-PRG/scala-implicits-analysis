@@ -16,7 +16,7 @@ trait ModelSimplification {
   implicit class SimplifyCallSite(that: m.CallSite) {
 
       def simplify(ctx: ExtractionContext): m.CallSite = that.copy(
-        location = that.location.map(_.simplify(ctx)),
+        location = that.location.simplify(ctx),
         typeArguments = that.typeArguments.map(_.simplify),
         implicitArgumentTypes = that.implicitArgumentTypes.map(_.simplify)
       )

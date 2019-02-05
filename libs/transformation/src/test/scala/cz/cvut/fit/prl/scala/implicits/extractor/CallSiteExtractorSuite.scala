@@ -130,7 +130,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.pipe().",
         "pipe[scala/Int#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
         List(TypeRef("p/o.a.", List()))
       )
@@ -160,7 +160,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.pipe().",
         "pipe[p/o.A#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("p/o.A#", List())),
         List(TypeRef("p/o.a.", List()))
       )
@@ -204,14 +204,14 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.a().",
         "a",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(),
       ),
       CallSite(
         TestModuleId,
         "p/o.f().",
         "f",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(),
         List(
           TypeRef(
@@ -251,13 +251,13 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.RichPath().",
         "RichPath(raw.file)",
-        Some(TestLocalLocation)
+        TestLocalLocation
       ),
       CallSite(
         TestModuleId,
         "p/o.RichPath#readString().",
         "readString",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(),
         List(
           TypeRef(
@@ -295,14 +295,14 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.a().",
         "a",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List()
       ),
       CallSite(
         TestModuleId,
         "p/o.a2b().",
         "a2b",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(),
         List(
           TypeRef(
@@ -314,7 +314,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.b2c().",
         "b2c",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(),
         List(
           TypeRef(
@@ -326,7 +326,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.f().",
         "f",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(),
         List(
           TypeRef(
@@ -379,14 +379,14 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "p/o.a().",
         "a[scala/Int#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
       ),
       CallSite(
         TestModuleId,
         "p/o.c().",
         "c[scala/Int#](1)",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
@@ -445,7 +445,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "scala/concurrent/Future.apply().",
         ".apply[scala/Int#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
@@ -458,7 +458,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "scala/concurrent/Future#map().",
         ".map[scala/Int#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
@@ -471,7 +471,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "scala/concurrent/Future.apply().",
         ".apply[scala/Int#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
@@ -484,7 +484,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         TestModuleId,
         "scala/concurrent/Future#flatMap().",
         ".flatMap[scala/Int#]",
-        Some(TestLocalLocation),
+        TestLocalLocation,
         List(TypeRef("scala/Int#", List())),
         List(
           TypeRef(
@@ -516,7 +516,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       TestModuleId,
       "p/o.A#`<init>`().",
       "<init>",
-      Some(TestLocalLocation),
+      TestLocalLocation,
       List(),
       List(
         TypeRef(
@@ -546,7 +546,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       TestModuleId,
       "p/o.B.apply().",
       ".apply",
-      Some(TestLocalLocation),
+      TestLocalLocation,
       List(),
       List(
         TypeRef(

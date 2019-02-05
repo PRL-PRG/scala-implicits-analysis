@@ -151,7 +151,7 @@ message CallSite {
     required string module_id = 1;
     required string declaration_fqn = 2;
     required string code = 3;
-    optional Location location = 4;
+    required Location location = 4;
     repeated Type type_arguments = 5;
     repeated TypeRef implicit_argument_types = 6;
 }

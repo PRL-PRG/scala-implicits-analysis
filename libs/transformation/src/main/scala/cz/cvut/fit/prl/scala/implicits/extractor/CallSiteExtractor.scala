@@ -34,7 +34,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case class Call(
         declaration: m.Declaration,
         code: String = "",
-        location: Option[m.Location] = None,
+        location: m.Location,
         typeArguments: List[m.Type] = Nil,
         argumentss: List[List[Argument]] = Nil) {
 
@@ -111,12 +111,12 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           } else {
             val declaration = ctx.resolveDeclaration(symbol)
             val code = s".${declaration.name}"
-            val cs = Call(declaration, code, location = Some(syntheticLocation))
+            val cs = Call(declaration, code, location = syntheticLocation)
 
             qualifier match {
               case s.OriginalTree(Some(range)) =>
                 val location = m.Location(path, relativeUri, Some(range))
-                cs.copy(location = Some(location)) :: Nil
+                cs.copy(location = location) :: Nil
               case _ =>
                 cs :: convertInternal(qualifier, false)
             }
@@ -170,7 +170,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                 val declaration = ctx.resolveDeclaration(symbol)
                 val location = m.Location(path, relativeUri, Some(range))
                 val code = declaration.name
-                Call(declaration, code, Some(location))
+                Call(declaration, code, location)
               }
           }
 
@@ -183,7 +183,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           if (inCall || (declaration.isImplicit && declaration.isFunctionLike)) {
             val code = declaration.name
 
-            Call(declaration, code, location = Some(syntheticLocation)) :: Nil
+            Call(declaration, code, location = syntheticLocation) :: Nil
           } else {
             Nil
           }

@@ -107,9 +107,7 @@ object Index extends LazyLogging {
             case ((callSites, locations), callSite) =>
               (
                 callSite :: callSites,
-                callSite.location
-                  .map(x => locations + (x.identityHashCode -> module))
-                  .getOrElse(locations)
+                locations + (callSite.location.identityHashCode -> module)
               )
           }
       }
