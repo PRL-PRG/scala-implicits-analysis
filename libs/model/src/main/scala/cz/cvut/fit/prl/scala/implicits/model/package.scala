@@ -86,7 +86,7 @@ package object model {
       )
     }
 
-    def declarationRef: DeclarationRef = DeclarationRef(that.moduleId, that.declarationFqn)
+    def declarationRef: DeclarationRef = DeclarationRef(that.moduleId, that.declarationId)
 
     def declaration(implicit resolver: TypeResolver): Declaration =
       that.declarationRef.declaration
@@ -167,8 +167,10 @@ package object model {
 
     def declaringType(implicit ctx: TypeResolver): Declaration =
       that.signature.value match {
-        case _: MethodSignature => ctx.resolveType(DeclarationRef(that.moduleId, that.fqn.owner))
-        case _: ValueSignature => ctx.resolveType(DeclarationRef(that.moduleId, that.fqn.owner))
+        case _: MethodSignature =>
+      ctx.resolveType(DeclarationRef(that.moduleId, that.declarationId.owner))
+        case _: ValueSignature =>
+      ctx.resolveType(DeclarationRef(that.moduleId, that.declarationId.owner))
         case _ =>
           throw new Exception(s"Trying to get declaringType on ${that.signature}")
       }
@@ -184,7 +186,7 @@ package object model {
 
     def project(implicit idx: Index): Project = that.module.project
 
-    def ref: DeclarationRef = DeclarationRef(that.moduleId, that.fqn)
+    def ref: DeclarationRef = DeclarationRef(that.moduleId, that.declarationId)
 
     def isModuleLocal(implicit idx: Index): Boolean = isLocal(that.module.paths)
 

@@ -230,7 +230,7 @@ object ExtractImplicits extends App {
       version = metadata.version,
       scalaVersion = metadata.scalaVersion,
       paths = paths,
-      declarations = ctx.declarations.map(x => x.fqn -> x).toMap,
+      declarations = ctx.declarations.map(x => x.declarationId -> x).toMap,
       implicitCallSites = callSites,
       callSitesCount = csCount
     )

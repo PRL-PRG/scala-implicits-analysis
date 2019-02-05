@@ -6,5 +6,5 @@ class TypeResolverStub(table: Map[String, Declaration]) extends TypeResolver {
 
 object TypeResolverStub {
   def apply(xs: Declaration*): TypeResolverStub =
-    new TypeResolverStub(xs.map(x => x.fqn -> x).toMap)
+    new TypeResolverStub(xs.map(x => x.declarationId -> x).toMap)
 }

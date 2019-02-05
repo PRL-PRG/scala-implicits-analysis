@@ -27,7 +27,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case class Argument(declaration: m.Declaration, typeArguments: List[m.Type]) {
 
       def toTypeRef: m.TypeRef =
-        m.TypeRef(declaration.fqn, typeArguments)
+        m.TypeRef(declaration.declarationId, typeArguments)
     }
 
     // arguments are inversed - the implicit ones are on top
@@ -53,7 +53,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
         m.CallSite(
           moduleId,
-          declaration.fqn,
+          declaration.declarationId,
           code,
           location,
           typeArguments,

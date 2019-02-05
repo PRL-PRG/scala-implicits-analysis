@@ -54,8 +54,8 @@ message Project {
 }
 
 message Module {
-    required string project_id = 1;
-    required string module_id = 2;
+    required string module_id = 1;
+    required string project_id = 2;
     required string group_id = 3;
     required string artifact_id = 4;
     required string version = 5;
@@ -82,8 +82,8 @@ message Declaration {
         PARAMETER = 11;
     };
 
-    required string module_id = 1;
-    required string fqn = 2;
+    required string declaration_id = 1;
+    required string module_id = 2;
     required Kind kind = 3;
     required string name = 4;
     required Location location = 5;
@@ -137,19 +137,19 @@ message Type {
 }
 
 message TypeRef {
-    required string declaration_fqn = 1;
+    required string declaration_id = 1;
     repeated Type type_arguments = 2;
 }
 
 message TypeParameterRef {
-    required string declaration_fqn = 1;
+    required string declaration_id = 1;
     required string name = 2;
     repeated Type type_arguments = 3;
 }
 
 message CallSite {
     required string module_id = 1;
-    required string declaration_fqn = 2;
+    required string declaration_id = 2;
     required string code = 3;
     required Location location = 4;
     repeated Type type_arguments = 5;

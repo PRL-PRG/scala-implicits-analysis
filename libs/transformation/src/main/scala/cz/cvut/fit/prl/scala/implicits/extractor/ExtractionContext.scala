@@ -156,9 +156,9 @@ class ExtractionContext(
     }
 
     m.Declaration(
+      declarationId = symbolInfo.symbol,
       moduleId = moduleId,
       kind = kind,
-      fqn = symbolInfo.symbol,
       name = symbolInfo.displayName,
       location = location,
       language = symbolInfo.language,
@@ -210,7 +210,7 @@ class ExtractionContext(
       createType(t)
     case s.SingleType(prefix, symbol) =>
       val parent = resolveDeclaration(symbol)
-      m.TypeRef(parent.fqn)
+      m.TypeRef(parent.declarationId)
     case s.ByNameType(tpe) =>
       createType(tpe)
     case s.RepeatedType(repeatedType) =>
@@ -227,7 +227,7 @@ class ExtractionContext(
       // TODO: is this ok?
       createType(types.head)
     case s.ThisType(symbol) =>
-      m.TypeRef(resolveDeclaration(symbol).fqn)
+      m.TypeRef(resolveDeclaration(symbol).declarationId)
     case s.Type.Empty =>
       m.Type.Empty
     case x =>
@@ -256,13 +256,13 @@ class ExtractionContext(
       case x if x.isTypeParameter =>
         val parent = resolveDeclaration(symbol.owner)
         m.TypeParameterRef(
-          parent.fqn,
+          parent.declarationId,
           x.displayName,
           typeArguments.map(createType)
         )
       case x if x.isType || x.isClass || x.isTrait || x.isInterface || x.isObject =>
         val parent = resolveDeclaration(symbol)
-        m.TypeRef(parent.fqn, createTypeArguments(typeArguments))
+        m.TypeRef(parent.declarationId, createTypeArguments(typeArguments))
       case x =>
         throw new UnsupportedElementException("TypeRef type", x)
     }

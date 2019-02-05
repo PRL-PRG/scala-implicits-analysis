@@ -16,8 +16,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      TestModuleId,
       "p/o.x().",
+      TestModuleId,
       DEF,
       "x",
       TestLocalLocation,
@@ -42,8 +42,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      TestModuleId,
       "p/o.C#x().",
+      TestModuleId,
       DEF,
       "x",
       TestLocalLocation,
@@ -66,8 +66,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      TestModuleId,
       "p/o.x().",
+      TestModuleId,
       VAR,
       "x",
       TestLocalLocation,
@@ -91,8 +91,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       | }
     """.stripMargin) { implicit res =>
     val expected = Declaration(
-      TestModuleId,
       "p/o.x.",
+      TestModuleId,
       OBJECT,
       "x",
       TestLocalLocation,
@@ -161,8 +161,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
   ) { implicit res =>
     val expected = List(
       Declaration(
-        TestModuleId,
         "p/o.XtensionJson#",
+        TestModuleId,
         CLASS,
         "XtensionJson",
         TestLocalLocation,
@@ -171,8 +171,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         TypeSignature(List(TypeParameter("T")))
       ),
       Declaration(
-        TestModuleId,
         "p/o.XtensionJson#ev.",
+        TestModuleId,
         VAL,
         "ev",
         TestLocalLocation,
@@ -191,8 +191,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         )
       ),
       Declaration(
-        TestModuleId,
         "p/o.XtensionJson().",
+        TestModuleId,
         DEF,
         "XtensionJson",
         TestLocalLocation,
@@ -264,8 +264,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
   ) { implicit res =>
     val expected = List(
       Declaration(
-        TestModuleId,
         "p/o.XtensionJson#evidence$1.",
+        TestModuleId,
         VAL,
         "evidence$1",
         TestLocalLocation,
@@ -284,8 +284,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         )
       ),
       Declaration(
-        TestModuleId,
         "p/o.XtensionJson#",
+        TestModuleId,
         CLASS,
         "XtensionJson",
         TestLocalLocation,
@@ -294,8 +294,8 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         TypeSignature(List(TypeParameter("T")))
       ),
       Declaration(
-        TestModuleId,
         "p/o.XtensionJson().",
+        TestModuleId,
         DEF,
         "XtensionJson",
         TestLocalLocation,

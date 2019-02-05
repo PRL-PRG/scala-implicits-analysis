@@ -41,12 +41,12 @@ trait ModelDSL {
   def returnType(ref: String, typeArguments: List[TypeRef] = Nil): Update[Declaration] =
     _.method.returnType := typeRef(ref, typeArguments)
 
-  def method(fqn: String, updates: Update[Declaration]*): Declaration = {
+  def method(declarationId: String, updates: Update[Declaration]*): Declaration = {
     val d = Declaration(
-      TestModuleId,
-      fqn,
+      declarationId = declarationId,
+      moduleId = TestModuleId,
       DEF,
-      fqn.desc.name.value,
+      declarationId.desc.name.value,
       TestLocalLocation,
       SCALA,
       false,
@@ -55,9 +55,17 @@ trait ModelDSL {
     d.update(updates: _*)
   }
 
-  def clazz(fqn: String, updates: Update[Declaration]*): Declaration = {
+  def clazz(declarationId: String, updates: Update[Declaration]*): Declaration = {
     val d =
-      Declaration(TestModuleId, fqn, CLASS, fqn.desc.name.value, TestLocalLocation, SCALA, false)
+      Declaration(
+    declarationId = declarationId,
+    moduleId = TestModuleId,
+    CLASS,
+    declarationId.desc.name.value,
+    TestLocalLocation,
+    SCALA,
+    false
+  )
 
     d.update(updates: _*)
   }
