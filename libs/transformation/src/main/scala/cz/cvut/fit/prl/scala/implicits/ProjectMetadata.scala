@@ -174,6 +174,7 @@ object ProjectMetadata {
 
       for {
         version <- versions
+        projectId = version.projectId
         moduleId = version.moduleId
         semanticdbs = semanticdbMap(moduleId) if semanticdbs.nonEmpty
         classpathEntries = classpathEntriesMap(moduleId)
@@ -181,7 +182,7 @@ object ProjectMetadata {
         classpath = classpathMap(moduleId)
       } yield
         ModuleMetadata(
-          moduleId,
+          projectId + "::" + moduleId,
           version.groupId,
           version.artifactId,
           version.version,
