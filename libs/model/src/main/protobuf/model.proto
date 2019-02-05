@@ -61,7 +61,7 @@ message Module {
     required string version = 5;
     required string scala_version = 6;
     map<string, PathEntry> paths = 7;
-    repeated Declaration declarations = 8;
+    map<string, Declaration> declarations = 8;
     repeated CallSite implicit_call_sites = 9;
     required int32 call_sites_count = 10;
 }

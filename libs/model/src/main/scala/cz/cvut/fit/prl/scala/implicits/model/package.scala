@@ -15,8 +15,8 @@ package object model {
   }
 
   implicit class XtensionProject(that: Project) {
-    def declarations: Seq[Declaration] = that.modules.flatMap(_.declarations)
-    def implicitCallSites: Seq[CallSite] = that.modules.flatMap(_.implicitCallSites)
+    def declarations: Iterable[Declaration] = that.modules.flatMap(_.declarations.values)
+    def implicitCallSites: Iterable[CallSite] = that.modules.flatMap(_.implicitCallSites)
     def githubUserName: String = that.projectId.split("--").apply(0)
     def githubRepoName: String = that.projectId.split("--").apply(1)
     def githubURL: String = s"https://github.com/${that.githubUserName}/${that.githubRepoName}"

@@ -18,7 +18,6 @@ import com.typesafe.scalalogging.LazyLogging
 case class Index(
     projects: Map[String, Project],
     modules: Map[String, Module],
-    declarations: Map[DeclarationRef, Declaration],
     implicitDeclarations: List[Declaration],
     implicitCallSites: List[CallSite],
     locationsModules: Map[Int, Module]
@@ -32,23 +31,24 @@ case class Index(
     def module(location: Location): Module = locationsModules(location.identityHashCode)
 
     override def resolveType(ref: DeclarationRef): Declaration = {
-      declarations(ref)
+      modules(ref.moduleId).declarations(ref.declarationFqn)
     }
   }
 
 object Index extends LazyLogging {
   implicit val monoid: Monoid[Index] = new Monoid[Index] {
+
     override def combine(x: Index, y: Index): Index = {
       Index(
         x.projects ++ y.projects,
         x.modules ++ y.modules,
-        x.declarations ++ y.declarations,
         x.implicitDeclarations ++ y.implicitDeclarations,
         x.implicitCallSites ++ y.implicitCallSites,
         x.locationsModules ++ y.locationsModules
       )
     }
-    override def empty: Index = Index(Map(), Map(), Map(), List(), List(), Map())
+
+    override def empty: Index = Index(Map(), Map(), List(), List(), Map())
   }
 
   private def task[T](name: String, thunk: => T): T = {
@@ -91,7 +91,7 @@ object Index extends LazyLogging {
       val empty = (List[Declaration](), Map[Int, Module]())
 
       val (implicitDeclarations, declarationsLocations) =
-        module.declarations.foldLeft(empty) {
+        module.declarations.values.foldLeft(empty) {
           case ((implicits, locations), declaration) =>
             (
               if (declaration.isImplicit) declaration :: implicits else implicits,
@@ -117,7 +117,6 @@ object Index extends LazyLogging {
       Index(
         Map(project.projectId -> project),
         Map(module.moduleId -> module),
-        project.declarations.map(x => x.ref -> x).toMap,
         implicitDeclarations,
         implicitCallSites,
         declarationsLocations ++ callSitesLocations

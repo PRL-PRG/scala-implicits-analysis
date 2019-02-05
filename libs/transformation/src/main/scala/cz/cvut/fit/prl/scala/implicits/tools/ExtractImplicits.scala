@@ -37,12 +37,13 @@ object ExtractImplicits extends App {
     }
   }
 
+  // TODO: use types for ModuleId
   case class Result(project: Project, exceptions: Seq[(String, Throwable)]) {
     def stats =
       Stats(
         project.modules.map(_.declarations.size).sum,
         project.modules.map(_.callSitesCount).sum,
-        project.modules.map(_.declarations.count(_.isImplicit)).sum,
+        project.modules.map(_.declarations.values.count(_.isImplicit)).sum,
         project.modules.map(_.implicitCallSites.size).sum,
         exceptions.size)
   }
@@ -229,7 +230,7 @@ object ExtractImplicits extends App {
       version = metadata.version,
       scalaVersion = metadata.scalaVersion,
       paths = paths,
-      declarations = ctx.declarations,
+      declarations = ctx.declarations.map(x => x.fqn -> x).toMap,
       implicitCallSites = callSites,
       callSitesCount = csCount
     )
