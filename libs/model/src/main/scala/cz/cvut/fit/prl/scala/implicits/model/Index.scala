@@ -2,7 +2,7 @@ package cz.cvut.fit.prl.scala.implicits.model
 
 import better.files._
 import cats.Monoid
-import cats.syntax.monoid._
+
 import com.typesafe.scalalogging.LazyLogging
 
 /**
@@ -27,8 +27,8 @@ case class Index(
   def module(location: Location): Module = locationsModules(location.identityHashCode)
 
   override def resolveType(ref: DeclarationRef): Declaration = {
-      modules(ref.moduleId).declarations(ref.declarationFqn)
-    }
+    modules(ref.moduleId).declarations(ref.declarationFqn)
+  }
 }
 
 object Index extends LazyLogging {
@@ -70,16 +70,24 @@ object Index extends LazyLogging {
         path.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
       })
 
-      task(s"Indexing", {
-        projects.toStream.map(buildIndex).reduce(_ |+| _)
-      })
+      apply(projects)
     })
+
+  def apply(projects: Iterable[Project]): Index = {
+    task(s"Indexing", {
+      val projectStream = projects.toStream
+        .map(buildIndex)
+
+      Monoid[Index].combineAll(projectStream)
+    })
+  }
 
   private def buildIndex(project: Project): Index =
     task(s"Index for project ${project.projectId}", {
-      project.modules.toStream
+      val moduleStream = project.modules.toStream
         .map(buildModuleIndex(project, _))
-        .foldLeft(Index.monoid.empty)(_ |+| _)
+
+      Monoid[Index].combineAll(moduleStream)
     })
 
   private def buildModuleIndex(project: Project, module: Module): Index =

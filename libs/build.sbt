@@ -8,7 +8,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(metadata, model, transformation)
+  .aggregate(metadata, model, transformation, testExtractor)
   .settings(commonSettings)
   .settings(name := "libs")
 
@@ -106,6 +106,18 @@ lazy val transformation = (project in file("transformation"))
     parallelExecution.in(Test) := false, // hello, reflection sync!!
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
+
+lazy val testExtractor = (project in file("test-extractor"))
+    .dependsOn(model % "compile->compile;test->test")
+    .dependsOn(transformation)
+    .settings(commonSettings)
+    .settings(
+      name := "test-extractor",
+      libraryDependencies ++= Seq(
+        ScalaTest,
+        ScalaCheck
+      )
+    )
 
 // this is here so we can extend semnaticdb schema (which we do for merging the raw semanticdb)
 // the semanticdb jar does not include the proto file so we cannot use the standard mechanism

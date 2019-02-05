@@ -1,2 +1,0 @@
-project_id,module_id,scope,managed,path,files,language,blank,comment,code
-"PRL-PRG--scala-corpus","cz.cvut.fit.prl.scala.implicits:example:1.0-SNAPSHOT:jvm","compile",false,"src/main/scala",5,Scala,20,0,43

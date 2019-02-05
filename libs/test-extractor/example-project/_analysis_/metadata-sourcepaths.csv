@@ -1,0 +1,3 @@
+project_id,module_id,scope,managed,path,files,language,blank,comment,code
+"PRL-PRG--scala-corpus","org.example:module1:1.0-SNAPSHOT:jvm","compile",false,"module1/src/main/scala",5,Scala,20,0,43
+"PRL-PRG--scala-corpus","org.example:module2:1.0-SNAPSHOT:jvm","compile",false,"module2/src/main/scala",1,Scala,4,0,7
