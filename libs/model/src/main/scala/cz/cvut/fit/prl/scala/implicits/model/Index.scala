@@ -3,6 +3,8 @@ package cz.cvut.fit.prl.scala.implicits.model
 import better.files._
 import cats.Monoid
 
+import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames.ExtractedImplicitsFilename
+
 import com.typesafe.scalalogging.LazyLogging
 
 /**
@@ -55,14 +57,33 @@ object Index extends LazyLogging {
     }
   }
 
-  def apply(path: File): Index =
-    task("Building index", {
-      val projects = task(s"Loading implicits from $path", {
-        path.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
+  def apply(path: String): Index = apply(File(path))
+
+  def apply(path: File): Index = {
+    val input = if (path.isDirectory) {
+      path / ExtractedImplicitsFilename
+    } else {
+      path
+    }
+
+    val index = task("Building index", {
+      val projects = task(s"Loading implicits from $input", {
+        input.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
       })
 
       apply(projects)
     })
+
+    logger.info(
+      s"Loaded index from: $input (" +
+        s"projects: ${index.projects.size}, " +
+        s"modules: ${index.modules.size}, " +
+        s"call sites: ${index.implicitCallSites.size}, " +
+        s"declarations: ${index.implicitDeclarations.size}" +
+        s")")
+
+    index
+  }
 
   def apply(projects: Iterable[Project]): Index = {
     task(s"Indexing", {
