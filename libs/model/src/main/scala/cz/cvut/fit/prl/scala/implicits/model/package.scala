@@ -151,14 +151,14 @@ package object model {
       *   implicit class A(x: Int) { ... }
       * }}}
       *
-  * 1. an implicit class `A#`
-  * 2. an implicit def `A().`
-  *
-  * This method identifies such declarations for the def part.
-  *
-  * @param resolver to be used to resolve declarations
-  * @return
-  */
+      * 1. an implicit class `A#`
+      * 2. an implicit def `A().`
+      *
+      * This method identifies such declarations for the def part.
+      *
+      * @param resolver to be used to resolve declarations
+      * @return
+      */
     def isImplicitClassCompanionDef(implicit resolver: TypeResolver): Boolean =
       that.implicitClassCompanion.isDefined
 
