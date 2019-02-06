@@ -6,14 +6,3 @@ object Constants {
   val NA: String = "NA"
 }
 
-object MetadataFilenames {
-  private val Prefix = "metadata"
-
-  val AnalysisDirname = "_analysis_"
-  val ProjectsDirname = "projects"
-
-  val DependenciesFilename = s"$Prefix-dependencies.csv"
-  val VersionsFilename = s"$Prefix-versions.csv"
-  val SourcePathsFilename = s"$Prefix-sourcepaths.csv"
-  val CleanPathsFilename = s"$Prefix-cleanpaths.csv"
-}

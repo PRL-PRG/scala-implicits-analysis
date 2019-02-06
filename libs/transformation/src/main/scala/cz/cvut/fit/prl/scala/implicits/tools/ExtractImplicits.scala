@@ -4,7 +4,7 @@ import better.files._
 import cats.Monoid
 import cats.implicits._
 import cats.derived
-import cz.cvut.fit.prl.scala.implicits.Constants._
+import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.{ProjectMetadata, ModuleMetadata}
 import cz.cvut.fit.prl.scala.implicits.extractor.{
   CallSiteExtractor,
