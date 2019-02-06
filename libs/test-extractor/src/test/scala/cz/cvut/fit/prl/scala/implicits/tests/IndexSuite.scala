@@ -15,6 +15,7 @@ class IndexSuite extends FunSuite with Matchers {
   }
 
   test("Index") {
-    idx.implicitCallSites.size shouldBe 22
+    idx.implicitDeclarations.size shouldBe 17
+    idx.implicitCallSites.size shouldBe 11
   }
 }
