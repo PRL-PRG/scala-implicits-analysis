@@ -149,7 +149,7 @@ package object model {
       * The following code will create two implicit definitions
       * {{{
       *   implicit class A(x: Int) { ... }
-  * }}}
+      * }}}
   *
   * 1. an implicit class `A#`
   * 2. an implicit def `A().`
@@ -168,8 +168,8 @@ package object model {
         if (rt.isImplicit && rt.isClass) {
           Some(rt)
         } else {
-    None
-  }
+          None
+        }
       } else {
         None
       }
