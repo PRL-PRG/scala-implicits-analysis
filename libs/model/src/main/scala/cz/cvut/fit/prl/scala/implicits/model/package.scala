@@ -151,7 +151,7 @@ package object model {
       * {{{
       *   implicit class A(x: Int) { ... }
       * }}}
-  *
+      *
   * 1. an implicit class `A#`
   * 2. an implicit def `A().`
   *
