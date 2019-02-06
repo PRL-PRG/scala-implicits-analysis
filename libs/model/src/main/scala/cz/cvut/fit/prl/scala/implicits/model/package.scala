@@ -5,6 +5,48 @@ import scala.meta.internal.semanticdb.Scala._
 
 package object model {
 
+  trait ModuleOps {
+    protected def moduleId: String
+
+    def module(implicit idx: Index): Module = idx.modules(moduleId)
+
+    def project(implicit idx: Index): Project = module.project
+  }
+
+  trait LocationOps {
+    protected def module(implicit idx: Index): Module
+
+    protected def location: Location
+
+    def isModuleLocal(implicit idx: Index): Boolean = isLocal(module.paths)
+
+    def isProjectLocal(implicit idx: Index): Boolean = isLocal(module.project.paths)
+
+    private def isLocal(paths: Map[String, PathEntry]): Boolean = {
+      paths
+        .get(location.path)
+        .collectFirst {
+          case _: SourcepathEntry => true
+          case x: ClasspathEntry => x.internal
+        }
+        .getOrElse(false)
+    }
+
+    def library(implicit idx: Index): Library = module.paths(location.path) match {
+      case _: SourcepathEntry => module.library
+      case x: ClasspathEntry => x.library
+      case PathEntry.Empty => throw new Exception(s"Calling Empty.library")
+    }
+
+    def githubURL(implicit idx: Index): Option[String] = {
+      if (isProjectLocal) {
+        Some(module.githubURL + "/" + location.relativeUri)
+      } else {
+        None
+      }
+    }
+  }
+
   implicit class IdentityHashCode(x: AnyRef) {
     def identityHashCode: Int = System.identityHashCode(x)
   }
@@ -16,17 +58,15 @@ package object model {
     def githubRepoName: String = that.projectId.split("--").apply(1)
     def githubURL: String = s"https://github.com/${that.githubUserName}/${that.githubRepoName}"
     def paths: Map[String, PathEntry] =
-    that.modules.foldLeft(Map[String, PathEntry]())(_ ++ _.paths)
+      that.modules.foldLeft(Map[String, PathEntry]())(_ ++ _.paths)
   }
 
-  implicit class XtensionLocation(that: Location) {
-    def project(implicit idx: Index): Project = idx.project(that)
-    def module(implicit idx: Index): Module = idx.module(that)
-    def githubURL(implicit idx: Index): String = project.githubURL + "/" + that.relativeUri
+  implicit class XtensionClasspathEntry(that: ClasspathEntry) {
+    def library: Library = Library(that.groupId, that.artifactId, that.version)
   }
 
   implicit class XtensionModule(that: Module) {
-    def project(implicit idx: Index): Project = idx.project(that)
+    def project(implicit idx: Index): Project = idx.projects(that.moduleId)
     def library: Library = Library(that.groupId, that.artifactId, that.version)
     def githubURL(implicit idx: Index): String = project.githubURL
   }
@@ -71,7 +111,7 @@ package object model {
     }
   }
 
-  implicit class XtensionCallSite(that: CallSite) {
+  implicit class XtensionCallSite(that: CallSite) extends ModuleOps with LocationOps {
     def isImplicit(implicit resolver: TypeResolver): Boolean = {
       val declaration = that.declaration
       declaration.signature.isMethod && (
@@ -84,12 +124,12 @@ package object model {
     def declaration(implicit resolver: TypeResolver): Declaration =
       that.declarationRef.declaration
 
-    def module(implicit idx: Index): Module = idx.modules(that.moduleId)
+    override protected def moduleId: String = that.moduleId
 
-    def project(implicit idx: Index): Project = that.module.project
+    override protected def location: Location = that.location
   }
 
-  implicit class XtensionDeclaration(that: Declaration) {
+  implicit class XtensionDeclaration(that: Declaration) extends ModuleOps with LocationOps {
     import Declaration.Kind._
 
     def isMethod: Boolean = that.kind == DEF
@@ -108,7 +148,7 @@ package object model {
     /**
       * The following code will create two implicit definitions
       * {{{
-  *   implicit class A(x: Int) { ... }
+      *   implicit class A(x: Int) { ... }
   * }}}
   *
   * 1. an implicit class `A#`
@@ -116,7 +156,7 @@ package object model {
   *
   * This method identifies such declarations for the def part.
   *
-  * @param resolver
+  * @param resolver to be used to resolve declarations
   * @return
   */
     def isImplicitClassCompanionDef(implicit resolver: TypeResolver): Boolean =
@@ -126,13 +166,13 @@ package object model {
       if (that.isMethod && that.parameterLists.headOption.exists(_.parameters.size == 1)) {
         val rt = that.returnType
         if (rt.isImplicit && rt.isClass) {
-      Some(rt)
-    } else {
-      None
-    }
-      } else {
+          Some(rt)
+        } else {
     None
   }
+      } else {
+        None
+      }
 
     // TODO: also any MethodSignature that extends FunctionX
     def isFunctionLike: Boolean = that.isMethod
@@ -163,7 +203,7 @@ package object model {
       }
 
     def returnType(implicit resolver: TypeResolver): Declaration =
-    returnTypeRef.declaration
+      returnTypeRef.declaration
 
     def declaringTypeRef: DeclarationRef =
       that.signature.value match {
@@ -176,7 +216,7 @@ package object model {
       }
 
     def declaringType(implicit ctx: TypeResolver): Declaration =
-    declaringTypeRef.declaration
+      declaringTypeRef.declaration
 
     def parents: Seq[Type] =
       that.signature.value match {
@@ -185,25 +225,11 @@ package object model {
           throw new Exception(s"Trying to get parents on ${that.signature}")
       }
 
-    def module(implicit idx: Index): Module = idx.modules(that.moduleId)
-
-    def project(implicit idx: Index): Project = that.module.project
-
     def ref: DeclarationRef = DeclarationRef(that.moduleId, that.declarationId)
 
-    def isModuleLocal(implicit idx: Index): Boolean = isLocal(that.module.paths)
+    override protected def moduleId: String = that.moduleId
 
-    def isProjectLocal(implicit idx: Index): Boolean = isLocal(that.project.paths)
-
-    private def isLocal(paths: Map[String, PathEntry]): Boolean = {
-      paths
-      .get(that.location.path)
-      .collectFirst {
-        case _: SourcepathEntry => true
-        case x: ClasspathEntry => x.internal
-      }
-      .getOrElse(false)
-    }
+    override protected def location: Location = that.location
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =

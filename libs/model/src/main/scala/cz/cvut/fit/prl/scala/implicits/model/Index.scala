@@ -8,23 +8,15 @@ import com.typesafe.scalalogging.LazyLogging
 /**
   * @param projects - a map from projects' ids to projects
   * @param modules - a map from modules' ids to modules
-  * @param implicitDeclarations - a list of implicit declarations
-  * @param implicitCallSites - a list of implicit call sites
-  * @param locationsModules - a map from Locations identity hashCodes to a modules
+  * @param implicitDeclarations - a list of all implicit declarations
+  * @param implicitCallSites - a list of all implicit call sites
   */
 case class Index(
     projects: Map[String, Project],
     modules: Map[String, Module],
     implicitDeclarations: Iterable[Declaration],
-    implicitCallSites: Iterable[CallSite],
-    locationsModules: Map[Int, Module]
+    implicitCallSites: Iterable[CallSite]
 ) extends TypeResolver {
-
-  def project(module: Module): Project = projects(module.projectId)
-
-  def project(location: Location): Project = module(location).project(this)
-
-  def module(location: Location): Module = locationsModules(location.identityHashCode)
 
   override def resolveType(ref: DeclarationRef): Declaration = {
     modules(ref.moduleId).declarations(ref.declarationFqn)
@@ -39,12 +31,11 @@ object Index extends LazyLogging {
         x.projects ++ y.projects,
         x.modules ++ y.modules,
         x.implicitDeclarations ++ y.implicitDeclarations,
-        x.implicitCallSites ++ y.implicitCallSites,
-        x.locationsModules ++ y.locationsModules
+        x.implicitCallSites ++ y.implicitCallSites
       )
     }
 
-    override def empty: Index = Index(Map(), Map(), List(), List(), Map())
+    override def empty: Index = Index(Map(), Map(), List(), List())
   }
 
   private def task[T](name: String, thunk: => T): T = {
@@ -92,28 +83,13 @@ object Index extends LazyLogging {
 
   private def buildModuleIndex(project: Project, module: Module): Index =
     task(s"Index for module ${module.moduleId}", {
-      val empty = (List[Declaration](), Map[Int, Module]())
-
-      val (implicitDeclarations, declarationsLocations) =
-        module.declarations.values.foldLeft(empty) {
-          case ((implicits, locations), declaration) =>
-            (
-              if (declaration.isImplicit) declaration :: implicits else implicits,
-              locations + (declaration.location.identityHashCode -> module)
-            )
-        }
-
-      val csLocations =
-        module.implicitCallSites
-          .foldLeft(Map[Int, Module]())((locations, cs) =>
-      locations + (cs.location.identityHashCode -> module))
+      val implicitDeclarations = module.declarations.values.filter(_.isImplicit)
 
       Index(
         Map(project.projectId -> project),
         Map(module.moduleId -> module),
         implicitDeclarations,
-        module.implicitCallSites,
-        declarationsLocations ++ csLocations
+        module.implicitCallSites
       )
     })
 }
