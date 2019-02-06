@@ -83,6 +83,10 @@ package object model {
 
     def declaration(implicit resolver: TypeResolver): Declaration =
       that.declarationRef.declaration
+
+    def module(implicit idx: Index): Module = idx.modules(that.moduleId)
+
+    def project(implicit idx: Index): Project = that.module.project
   }
 
   implicit class XtensionDeclaration(that: Declaration) {
