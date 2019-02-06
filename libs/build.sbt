@@ -101,8 +101,10 @@ lazy val transformation = (project in file("transformation"))
           "/.ivy2/cache/org.scalameta/semanticdb-scalac_" + scalaVersion.value +
           "/jars/" +
           "semanticdb-scalac_" + scalaVersion.value + "-" + ScalametaVersion + ".jar"
-      )
+      ),
+      buildInfoBuildNumber
     ),
+    buildInfoOptions += BuildInfoOption.BuildTime,
     parallelExecution.in(Test) := false, // hello, reflection sync!!
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
