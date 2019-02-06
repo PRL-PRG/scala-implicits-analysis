@@ -15,8 +15,8 @@ import com.typesafe.scalalogging.LazyLogging
 case class Index(
     projects: Map[String, Project],
     modules: Map[String, Module],
-    implicitDeclarations: List[Declaration],
-    implicitCallSites: List[CallSite],
+    implicitDeclarations: Iterable[Declaration],
+    implicitCallSites: Iterable[CallSite],
     locationsModules: Map[Int, Module]
 ) extends TypeResolver {
 
@@ -103,25 +103,17 @@ object Index extends LazyLogging {
             )
         }
 
-      val (implicitCallSites, callSitesLocations) = {
-        val empty = (List[CallSite](), Map[Int, Module]())
-
+      val csLocations =
         module.implicitCallSites
-          .foldLeft(empty) {
-            case ((callSites, locations), callSite) =>
-              (
-                callSite :: callSites,
-                locations + (callSite.location.identityHashCode -> module)
-              )
-          }
-      }
+          .foldLeft(Map[Int, Module]())((locations, cs) =>
+      locations + (cs.location.identityHashCode -> module))
 
       Index(
         Map(project.projectId -> project),
         Map(module.moduleId -> module),
         implicitDeclarations,
-        implicitCallSites,
-        declarationsLocations ++ callSitesLocations
+        module.implicitCallSites,
+        declarationsLocations ++ csLocations
       )
     })
 }
