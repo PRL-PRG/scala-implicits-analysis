@@ -66,7 +66,7 @@ package object model {
   }
 
   implicit class XtensionModule(that: Module) {
-    def project(implicit idx: Index): Project = idx.projects(that.moduleId)
+    def project(implicit idx: Index): Project = idx.projects(that.projectId)
     def library: Library = Library(that.groupId, that.artifactId, that.version)
     def githubURL(implicit idx: Index): String = project.githubURL
   }
