@@ -53,6 +53,7 @@ package object model {
 
   implicit class XtensionProject(that: Project) {
     def declarations: Iterable[Declaration] = that.modules.flatMap(_.declarations.values)
+    def implicitDeclarations: Iterable[Declaration] = that.declarations.filter(_.isImplicit)
     def implicitCallSites: Iterable[CallSite] = that.modules.flatMap(_.implicitCallSites)
     def githubUserName: String = that.projectId.split("--").apply(0)
     def githubRepoName: String = that.projectId.split("--").apply(1)
