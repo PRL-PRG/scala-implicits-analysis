@@ -17,7 +17,8 @@ case class Index(
     projects: Map[String, Project],
     modules: Map[String, Module],
     implicitDeclarations: Iterable[Declaration],
-    implicitCallSites: Iterable[CallSite]
+    implicitCallSites: Iterable[CallSite],
+    paths: Map[String, Map[String, PathEntry]]
 ) extends TypeResolver {
 
   override def resolveType(ref: DeclarationRef): Declaration = {
@@ -33,11 +34,15 @@ object Index extends LazyLogging {
         x.projects ++ y.projects,
         x.modules ++ y.modules,
         x.implicitDeclarations ++ y.implicitDeclarations,
-        x.implicitCallSites ++ y.implicitCallSites
+        x.implicitCallSites ++ y.implicitCallSites,
+        y.paths.foldLeft(x.paths) {
+      case (prev, (k, v)) =>
+        prev.updated(k, prev.get(k).map(_ ++ v).getOrElse(v))
+    }
       )
     }
 
-    override def empty: Index = Index(Map(), Map(), List(), List())
+    override def empty: Index = Index(Map(), Map(), List(), List(), Map())
   }
 
   private def task[T](name: String, thunk: => T): T = {
@@ -110,7 +115,8 @@ object Index extends LazyLogging {
         Map(project.projectId -> project),
         Map(module.moduleId -> module),
         implicitDeclarations,
-        module.implicitCallSites
+        module.implicitCallSites,
+        Map(project.projectId -> module.paths)
       )
     })
 }

@@ -58,8 +58,7 @@ package object model {
     def githubUserName: String = that.projectId.split("--").apply(0)
     def githubRepoName: String = that.projectId.split("--").apply(1)
     def githubURL: String = s"https://github.com/${that.githubUserName}/${that.githubRepoName}"
-    def paths: Map[String, PathEntry] =
-      that.modules.foldLeft(Map[String, PathEntry]())(_ ++ _.paths)
+    def paths(implicit idx: Index): Map[String, PathEntry] = idx.paths(that.projectId)
   }
 
   implicit class XtensionClasspathEntry(that: ClasspathEntry) {
