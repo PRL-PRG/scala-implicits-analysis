@@ -1,9 +1,11 @@
-scalaVersion := "2.12.7"
-organization := "cz.cvut.fit.prl.scala.corpus"
-version := "1.0-SNAPSHOT"
 name := "scripts"
 
-libraryDependencies ++= Seq(
-  "cz.cvut.fit.prl.scala.implicits" %% "model" % version.value,
-  "cz.cvut.fit.prl.scala.implicits" %% "transformation" % version.value,
-)
+organization := "cz.cvut.fit.prl.scala.implicits"
+
+version := "1.0-SNAPSHOT"
+
+scalaVersion := "2.12.8"
+
+libraryDependencies += "com.lihaoyi" % ("ammonite_" + scalaVersion.value) % "1.6.3"
+libraryDependencies += "cz.cvut.fit.prl.scala.implicits" %% "transformation" % version.value
+
