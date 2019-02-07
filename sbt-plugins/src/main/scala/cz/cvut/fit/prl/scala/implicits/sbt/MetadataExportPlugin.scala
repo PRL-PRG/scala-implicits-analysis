@@ -108,8 +108,12 @@ object MetadataExportPlugin extends AutoPlugin {
         val forcedCompileProductDirectories = (productDirectories in Compile).value
         val forcedTestProductDirectories = (productDirectories in Test).value
 
-        val forcedManagedSourceDirectories =
-          (managedSourceDirectories in Compile).value
+        val forcedManagedSourceDirectories = {
+          val managed = (managedSourceDirectories in Compile).value
+          val base = baseDirectory.value
+          if (sourcesInBase.value) managed :+ base else managed
+        }
+
         val forcedManagedTestDirectories =
           (managedSourceDirectories in Test).value
         val forcedUnmanagedSourceDirectories =
