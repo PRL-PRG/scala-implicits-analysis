@@ -10,10 +10,9 @@ import kantan.csv.generic._
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.metadata._
-import cz.cvut.fit.prl.scala.implicits.semanticdb.Semanticdb
 import cz.cvut.fit.prl.scala.implicits.utils.SdbLocator
 
-val startingPath = File(".")
+val startingPath = File.currentWorkingDirectory
 val mergedSemanticdbFile = startingPath / MergedSemanticdbFilename
 val mergedSemanticdbStatsFile = startingPath / MergedSemanticdbStatsFilename
 
@@ -28,7 +27,7 @@ for {
       .exclude(ExcludedDirs)
       .options(FileVisitOption.FOLLOW_LINKS)
       .run {
-        case (path, db) =>
+        case (_, db) =>
           stats = (
             stats._1 + db.documents.map(_.occurrences.size).sum,
             stats._2 + db.documents.map(_.synthetics.size).sum,
@@ -36,8 +35,7 @@ for {
           )
 
           db.documents.foreach { d =>
-            val sdb = Semanticdb(path.toString, d)
-            sdb.writeDelimitedTo(mergedOutput)
+            d.writeDelimitedTo(mergedOutput)
           }
       }
 }

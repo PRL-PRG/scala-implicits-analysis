@@ -145,13 +145,6 @@ object ExtractImplicits extends App {
     }
   }
 
-//  object Module {
-//    implicit val monoid: Monoid[Module] = {
-//      import derived.auto.monoid._
-//      derived.semi.monoid
-//    }
-//  }
-//
   def extractProject(projectPath: File): Result = {
     val (metadata, warnings) = ProjectMetadata(projectPath)
     val modulesResult = metadata.modules.map(extractModule(metadata.projectId))

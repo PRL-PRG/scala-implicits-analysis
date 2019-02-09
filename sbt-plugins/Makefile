@@ -7,14 +7,14 @@ VERSION := 1.0-SNAPSHOT
 FILENAME := scala-implicits.sbt
 PLUGIN_013 := ~/.sbt/0.13/plugins/$(FILENAME)
 PLUGIN_10 := ~/.sbt/1.0/plugins/$(FILENAME)
-JAR := $(IVY_DIR)/local/$(GROUP_ID)/$(ARTIFACT_ID)/scala_2.12/sbt_1.0/$(VERSION)/jars/$(ARTIFACT_ID).jar
+JAR := $(GLOBAL_IVY_DIR)/local/$(GROUP_ID)/$(ARTIFACT_ID)/scala_2.12/sbt_1.0/$(VERSION)/jars/$(ARTIFACT_ID).jar
 
 .PHONY: all install uninstall
 
 all: install
 
-$(JAR): $(IVY_DIR)
-	sbt -batch -ivy ../$(IVY_DIR) "^ publishLocal"
+$(JAR):
+	sbt -batch -ivy $(GLOBAL_IVY_DIR) "^ publishLocal"
 
 $(PLUGIN_013): $(JAR)
 	-mkdir -p ~/.sbt/0.13/plugins

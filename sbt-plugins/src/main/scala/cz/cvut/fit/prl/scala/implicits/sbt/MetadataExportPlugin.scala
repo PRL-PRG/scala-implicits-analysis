@@ -1,6 +1,8 @@
 package cz.cvut.fit.prl.scala.implicits.sbt
+
 import java.io.FileWriter
 import java.nio.file.Path
+import java.io.File
 
 import cz.cvut.fit.prl.scala.implicits.metadata.Constants.{NA, NL, PathSep}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
@@ -38,6 +40,9 @@ object MetadataExportPlugin extends AutoPlugin {
     //runCommand("git rev-parse --show-toplevel").get.trim
     java.nio.file.Paths.get("").toAbsolutePath
   }
+
+  private def relativize(x: File): Path =
+    repositoryRoot.relativize(x.toPath)
 
   private lazy val projectId: String = origin match {
     case GHOrigin(user, repo) => user + "--" + repo.replaceAll("\\.git$", "")
@@ -127,18 +132,19 @@ object MetadataExportPlugin extends AutoPlugin {
           .getOrElse("NA")
 
         val (updatedCompileProductDirectories, updatedTestProductDirectories) =
-      (
-        CrossVersion.partialVersion(forcedScalaVersion),
-        CrossVersion.partialVersion(updatedVersion)
-      ) match {
-        case (Some((_, from)), Some((_, to))) if from != to =>
           (
-            forcedCompileProductDirectories.map(x => replaceScalaMinorVersionInPath(x, from, to)),
-            forcedTestProductDirectories.map(x => replaceScalaMinorVersionInPath(x, from, to))
-          )
-        case _ =>
-          (forcedCompileProductDirectories, forcedTestProductDirectories)
-      }
+            CrossVersion.partialVersion(forcedScalaVersion),
+            CrossVersion.partialVersion(updatedVersion)
+          ) match {
+            case (Some((_, from)), Some((_, to))) if from != to =>
+              (
+                forcedCompileProductDirectories.map(x =>
+                  replaceScalaMinorVersionInPath(x, from, to)),
+                forcedTestProductDirectories.map(x => replaceScalaMinorVersionInPath(x, from, to))
+              )
+            case _ =>
+              (forcedCompileProductDirectories, forcedTestProductDirectories)
+          }
 
         // we need to check if the project might build for multiple platforms
         // a better way would be to somehow ask the
@@ -197,9 +203,9 @@ object MetadataExportPlugin extends AutoPlugin {
       )
     )
 
-  private def computeSLOC(path: Path): Try[Seq[SLOC]] = {
-    if (path.toFile.exists()) {
-      val cmd = s"cloc --quiet --csv $path"
+  private def computeSLOC(path: File): Try[Seq[SLOC]] = {
+    if (path.isDirectory) {
+      val cmd = s"cloc --quiet --csv ${path.getAbsolutePath}"
       val output = runCommand(cmd)
 
       output map { out =>
@@ -272,7 +278,7 @@ object MetadataExportPlugin extends AutoPlugin {
   private def projectDependency(projectId: String, moduleId: String, scope: String)(
       entry: Attributed[File]): Dependency = {
 
-    val path = entry.data.getAbsolutePath
+    val path = relativize(entry.data).toString
     val (groupId, artifactId, version, transitive) = entry
       .get(moduleID.key)
       .map { module =>
@@ -312,8 +318,8 @@ object MetadataExportPlugin extends AutoPlugin {
         forcedScalaVersion,
         forcedSbtVersion,
         updatedScalaVersion,
-        forcedCompileOutput.map(_.getAbsolutePath).mkString(PathSep),
-        forcedTestOutput.map(_.getAbsolutePath).mkString(PathSep)
+        forcedCompileOutput.map(relativize).mkString(PathSep),
+        forcedTestOutput.map(relativize).mkString(PathSep)
       )
 
     writeCSV(versionsFile, Version.CsvHeader, Seq(version))
@@ -350,7 +356,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
     val directories = for {
       (managed, scope, paths) <- sources
-      path <- paths.map(_.toPath.toAbsolutePath)
+      path <- paths
       slocs <- computeSLOC(path).toOption.toSeq
       sloc <- slocs
     } yield
@@ -359,7 +365,7 @@ object MetadataExportPlugin extends AutoPlugin {
         moduleId,
         scope,
         managed,
-        repositoryRoot.relativize(path).toString,
+        relativize(path).toString,
         sloc)
 
     writeCSV(sourcepathsFile, SourcePath.CsvHeader, directories)
@@ -367,7 +373,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
   private def exportCleanpaths(moduleId: String, cleanDirectories: Seq[File]): Unit = {
     val cleanpaths = for (path <- cleanDirectories)
-      yield CleanPath(projectId, moduleId, path.getAbsolutePath)
+      yield CleanPath(projectId, moduleId, relativize(path).toString)
 
     writeCSV(cleanpathFile, CleanPath.CsvHeader, cleanpaths)
   }

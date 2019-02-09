@@ -163,7 +163,7 @@ package object model {
       that.implicitClassCompanion.isDefined
 
     def implicitClassCompanion(implicit resolver: TypeResolver): Option[Declaration] =
-      if (that.isMethod && that.parameterLists.headOption.exists(_.parameters.size == 1)) {
+      if (that.isMethod && that.signature.isMethod && that.parameterLists.headOption.exists(_.parameters.size == 1)) {
         val rt = that.returnType
         if (rt.isImplicit && rt.isClass) {
           Some(rt)
@@ -180,19 +180,20 @@ package object model {
     def typeParameters: Seq[TypeParameter] = that.signature.value match {
       case x: MethodSignature => x.typeParameters
       case x: TypeSignature => x.typeParameters
+      case _: ValueSignature => Seq.empty
     }
 
     def parameterLists: Seq[ParameterList] =
       that.signature.value match {
         case x: MethodSignature => x.parameterLists
-        case _ =>
-          throw new Exception(
-            s"Trying to get parameterList on ${that.signature}"
-          )
+        case _ => Seq.empty
       }
 
+    def implicitParameterList: Option[ParameterList] =
+      parameterLists.lastOption.filter(_.isImplicit)
+
     def hasImplicitParameters: Boolean =
-      that.parameterLists.exists(_.isImplicit)
+      that.implicitParameterList.isDefined
 
     def returnTypeRef: DeclarationRef =
       that.signature.value match {

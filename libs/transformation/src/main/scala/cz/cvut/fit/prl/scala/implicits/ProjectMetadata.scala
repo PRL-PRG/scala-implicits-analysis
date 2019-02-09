@@ -15,7 +15,6 @@ import cz.cvut.fit.prl.scala.implicits.extractor.{GlobalSymbolTable, SymbolTable
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.Constants._
-import cz.cvut.fit.prl.scala.implicits.semanticdb.Semanticdb
 import kantan.csv._
 import kantan.csv.generic._
 
@@ -62,7 +61,9 @@ case class ProjectMetadata(
 }
 
 object ProjectMetadata {
-  def apply(path: File): (ProjectMetadata, Seq[Throwable]) = {
+  type ModuleId = String
+
+  def apply(projectPath: File): (ProjectMetadata, Seq[Throwable]) = {
 
     val warnings = mutable.Buffer[Throwable]()
 
@@ -72,15 +73,15 @@ object ProjectMetadata {
     }
 
     val versions: List[Version] =
-      readCSV[Version](path / AnalysisDirname / VersionsFilename)
+      readCSV[Version](projectPath / AnalysisDirname / VersionsFilename)
 
     val dependencies: List[Dependency] =
-      readCSV[Dependency](path / AnalysisDirname / DependenciesFilename)
+      readCSV[Dependency](projectPath / AnalysisDirname / DependenciesFilename)
 
     val sourcepathEntries: List[SourcePath] =
-      readCSV[SourcePath](path / AnalysisDirname / SourcePathsFilename)
+      readCSV[SourcePath](projectPath / AnalysisDirname / SourcePathsFilename)
 
-    val versionsMap: Map[String, Version] = versions
+    val versionsMap: Map[ModuleId, Version] = versions
       .groupBy(_.moduleId)
       .mapValues {
         case v :: Nil => v
@@ -94,13 +95,13 @@ object ProjectMetadata {
           top._1
       }
 
-    val sourcepathEntriesMap =
+    val sourcepathEntriesMap: Map[ModuleId, List[SourcepathEntry]] =
       sourcepathEntries
         .groupBy(_.moduleId)
         .mapValues(xs => xs.map(x => SourcepathEntry(x.path, x.scope, x.managed)))
         .withDefaultValue(Nil)
 
-    val classpathEntriesMap: Map[String, List[ClasspathEntry]] = {
+    val classpathEntriesMap: Map[ModuleId, List[ClasspathEntry]] = {
       val internalModules = versions.map(x => (x.groupId, x.artifactId, x.version)).toSet
 
       dependencies
@@ -124,40 +125,37 @@ object ProjectMetadata {
         }
     }.withDefaultValue(Nil)
 
-    val semanticdbs: List[Semanticdb] =
-      (path / Constants.MergedSemanticdbFilename).inputStream
-        .apply(input => Semanticdb.streamFromDelimitedInput(input).toList)
+    val semanticdbs: List[s.TextDocument] =
+      (projectPath / Constants.MergedSemanticdbFilename).inputStream
+        .apply(input => s.TextDocument.streamFromDelimitedInput(input).toList)
 
     val subProjects: Seq[ModuleMetadata] = {
-      val semanticdbMap: Map[String, List[s.TextDocument]] = {
-        // an output classpath to moduleId
-        val inversePathsMap: Map[String, String] =
-          versions.flatMap(x => x.output.map(_ -> x.moduleId)).toMap
-        val map = mutable.Map[String, mutable.Buffer[s.TextDocument]]()
+      val semanticdbMap: Map[ModuleId, List[s.TextDocument]] = {
+        val sourcePaths2Module: Map[String, ModuleId] =
+          sourcepathEntries.filter(_.path.nonEmpty).map(x => x.path -> x.moduleId).toMap
 
-        semanticdbs.foreach { sdb =>
-          inversePathsMap.collectFirst {
-            case (path, project) if sdb.path.startsWith(path) => project
-          } match {
-            case Some(project) =>
-              map.getOrElseUpdate(project, mutable.Buffer()) += sdb.semanticdb
+        val empty = Map[ModuleId, List[s.TextDocument]]().withDefaultValue(Nil)
+
+        semanticdbs.foldLeft(empty) { (acc, sdb) =>
+          sourcePaths2Module
+            .collectFirst {
+              case (p, moduleId) if sdb.uri.startsWith(p) => moduleId
+            } match {
+            case Some(moduleId) =>
+              acc.updated(moduleId, sdb :: acc(moduleId))
             case None =>
-              // it is possible that there are semanticdbs in source paths that we do not know about
-              // for example multi-jvm (https://github.com/sbt/sbt-multi-jvm) creates a new scope
-              warnings += new LoadingMetadataException(s"No module found for ${sdb.path}")
+              warnings += new LoadingMetadataException(s"No module found for ${sdb.uri}")
+              acc
           }
         }
-
-        map.toMap
-          .mapValues(x => x.toList)
-          .withDefaultValue(Nil)
       }
 
-      val classpathMap: Map[String, Classpath] =
+      val classpathMap: Map[ModuleId, Classpath] =
         classpathEntriesMap
           .map {
             case (name, entries) =>
-              val moduleClasspath = entries.map(_.path).distinct.map(AbsolutePath(_))
+              val baseDir = projectPath.path
+              val moduleClasspath = entries.map(_.path).distinct.map(x => AbsolutePath(baseDir.resolve(x)))
               val missing = moduleClasspath.filter { x =>
                 val file = x.toFile
                 file.getName.endsWith(".jar") && !file.exists()
@@ -202,6 +200,6 @@ object ProjectMetadata {
 
     val sbtVersion: String = versions.head.sbtVersion
 
-    (ProjectMetadata(path, projectId, scalaVersion, sbtVersion, subProjects), warnings)
+    (ProjectMetadata(projectPath, projectId, scalaVersion, sbtVersion, subProjects), warnings)
   }
 }
