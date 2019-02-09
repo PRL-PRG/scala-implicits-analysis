@@ -2,5 +2,6 @@
 
 GLOBAL_SBT_BOOT_DIR := /var/lib/scala/sbt-boot
 GLOBAL_IVY_DIR := /var/lib/scala/ivy
+GLOBAL_COURSIER_DIR := /var/lib/scala/coursier
 N_JOBS := 12
 

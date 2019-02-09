@@ -7,7 +7,17 @@ include $(base_dir)/Makevars
 
 SHELL := /bin/bash
 
-SBT := sbt -batch -ivy $(IVY_DIR) -sbt-boot $(SBT_BOOT_DIR) -Dsbt.log.noformat=true -Djline.terminal=jline.UnsupportedTerminal
+define SBT
+COURSIER_CACHE=$(COURSIER_DIR) \
+  sbt \
+    -Dsbt.ivy.home=$(IVY_DIR) \
+    -Divy.home=$(IVY_DIR) \
+    -Dsbt.boot.directory=$(SBT_BOOT_DIR) \
+    -batch -ivy $(IVY_DIR) \
+    -sbt-boot $(SBT_BOOT_DIR) \
+    -Dsbt.log.noformat=true \
+    -Djline.terminal=jline.UnsupportedTerminal
+endef
 
 REDO ?= 0
 
@@ -31,7 +41,7 @@ REDO ?= 0
 	repo-sloc \
 	reset
 
-$(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
+$(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
     $(SBT) clean test:compile > $(COMPILE_LOG) 2>&1; \
@@ -50,7 +60,7 @@ $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
       echo "-1,0" >> $(IMPLICITS_STATUS); \
     fi
 
-$(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
+$(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
     # we cannot tee the output since we want to keep the error code
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
@@ -60,7 +70,7 @@ $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
 
 # runs the semanticdb task on a clean project
-$(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR)
+$(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
     $(SBT) clean semanticdb >$(SEMANTICDB_LOG) 2>&1; \
