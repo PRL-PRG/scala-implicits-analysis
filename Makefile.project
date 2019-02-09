@@ -161,6 +161,8 @@ ifeq ($(REDO), 1)
 endif
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
+redo-metadata: clean-metadata metadata
+
 repo-build-system: $(REPO_BUILD_SYSTEM)
 
 repo-metadata: $(REPO_METADATA)
