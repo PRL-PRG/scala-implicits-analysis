@@ -1,7 +1,7 @@
 # -*- mode: makefile -*-
 
-GLOBAL_IVY_DIR := ~/.ivy2
-GLOBAL_SBT_BOOT_DIR := ~/.sbt/boot
+GLOBAL_SBT_BOOT_DIR := /var/lib/scala/sbt-boot
+GLOBAL_IVY_DIR := /var/lib/scala/ivy
 N_JOBS := 2
 TIMEOUT := 60m
 SBT_MEM := 8196

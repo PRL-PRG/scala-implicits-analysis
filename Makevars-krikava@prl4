@@ -1,6 +1,6 @@
 # -*- mode: makefile -*-
 
-GLOBAL_SBT_BOOT_DIR := /mnt/nvme1/scala/sbt-boot
-GLOBAL_IVY_DIR := /mnt/nvme1/scala/ivy
+GLOBAL_SBT_BOOT_DIR := /var/lib/scala/sbt-boot
+GLOBAL_IVY_DIR := /var/lib/scala/ivy
 N_JOBS := 12
 
