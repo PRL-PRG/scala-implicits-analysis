@@ -317,7 +317,7 @@ report: $(GLOBAL_METADATA_STATUS) $(GLOBAL_COMPILE_STATUS) $(GLOBAL_SEMANTICDB_S
 	@echo ">> Report is in report.html"
 
 reset: $(bootstrap)
-	$(parallel) $@
+	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
 
 semanticdb: $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_MERGED_SEMANTICDB_STATS_FILE)
 
