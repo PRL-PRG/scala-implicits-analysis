@@ -22,6 +22,8 @@ endef
 REDO ?= 0
 
 .PHONY: \
+    all \
+    bootstrap \
 	clean \
 	clean-classes \
 	clean-compile \
@@ -40,6 +42,11 @@ REDO ?= 0
 	repo-metadata \
 	repo-sloc \
 	reset
+
+all: repo-build-system repo-metadata repo-sloc compile implicits
+
+bootstrap:
+	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 
 $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
@@ -83,10 +90,10 @@ $(MERGED_SEMANTICDB_FILE): $(SEMANTICDB_STATUS)
       $(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc; \
     fi
 
-$(REPO_BUILD_SYSTEM):
+$(REPO_BUILD_SYSTEM): bootstrap
 	$(SCRIPTS_DIR)/guess-build-system.R . $(REPO_BUILD_SYSTEM)
 
-$(REPO_METADATA):
+$(REPO_METADATA): bootstrap
 	commit_count=$$(git rev-list --count HEAD); \
     commit=$$(git log --pretty=format:'%H' -n 1); \
     commit_date=$$(git log --date=unix --pretty=format:'%cd' -n 1); \
@@ -95,7 +102,7 @@ $(REPO_METADATA):
     echo "commit_count,commit,first_commit_date,commit_date,size" > $(REPO_METADATA); \
     echo "$$commit_count,$$commit,$$first_commit_date,$$commit_date,$$size" >> $(REPO_METADATA)
 
-$(REPO_SLOC):
+$(REPO_SLOC): bootstrap
 	echo "files,language,blank,comment,code" > $(REPO_SLOC)
 	cloc -q --csv . | tail +3 >> $(REPO_SLOC)
 
@@ -164,6 +171,10 @@ endif
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
 redo-metadata: clean-metadata metadata
+
+redo-semanticdb: clean-semanticdb semanticdb
+
+redo-implicits: clean-implicits implicits
 
 repo-build-system: $(REPO_BUILD_SYSTEM)
 
