@@ -1,8 +1,8 @@
 include Makevars
 
-.PHONY: all libs sbt-plugins sync-prl4
+.PHONY: all libs sbt-plugins tools
 
-all: libs sbt-plugins
+all: libs sbt-plugins tools
 
 libs:
 	$(MAKE) -C libs
@@ -10,13 +10,7 @@ libs:
 sbt-plugins:
 	$(MAKE) -C sbt-plugins uninstall all
 
-sync-prl4:
-	rsync \
-      -avh \
-      --exclude "jobsfile.txt" \
-      --exclude "logs" \
-      --exclude ".ivy" \
-      --exclude "corpora" \
-      --exclude "target" \
-      . prl4:Research/Projects/scala-corpus/
+tools:
+	$(MAKE) -C scripts/tools
+
 
