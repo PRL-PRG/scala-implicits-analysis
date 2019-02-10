@@ -170,6 +170,8 @@ ifeq ($(REDO), 1)
 endif
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
+redo-compile: clean-compile compile
+
 redo-metadata: clean-metadata metadata
 
 redo-semanticdb: clean-semanticdb semanticdb
