@@ -59,7 +59,7 @@ $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
     echo "exit_code,duration" > $(COMPILE_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
 
-$(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(MERGED_SEMANTICDB_FILE)
+$(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
     if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' \
       -a $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
@@ -88,7 +88,7 @@ $(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
     echo "exit_code,duration" > $(SEMANTICDB_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS)
 
-$(MERGED_SEMANTICDB_FILE): $(SEMANTICDB_STATUS)
+$(SEMANTICDB_MERGED_FILE): $(SEMANTICDB_STATUS)
 	if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
       $(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc; \
     fi
@@ -147,8 +147,8 @@ clean-sbt:
 clean-semanticdb:
 	rm -f $(SEMANTICDB_STATUS) \
       $(SEMANTICDB_LOG) \
-      $(MERGED_SEMANTICDB_FILE) \
-      $(MERGED_SEMANTICDB_STATS_FILE)
+      $(SEMANTICDB_MERGED_FILE) \
+      $(SEMANTICDB_MERGED_STATS_FILE)
 
 compile:
 ifeq ($(REDO), 1)
@@ -200,5 +200,5 @@ ifeq ($(REDO), 1)
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
     rm $(SEMANTICDB_STATUS) || echo "No need to redo"
 endif
-	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS) $(MERGED_SEMANTICDB_FILE)
+	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
 

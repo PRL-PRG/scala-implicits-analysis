@@ -1,6 +1,7 @@
 project_id,module_id,group_id,artifact_id,version,path,scope,transitive
 "PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7",".ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","org.example","root","1.0-SNAPSHOT","target/scala-2.12/classes","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7",".ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar","test",true
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7",".ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.scalameta","semanticdb_2.12","4.1.0",".ivy/cache/org.scalameta/semanticdb_2.12/jars/semanticdb_2.12-4.1.0.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.thesamet.scalapb","scalapb-runtime_2.12","0.8.0-RC1",".ivy/cache/com.thesamet.scalapb/scalapb-runtime_2.12/jars/scalapb-runtime_2.12-0.8.0-RC1.jar","compile",true
@@ -10,6 +11,14 @@ project_id,module_id,group_id,artifact_id,version,path,scope,transitive
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.lihaoyi","sourcecode_2.12","0.1.4",".ivy/cache/com.lihaoyi/sourcecode_2.12/bundles/sourcecode_2.12-0.1.4.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.google.protobuf","protobuf-java","3.5.1",".ivy/cache/com.google.protobuf/protobuf-java/bundles/protobuf-java-3.5.1.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.example","module1","1.0-SNAPSHOT","module1/target/scala-2.12/classes","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7",".ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.scalameta","semanticdb_2.12","4.1.0",".ivy/cache/org.scalameta/semanticdb_2.12/jars/semanticdb_2.12-4.1.0.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.thesamet.scalapb","scalapb-runtime_2.12","0.8.0-RC1",".ivy/cache/com.thesamet.scalapb/scalapb-runtime_2.12/jars/scalapb-runtime_2.12-0.8.0-RC1.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.thesamet.scalapb","lenses_2.12","0.8.0-RC1",".ivy/cache/com.thesamet.scalapb/lenses_2.12/jars/lenses_2.12-0.8.0-RC1.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.lihaoyi","fastparse_2.12","1.0.0",".ivy/cache/com.lihaoyi/fastparse_2.12/jars/fastparse_2.12-1.0.0.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.lihaoyi","fastparse-utils_2.12","1.0.0",".ivy/cache/com.lihaoyi/fastparse-utils_2.12/jars/fastparse-utils_2.12-1.0.0.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.lihaoyi","sourcecode_2.12","0.1.4",".ivy/cache/com.lihaoyi/sourcecode_2.12/bundles/sourcecode_2.12-0.1.4.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","com.google.protobuf","protobuf-java","3.5.1",".ivy/cache/com.google.protobuf/protobuf-java/bundles/protobuf-java-3.5.1.jar","test",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.example","module1","1.0-SNAPSHOT","module1/target/scala-2.12/classes","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7",".ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scalameta","semanticdb_2.12","4.1.0",".ivy/cache/org.scalameta/semanticdb_2.12/jars/semanticdb_2.12-4.1.0.jar","compile",true
@@ -20,3 +29,12 @@ project_id,module_id,group_id,artifact_id,version,path,scope,transitive
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.lihaoyi","sourcecode_2.12","0.1.4",".ivy/cache/com.lihaoyi/sourcecode_2.12/bundles/sourcecode_2.12-0.1.4.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.google.protobuf","protobuf-java","3.5.1",".ivy/cache/com.google.protobuf/protobuf-java/bundles/protobuf-java-3.5.1.jar","compile",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.example","module2","1.0-SNAPSHOT","module2/target/scala-2.12/classes","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.example","module1","1.0-SNAPSHOT","module1/target/scala-2.12/classes","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7",".ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scalameta","semanticdb_2.12","4.1.0",".ivy/cache/org.scalameta/semanticdb_2.12/jars/semanticdb_2.12-4.1.0.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.thesamet.scalapb","scalapb-runtime_2.12","0.8.0-RC1",".ivy/cache/com.thesamet.scalapb/scalapb-runtime_2.12/jars/scalapb-runtime_2.12-0.8.0-RC1.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.thesamet.scalapb","lenses_2.12","0.8.0-RC1",".ivy/cache/com.thesamet.scalapb/lenses_2.12/jars/lenses_2.12-0.8.0-RC1.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.lihaoyi","fastparse_2.12","1.0.0",".ivy/cache/com.lihaoyi/fastparse_2.12/jars/fastparse_2.12-1.0.0.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.lihaoyi","fastparse-utils_2.12","1.0.0",".ivy/cache/com.lihaoyi/fastparse-utils_2.12/jars/fastparse-utils_2.12-1.0.0.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.lihaoyi","sourcecode_2.12","0.1.4",".ivy/cache/com.lihaoyi/sourcecode_2.12/bundles/sourcecode_2.12-0.1.4.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.google.protobuf","protobuf-java","3.5.1",".ivy/cache/com.google.protobuf/protobuf-java/bundles/protobuf-java-3.5.1.jar","test",true

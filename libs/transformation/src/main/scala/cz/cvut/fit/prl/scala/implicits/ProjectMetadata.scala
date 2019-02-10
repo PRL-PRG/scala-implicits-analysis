@@ -14,7 +14,6 @@ import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
 import cz.cvut.fit.prl.scala.implicits.extractor.{GlobalSymbolTable, SymbolTable}
 import cz.cvut.fit.prl.scala.implicits.utils.Libraries
 import cz.cvut.fit.prl.scala.implicits.utils._
-import cz.cvut.fit.prl.scala.implicits.Constants._
 import kantan.csv._
 import kantan.csv.generic._
 
@@ -126,7 +125,7 @@ object ProjectMetadata {
     }.withDefaultValue(Nil)
 
     val semanticdbs: List[s.TextDocument] =
-      (projectPath / Constants.MergedSemanticdbFilename).inputStream
+      (projectPath  / AnalysisDirname / SemanticdbMergedFilename).inputStream
         .apply(input => s.TextDocument.streamFromDelimitedInput(input).toList)
 
     val subProjects: Seq[ModuleMetadata] = {

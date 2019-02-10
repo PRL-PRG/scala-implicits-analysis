@@ -3,7 +3,7 @@ project_id,module_id,scope,managed,path,files,language,blank,comment,code
 "PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","compile",true,"",1,XSLT,30,16,468
 "PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","compile",true,"",1,CSS,51,21,207
 "PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","compile",true,"",6,Scala,24,0,50
-"PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","compile",true,"",1,Bourne Shell,1,0,3
+"PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","compile",true,"",1,Bourne Shell,1,0,4
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","compile",true,"module1",12,XML,0,0,861
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","compile",true,"module1",1,XSLT,30,16,468
 "PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","compile",true,"module1",1,CSS,51,21,207

@@ -14,4 +14,9 @@ object MetadataFilenames {
   val ExtractedImplicitsFilename = "implicits.bin"
   val ExtractionExceptionsFilename = "implicits-exceptions.csv"
   val ExtractionStatsFilename = "implicits-stats.csv"
+
+  val SemanticdbMergedFilename = s"semanticdb.bin"
+  val SemanticdbMergedStatsFilename = s"semanticdb-stats.csv"
+
+  val ExcludedDirs: Seq[String] = Seq(".git", AnalysisDirname)
 }

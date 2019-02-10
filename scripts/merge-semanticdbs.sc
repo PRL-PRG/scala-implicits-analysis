@@ -8,20 +8,19 @@ import kantan.csv.ops._
 import kantan.csv.generic._
 
 import better.files._
-import cz.cvut.fit.prl.scala.implicits.Constants._
-import cz.cvut.fit.prl.scala.implicits.metadata._
+import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.utils.SdbLocator
 
 val startingPath = File.currentWorkingDirectory
-val mergedSemanticdbFile = startingPath / MergedSemanticdbFilename
-val mergedSemanticdbStatsFile = startingPath / MergedSemanticdbStatsFilename
+val semanticdbMergedFile = startingPath / AnalysisDirname / SemanticdbMergedFilename
+val semanticdbMergedStatsFile = startingPath / AnalysisDirname / SemanticdbMergedStatsFilename
 
 println(s"** MERGING semanticdbs from: ${startingPath.path.toAbsolutePath}")
 
 var stats = (0, 0, 0, 0)
 
 for {
-  mergedOutput <- mergedSemanticdbFile.newOutputStream.autoClosed
+  mergedOutput <- semanticdbMergedFile.newOutputStream.autoClosed
 } {
   new SdbLocator(startingPath.path)
       .exclude(ExcludedDirs)
@@ -42,9 +41,9 @@ for {
 }
 
 for {
-  output <- mergedSemanticdbStatsFile
+  output <- semanticdbMergedStatsFile
     .toJava
     .asCsvWriter[(Int, Int, Int, Int)](rfc.withHeader("files", "occurrences", "synthetics", "symbols")).autoClosed
 } output.write(stats)
 
-println(s"** MERGED $stats into $mergedSemanticdbFile")
+println(s"** MERGED $stats into $semanticdbMergedFile")
