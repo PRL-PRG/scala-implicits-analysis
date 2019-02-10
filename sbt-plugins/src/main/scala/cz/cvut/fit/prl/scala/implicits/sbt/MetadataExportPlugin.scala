@@ -333,11 +333,9 @@ object MetadataExportPlugin extends AutoPlugin {
     val classpath =
       compileDependencies
         .map(projectDependency(projectId, moduleId, "compile")) ++
-        testDependencies
-          .diff(compileDependencies)
-          .map(projectDependency(projectId, moduleId, "test"))
+        testDependencies.map(projectDependency(projectId, moduleId, "test"))
 
-    writeCSV(classpathFile, Dependency.CsvHeader, classpath)
+    writeCSV(classpathFile, Dependency.CsvHeader, classpath.distinct)
   }
 
   private def exportSourcePaths(
