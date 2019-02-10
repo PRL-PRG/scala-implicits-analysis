@@ -59,7 +59,7 @@ $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
     echo "exit_code,duration" > $(COMPILE_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
 
-$(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS)
+$(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(MERGED_SEMANTICDB_FILE)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
     if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' \
       -a $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
