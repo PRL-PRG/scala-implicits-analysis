@@ -3,7 +3,7 @@ package cz.cvut.fit.prl.scala.implicits
 import java.io.PrintWriter
 
 import cz.cvut.fit.prl.scala.implicits.extractor.SymbolResolver
-import cz.cvut.fit.prl.scala.implicits.metadata.Version
+import cz.cvut.fit.prl.scala.implicits.metadata.Module
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
 import scala.language.implicitConversions
@@ -30,7 +30,7 @@ package object utils {
     }
   }
 
-  implicit class XtensionModuleClasspath(that: Version) {
+  implicit class XtensionModuleClasspath(that: Module) {
     def classpath: Classpath = Classpath(that.output.map(AbsolutePath(_)).toList)
   }
 

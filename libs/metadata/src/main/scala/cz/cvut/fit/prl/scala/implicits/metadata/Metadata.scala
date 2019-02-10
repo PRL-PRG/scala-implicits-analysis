@@ -23,7 +23,7 @@ object SourcePath {
     : Seq[String] = Seq("project_id", "module_id", "scope", "managed", "path") ++ SLOC.CsvHeader
 }
 
-case class Version(
+case class Module(
     projectId: String,
     moduleId: String,
     groupId: String,
@@ -41,7 +41,7 @@ case class Version(
   val output: Seq[String] = outputClasspaths ++ outputTestClasspaths
 }
 
-object Version {
+object Module {
   val CsvHeader: Seq[String] = Seq(
     "project_id",
     "module_id",

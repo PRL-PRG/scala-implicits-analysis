@@ -62,8 +62,8 @@ object MetadataExportPlugin extends AutoPlugin {
   private lazy val sourcepathsFile =
     deleteIfExists(new File(analysisDir, SourcePathsFilename))
 
-  private lazy val versionsFile =
-    deleteIfExists(new File(analysisDir, VersionsFilename))
+  private lazy val modulesFile =
+    deleteIfExists(new File(analysisDir, ModulesFilename))
 
   private lazy val classpathFile =
     deleteIfExists(new File(analysisDir, DependenciesFilename))
@@ -164,7 +164,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
         println(s"** ModuleID: $moduleId")
 
-        exportVersion(
+        exportModules(
           moduleId,
           forcedOrganization,
           forcedModuleName,
@@ -294,7 +294,7 @@ object MetadataExportPlugin extends AutoPlugin {
     file
   }
 
-  private def exportVersion(
+  private def exportModules(
       moduleId: String,
       projectOrganization: String,
       projectName: String,
@@ -306,8 +306,8 @@ object MetadataExportPlugin extends AutoPlugin {
       forcedCompileOutput: Seq[File],
       forcedTestOutput: Seq[File]): Unit = {
 
-    val version =
-      Version(
+    val module =
+      Module(
         projectId,
         moduleId,
         projectOrganization,
@@ -322,7 +322,7 @@ object MetadataExportPlugin extends AutoPlugin {
         forcedTestOutput.map(relativize).mkString(PathSep)
       )
 
-    writeCSV(versionsFile, Version.CsvHeader, Seq(version))
+    writeCSV(modulesFile, Module.CsvHeader, Seq(module))
   }
 
   private def exportDependencyClasspath(
