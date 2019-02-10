@@ -1,5 +1,5 @@
 import $ivy.`cz.cvut.fit.prl.scala.implicits::model:1.0-SNAPSHOT`
-import $ivy.`cz.cvut.fit.prl.scala.implicits::transformation:1.0-SNAPSHOT`
+import $ivy.`cz.cvut.fit.prl.scala.implicits::tools:1.0-SNAPSHOT`
 
 import better.files._
 import scala.meta.internal.semanticdb.TextDocuments

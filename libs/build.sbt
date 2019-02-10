@@ -8,7 +8,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(metadata, model, transformation, testExtractor)
+  .aggregate(metadata, model, tools, testExtractor)
   .settings(commonSettings)
   .settings(name := "libs")
 
@@ -23,7 +23,7 @@ lazy val metadata = (project in file("metadata"))
 // and they do not work well together
 // when they are together, the build fails with `BuildInfo is already defined as case class BuildInfo`
 // there seem to be some race conditions (sometimes it would simply complain that the buildinfo does not exist)
-// it is also super convenient for developing - once can rebuild model with errors in transformation module
+// it is also super convenient for developing - once can rebuild model with errors in tools module
 lazy val model = (project in file("model"))
   .dependsOn(metadata)
   .settings(commonSettings)
@@ -47,12 +47,12 @@ lazy val model = (project in file("model"))
     )
   )
 
-lazy val transformation = (project in file("transformation"))
+lazy val tools = (project in file("tools"))
   .enablePlugins(BuildInfoPlugin)
   .dependsOn(model % "compile->compile;test->test")
   .settings(commonSettings)
   .settings(
-    name := "transformation",
+    name := "tools",
     scalacOptions ++= Seq(
       // Cats relies on improved type inference via the fix for SI-2712,
       // which is not enabled by default.
@@ -111,7 +111,7 @@ lazy val transformation = (project in file("transformation"))
 
 lazy val testExtractor = (project in file("test-extractor"))
     .dependsOn(model % "compile->compile;test->test")
-    .dependsOn(transformation)
+    .dependsOn(tools)
     .settings(commonSettings)
     .settings(
       name := "test-extractor",

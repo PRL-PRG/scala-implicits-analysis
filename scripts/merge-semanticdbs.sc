@@ -1,4 +1,4 @@
-import $ivy.`cz.cvut.fit.prl.scala.implicits::transformation:1.0-SNAPSHOT`
+import $ivy.`cz.cvut.fit.prl.scala.implicits::tools:1.0-SNAPSHOT`
 import $ivy.`cz.cvut.fit.prl.scala.implicits::metadata:1.0-SNAPSHOT`
 
 import java.nio.file.FileVisitOption
