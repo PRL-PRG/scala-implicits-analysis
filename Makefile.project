@@ -7,17 +7,19 @@ include $(base_dir)/Makevars
 
 SHELL := /bin/bash
 
-define SBT
+define SBT_BASE
 COURSIER_CACHE=$(COURSIER_DIR) \
   sbt \
     -Dsbt.ivy.home=$(IVY_DIR) \
     -Divy.home=$(IVY_DIR) \
     -Dsbt.boot.directory=$(SBT_BOOT_DIR) \
-    -batch -ivy $(IVY_DIR) \
+    -ivy $(IVY_DIR) \
     -sbt-boot $(SBT_BOOT_DIR) \
     -Dsbt.log.noformat=true \
     -Djline.terminal=jline.UnsupportedTerminal
 endef
+
+SBT := $(SBT_BASE) -batch
 
 REDO ?= 0
 
@@ -37,11 +39,12 @@ REDO ?= 0
 	compile \
 	implicits \
 	metadata \
-	semanticdb \
 	repo-build-system \
 	repo-metadata \
 	repo-sloc \
-	reset
+	reset \
+	sbt \
+	semanticdb
 
 all: repo-build-system repo-metadata repo-sloc compile implicits
 
@@ -187,6 +190,9 @@ repo-sloc: $(REPO_SLOC)
 # removes all that was not original part of the repository
 reset:
 	git clean -fdx
+
+sbt:
+	$(SBT_BASE)
 
 semanticdb:
 ifeq ($(REDO), 1)
