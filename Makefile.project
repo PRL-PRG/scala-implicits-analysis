@@ -54,7 +54,7 @@ bootstrap:
 $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
-    $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1;
+    $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(COMPILE_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
