@@ -358,8 +358,15 @@ object MetadataExportPlugin extends AutoPlugin {
 
     val classpath =
       compileDependencies
-        .map(projectDependency(projectId, moduleId, "compile")) ++
-        testDependencies.map(projectDependency(projectId, moduleId, "test"))
+          .filter(_.data.isAbsolute)
+          .map(projectDependency(projectId, moduleId, "compile")) ++
+        testDependencies
+          .filter(_.data.isAbsolute)
+          .map(projectDependency(projectId, moduleId, "test"))
+
+    (compileDependencies ++ testDependencies)
+      .filterNot(_.data.isAbsolute)
+      .foreach(x => println(s"*** Non-absolute path for $moduleId: ${x.data} ($x)"))
 
     writeCSV(classpathFile, Dependency.CsvHeader, classpath.distinct)
   }
