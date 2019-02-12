@@ -1,4 +1,4 @@
 project_id,module_id,group_id,artifact_id,version,platform,commit,scala_version,sbt_version,updated_scala_version,output_classpath,output_test_classpath
-"PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","org.example","root","1.0-SNAPSHOT","jvm","e258545","2.12.7","1.2.1","2.12.7","target/scala-2.12/classes","target/scala-2.12/test-classes"
-"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.example","module1","1.0-SNAPSHOT","jvm","e258545","2.12.7","1.2.1","2.12.7","module1/target/scala-2.12/classes","module1/target/scala-2.12/test-classes"
-"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.example","module2","1.0-SNAPSHOT","jvm","e258545","2.12.7","1.2.1","2.12.7","module2/target/scala-2.12/classes","module2/target/scala-2.12/test-classes"
+"PRL-PRG--scala-implicits-analysis","org.example:module1:1.0-SNAPSHOT:jvm","org.example","module1","1.0-SNAPSHOT","jvm","d362dd7","2.12.7","1.2.1","2.12.7","module1/target/scala-2.12/classes","module1/target/scala-2.12/test-classes"
+"PRL-PRG--scala-implicits-analysis","org.example:root:1.0-SNAPSHOT:jvm","org.example","root","1.0-SNAPSHOT","jvm","d362dd7","2.12.7","1.2.1","2.12.7","target/scala-2.12/classes","target/scala-2.12/test-classes"
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.example","module2","1.0-SNAPSHOT","jvm","d362dd7","2.12.7","1.2.1","2.12.7","module2/target/scala-2.12/classes","module2/target/scala-2.12/test-classes"

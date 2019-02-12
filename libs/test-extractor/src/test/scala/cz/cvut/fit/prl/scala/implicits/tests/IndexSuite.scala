@@ -7,7 +7,7 @@ import cz.cvut.fit.prl.scala.implicits.tools.ExtractImplicits
 class IndexSuite extends FunSuite with Matchers {
 
   lazy val idx: Index = {
-    val result = ExtractImplicits.extractProject(ProjectPath)
+    val result = ExtractImplicits.extractProject(ExampleProjectPath)
 
     result.exceptions shouldBe empty
 

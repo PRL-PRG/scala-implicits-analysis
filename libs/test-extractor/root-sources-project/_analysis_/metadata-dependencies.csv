@@ -1,0 +1,4 @@
+project_id,module_id,group_id,artifact_id,version,path,scope,transitive
+"PRL-PRG--scala-implicits-analysis","org.example:root-sources:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7","../../../../../../.sbt/boot/scala-2.12.7/lib/scala-library.jar","compile",true
+"PRL-PRG--scala-implicits-analysis","org.example:root-sources:1.0-SNAPSHOT:jvm","org.example","root-sources","1.0-SNAPSHOT","target/scala-2.12/classes","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:root-sources:1.0-SNAPSHOT:jvm","org.scala-lang","scala-library","2.12.7","../../../../../../.sbt/boot/scala-2.12.7/lib/scala-library.jar","test",true

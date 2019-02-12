@@ -1,0 +1,2 @@
+project_id,module_id,group_id,artifact_id,version,platform,commit,scala_version,sbt_version,updated_scala_version,output_classpath,output_test_classpath
+"PRL-PRG--scala-implicits-analysis","org.example:root-sources:1.0-SNAPSHOT:jvm","org.example","root-sources","1.0-SNAPSHOT","jvm","d362dd7","2.12.7","1.2.6","2.12.7","target/scala-2.12/classes","target/scala-2.12/test-classes"

@@ -113,10 +113,36 @@ object MetadataExportPlugin extends AutoPlugin {
         val forcedCompileProductDirectories = (productDirectories in Compile).value
         val forcedTestProductDirectories = (productDirectories in Test).value
 
-        val forcedManagedSourceDirectories = {
+        val forcedManagedSourceDirectories: Seq[File] = {
           val managed = (managedSourceDirectories in Compile).value
           val base = baseDirectory.value
-          if (sourcesInBase.value) managed :+ base else managed
+          val forcedSourcesInBase = sourcesInBase.value
+
+          // sometimes the sources are not in what is reported by managedSourcesDirectories, but
+          // are in the baseDirectory (cf. scala--pickle/banechmark)
+          // this is reported by sourcesInBase, but that turned out to be true all the time
+          // this is problematic for the root aggregating projects
+
+          val managedFiles =
+            managed.foldLeft(0)((a, b) => a + Option(b.list()).map(_.length).getOrElse(0))
+
+          val baseFiles = Option(base.listFiles())
+            .map(_.count(x => x.isFile && x.getName.endsWith(".scala")))
+            .getOrElse(0)
+
+          if (managedFiles == 0 && forcedSourcesInBase && baseFiles > 0) {
+            // no files in any of the managedSourcesDirectories so we add base
+            // this is for the simple sbt projects like:
+            //   - project/build.sbt
+            //   - project/A.scala
+            Seq(base)
+          } else {
+            if (forcedSourcesInBase && baseFiles > 0 && (base.getAbsolutePath != repositoryRoot.toFile.getAbsolutePath)) {
+              managed :+ base
+            } else {
+              managed
+            }
+          }
         }
 
         val forcedManagedTestDirectories =

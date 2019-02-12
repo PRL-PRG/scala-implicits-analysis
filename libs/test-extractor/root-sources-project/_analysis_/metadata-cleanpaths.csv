@@ -1,0 +1,3 @@
+project_id,module_id,path
+"PRL-PRG--scala-implicits-analysis","org.example:root-sources:1.0-SNAPSHOT:jvm","target/scala-2.12/classes"
+"PRL-PRG--scala-implicits-analysis","org.example:root-sources:1.0-SNAPSHOT:jvm","target/scala-2.12/test-classes"

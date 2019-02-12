@@ -10,21 +10,21 @@ import cz.cvut.fit.prl.scala.implicits.utils._
 
 class MetadataSuite extends FunSuite with Matchers {
 
-  test("Project versions") {
-    val (metadata, warnings) = ProjectMetadata(ProjectPath)
+  test("Example project versions") {
+    val (metadata, warnings) = ProjectMetadata(ExampleProjectPath)
     warnings should have size 0
     metadata.modules should have size 2
     metadata.modules.head.classpathEntries.size should be > 1
   }
 
-  test("Load project") {
-    val (metadata, warnings) = ProjectMetadata(ProjectPath)
+  test("Load example project") {
+    val (metadata, warnings) = ProjectMetadata(ExampleProjectPath)
     metadata.modules.head.resolver.resolveSymbol("com/example/Example.")
     warnings should have size 0
   }
 
-  test("JSON") {
-    val (metadata, warnings) = ProjectMetadata(ProjectPath)
+  test("Example project JSON") {
+    val (metadata, warnings) = ProjectMetadata(ExampleProjectPath)
     warnings should have size 0
     val subProjectMetadata = metadata.modules.head
     val ctx = new ExtractionContext(
@@ -39,5 +39,12 @@ class MetadataSuite extends FunSuite with Matchers {
     failures shouldBe empty
 
     declarations should not be empty
+  }
+
+  test("Project with only root sources can be loaded") {
+    val (metadata, warnings) = ProjectMetadata(RootSourcesProjectPath)
+    warnings should have size 0
+    metadata.modules should have size 1
+    metadata.modules.head.semanticdbs should have size 1
   }
 }

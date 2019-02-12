@@ -130,8 +130,10 @@ object ProjectMetadata {
 
     val subProjects: Seq[ModuleMetadata] = {
       val semanticdbMap: Map[ModuleId, List[s.TextDocument]] = {
-        val sourcePaths2Module: Map[String, ModuleId] =
-          sourcepathEntries.filter(_.path.nonEmpty).map(x => x.path -> x.moduleId).toMap
+        val sourcePaths2Module: List[(String, ModuleId)] =
+          sourcepathEntries
+            .sortBy(- _.path.length) // so the empty path in case sources are in root is at the end
+            .map(x => x.path -> x.moduleId)
 
         val empty = Map[ModuleId, List[s.TextDocument]]().withDefaultValue(Nil)
 

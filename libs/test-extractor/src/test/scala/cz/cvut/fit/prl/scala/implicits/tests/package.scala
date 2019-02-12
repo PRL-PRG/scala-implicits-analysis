@@ -2,5 +2,6 @@ package cz.cvut.fit.prl.scala.implicits
 import better.files._
 
 package object tests {
-  val ProjectPath: File = "test-extractor" / "example-project"
+  val ExampleProjectPath: File = "test-extractor" / "example-project"
+  val RootSourcesProjectPath: File = "test-extractor" / "root-sources-project"
 }
