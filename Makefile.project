@@ -106,7 +106,7 @@ $(REPO_METADATA): bootstrap
 
 $(REPO_SLOC): bootstrap
 	echo "files,language,blank,comment,code" > $(REPO_SLOC)
-	cloc -q --csv . | tail +3 >> $(REPO_SLOC)
+	cloc --vcs=git -q --csv . | tail +3 >> $(REPO_SLOC)
 
 # removes the artifacts created by running tasks from this Makefile
 clean:
