@@ -231,7 +231,7 @@ object MetadataExportPlugin extends AutoPlugin {
 
   private def computeSLOC(path: File): Try[Seq[SLOC]] = {
     if (path.isDirectory) {
-      val cmd = s"cloc --quiet --csv ${path.getAbsolutePath}"
+      val cmd = s"cloc --include-lang=Scala --quiet --csv ${path.getAbsolutePath}"
       val output = runCommand(cmd)
 
       output map { out =>
