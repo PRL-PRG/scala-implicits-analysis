@@ -122,5 +122,4 @@ $(SBT_BOOT_DIR):
         parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
 
 $(COURSIER_DIR):
-	mkdir -p $(COURSIER_DIR)
 	ln -sf $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
