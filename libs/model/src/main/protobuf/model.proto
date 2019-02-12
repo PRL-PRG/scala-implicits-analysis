@@ -16,6 +16,9 @@ message Position {
 }
 
 message Location {
+    // a relative path
+    // to a directory (e.g., src/main/scala, target/scala-2.12/classes) or
+    // to a jar file (.ivy/cache/../..jar)
     required string path = 1;
     // the relative path within the path, for example within a jar file
     required string relativeUri = 2;
@@ -30,39 +33,65 @@ message PathEntry {
     }
 }
 
+// a source path entry as defined in sbt sourceDirectories and sourcesInRoot
 message SourcepathEntry {
+    // a relative path to a source directory starting at the repository root
     required string path = 1;
+    // compile or test
     required string scope = 2;
+    // true for a managed source path
     required bool managed = 3;
 }
 
+// a class path entry as defined in sbt dependencyClasspath
 message ClasspathEntry {
+    // a relative path to a class directory or a jar file starting at the repository root
     required string path = 1;
+    // library groupId
     required string group_id = 2;
+    // library artifactId
     required string artifact_id = 3;
+    // library versionId
     required string version = 4;
+    // compile or test
     required string scope = 5;
+    // is it an module local compilation target
     required bool internal = 6;
+    // true for managed entry
     required bool managed = 7;
+    // has it been explicitly defined in the build description (e.g. in build.sbt)
     required bool transitive = 8;
 }
 
 message Project {
+    // a project identifier as <gh-organization>--<gh-repo-name>
     required string project_id = 1;
+    // sbt version
     required string sbt_version = 3;
+    // a list of contained modules
     repeated Module modules = 2;
 }
 
 message Module {
+    // a module identifier
     required string module_id = 1;
+    // an identifier of a project it belongs to
     required string project_id = 2;
+    // module's groupId
     required string group_id = 3;
+    // module's artifactId
     required string artifact_id = 4;
+    // module's version
     required string version = 5;
+    // scala version
     required string scala_version = 6;
+    // configured paths (both source paths and class paths)
     map<string, PathEntry> paths = 7;
+    // all discovered declarations (implicit with their dependencies)
     map<string, Declaration> declarations = 8;
+    // all call sites involving implicits
     repeated CallSite implicit_call_sites = 9;
+    // number of all call sites
     required int32 call_sites_count = 10;
 }
 
@@ -82,10 +111,13 @@ message Declaration {
         PARAMETER = 11;
     };
 
+    // a fully qualified named of the term (e.g. scala/Int#.) as reported by semanticdb
     required string declaration_id = 1;
+    // an identifier of a module it was discovered from
     required string module_id = 2;
     required Kind kind = 3;
     required string name = 4;
+    // where it was defined - this might be a completely different module
     required Location location = 5;
     required Language language = 6;
     required bool isImplicit = 7;
@@ -131,7 +163,9 @@ message Parameter {
 
 message Type {
     oneof sealed_value {
+        // a type reference pointing to a declaration with optionally resolved type arguments
         TypeRef type_ref = 1;
+        // a type parameter with optionally resolved type arguments in the case of a higher-kinder type
         TypeParameterRef type_parameter_ref = 2;
     }
 }
@@ -148,10 +182,16 @@ message TypeParameterRef {
 }
 
 message CallSite {
+    // an identifier of a module this callsite belongs to
     required string module_id = 1;
+    // what is being called
     required string declaration_id = 2;
+    // the call source code
     required string code = 3;
+    // location of the callsite
     required Location location = 4;
+    // resolved type arguments
     repeated Type type_arguments = 5;
+    // types of implicit arguments (if any)
     repeated TypeRef implicit_argument_types = 6;
 }

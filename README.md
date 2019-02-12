@@ -2,6 +2,7 @@
 
 - GNU make >= 4.2.1 (on OSX this means to install one from homebrew/macports/nix)
 - GNU parallel >= 2018*
+- GNU sed
 - R >= 3.5
 - R packages
   - tidyverse
@@ -9,86 +10,56 @@
   - DT
 - cloc >= 1.8
 
+## Structure
 
-From some reason I had to install xml2 package manually (it just would not pick the `PKG_CONFIG_DIR` from homebrew):
+- `libs` - extractor tools
+- `libs/metadata` - cases classes and constants defining project metadata
+- `libs/model` - definition of the extracted protobuf [model](https://github.com/PRL-PRG/scala-implicits-analysis/blob/master/libs/model/src/main/protobuf/model.proto)
+- `libs/tools` - implicit extractor
+- `sbt-plugins` - metadata and semanticdb plugin
+- `scripts` - various scripts used during a corpus building
+- `scripts/analysis` - scripts for the corpus analysis
 
-```sh
-$ Rscript -e 'install.packages("xml2")'
-...
-* installing *source* package ‘xml2’ ...
-** package ‘xml2’ successfully unpacked and MD5 sums checked
-Found pkg-config cflags and libs!
-Using PKG_CFLAGS=-I/usr/include/libxml2
-Using PKG_LIBS=-L/usr/lib -lxml2 -lz -lpthread -licucore -lm
-------------------------- ANTICONF ERROR ---------------------------
-Configuration failed because libxml-2.0 was not found. Try installing:
- * deb: libxml2-dev (Debian, Ubuntu, etc)
- * rpm: libxml2-devel (Fedora, CentOS, RHEL)
- * csw: libxml2_dev (Solaris)
-If libxml-2.0 is already installed, check that 'pkg-config' is in your
-PATH and PKG_CONFIG_PATH contains a libxml-2.0.pc file. If pkg-config
-is unavailable you can set INCLUDE_DIR and LIB_DIR manually via:
-R CMD INSTALL --configure-vars='INCLUDE_DIR=... LIB_DIR=...'
---------------------------------------------------------------------
-ERROR: configuration failed for package ‘xml2’
-* removing ‘/usr/local/lib/R/3.5/site-library/xml2’
+- `Makefile` - building this project
+- `Makefile.project` - building a project in corpus
+- `Makefile.corpus` - orchestrating corpus build
+- `Makevars` - variables
+- `Makevars-$USER@$HOST` - local variables override
 
-The downloaded source packages are in
-	‘/private/var/folders/wg/z8mlj6wn0y5_y5lvh7rl03zc0000gn/T/RtmphvM8l8/downloaded_packages’
-Warning message:
-In install.packages("xml2") :
-  installation of package ‘xml2’ had non-zero exit status
+## Build
 
-$ cd /private/var/folders/wg/z8mlj6wn0y5_y5lvh7rl03zc0000gn/T/RtmphvM8l8/downloaded_packages
-$ tar xfzv xml2_1.2.0.tar.gz
-$ cd xml2
-$ R CMD INSTALL --configure-vars='INCLUDE_DIR=/usr/local/Cellar/libxml2/2.9.7/include/libxml2 LIB_DIR=/usr/local/Cellar/libxml2/2.9.7/lib' .
+```
+make
 ```
 
-## Get projects
+## Corpus
 
-First things is to populate the `RUN_DIR` which is by default `projects`. There
-are two ways to do that. Either download projects from github or from existing
-ghtorrent snapshot.
+### Creating a corpus
 
-### Download projects from github
+1. In some directory, create a text file `all-projects.txt` which has one `<github-organization-name>--<github-repository-name>` per line.
+2. Symlink there `Makefile.corpus` as `Makefile`
+3. (optional) create `all-projects-patch.csv` which contains `project_id,patch` where patch is a command that shall be run in the repository right after it is downloaded from github.
+4. Set `GH_CLIENT_ID` and `GH_CLIENT_SECRET` environment variables.
+5. Run `make report`
 
-The `download-projects` task in the `Makefile` will download all projects found
-the `PROJECTS_FILE` file. This is a text file which serves as a driver to most
-of the task defined in the `Makefile`. It contains a list of projects separated
-by new lines. A project name consists of github username and repository
-separated by `--`: `<github-username>--<repository-name>` (_e.g._
-`ensime--ensime-server`).
+### Generated files
 
-```sh
-make download-projects PROJECT_FILE=projects-top24.txt
-```
-
-### Dejavu
-
-
-```sh
-make link-ghtorrent-projects SCALA_PROJECT_CSV=scala-projects-top24.csv
-```
-
-```sh
-make projects-all.txt SCALA_PROJECT_CSV=scala-projects-top24.csv
-```
-
-### Generate semanticdb
-
-```sh
-make semanticdb PROJECTS_FILE=projects-all.txt
-```
-
-### Generating reports
-
-```sh
-make report-latest
-```
-
-### Regenerating semanticdb
-
-```sh
-make clean-semanticdb semanticdb PROJECTS_FILE=projects-all.txt
-```
+- `compile-status.csv` - result of compilation of projects
+- `dejavu-files-hash-h2i.csv` - a hash of the Scala indexed files
+- `implicits.bin` - a protobuf stream of
+  [`Project`](https://github.com/PRL-PRG/scala-implicits-analysis/blob/master/libs/model/src/main/protobuf/model.proto)s,
+  one per successfully extracted project
+- `implicits-exceptions.csv` - implicit extraction exceptions
+- `implicits-stats.csv` - implicit extraction stats like number of implicit declarations or number of  implicit callsites
+- `implicits-status.csv` - result of implicit extraction
+- `metadata-status.csv`  - result of metadata extraction
+- `projects-github-info.csv` - full project names and number of stars fetched from github
+- `projects.txt` - final list of projects on which the extraction will be attempted
+- `repo-build-system.csv` - guessed build system per project and in case of SBT its version
+- `repo-metadata.csv` - repository metadata
+- `report.html` - a status report
+- `repo-sloc.csv` - SLOC of each project
+- `sbt-projects.txt` - list of projects using SBT >= 0.13
+- `semanticdb-stats.csv` - number of semanticdb files, symbols, occurences and synthetics
+- `semanticdb-status.csv` - result of semanticdb compilation
+- `so-projects.txt` - list of unique projects
