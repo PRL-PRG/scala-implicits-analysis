@@ -8,7 +8,6 @@ import kantan.csv.ops._
 import kantan.csv.generic._
 
 import better.files._
-import cz.cvut.fit.prl.scala.implicits.Constants._
 import cz.cvut.fit.prl.scala.implicits.model.Project
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 
