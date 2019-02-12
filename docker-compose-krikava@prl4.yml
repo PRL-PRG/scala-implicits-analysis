@@ -1,0 +1,43 @@
+version: '3'
+services:
+  rstudio:
+    image: fikovnik/rstudio
+    ports:
+      - 8003:8787
+    volumes:
+      - ".:/home/rstudio/work"
+      - "~:/mnt/home" 
+      - "/mnt/nvme1/scala:/var/lib/scala"
+      - "/mnt/nvme0/scala-oopsla18/scala:/var/lib/scala-oopsla18"
+      - "/mnt/array:/mnt/array"
+      - "/mnt/nvme0:/mnt/nvme0"
+      - "/mnt/nvme1:/mnt/nvme1"
+    environment:
+      - USERID=1001
+      - GROUPID=1001
+      - ROOT=TRUE
+      - PASSWORD=scala
+  jupyter:
+    image: fikovnik/jupyter-scala
+    ports:
+      # prl4 specific - can be only 8000-8009 facing the host
+      - 8004:8888
+    environment:
+      - NB_UID=1001 # this should be your user ID
+      - NB_GID=1003 # this should be your user group ID
+      - CHOWN_HOME=n # do not change owner of the home directory
+      - PASSWORD=scala
+    user: root
+    volumes:
+      # default mounts
+      - ".:/home/jovyan/work"
+      - "~:/mnt/home"
+      # prl4 specific
+      - "/mnt/nvme1/scala:/var/lib/scala"
+      - "/mnt/nvme1/scala/ivy:/home/jovyan/.ivy2"
+      - "/mnt/nvme1/scala/sbt-boot:/home/jovyan/.sbt/boot"
+      - "/mnt/nvme1/scala/coursier/v1:/home/jovyan/.cache/coursier/v1"
+      - "/mnt/nvme0/scala-oopsla18/scala:/var/lib/scala-oopsla18"
+      - "/mnt/array:/mnt/array"
+      - "/mnt/nvme0:/mnt/nvme0"
+      - "/mnt/nvme1:/mnt/nvme1"
