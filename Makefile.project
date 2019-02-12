@@ -52,16 +52,21 @@ bootstrap:
 
 $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
-	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
-    $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
-    exit_code=$$?; \
-    echo "exit_code,duration" > $(COMPILE_STATUS); \
-    echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS);
+
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ]; then \
+      cp $(SEMANTICDB_STATUS) $(COMPILE_STATUS); \
+	else \
+      JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
+      $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
+      exit_code=$$?; \
+      echo "exit_code,duration" > $(COMPILE_STATUS); \
+      echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS); \
+    fi
 
 $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
-    if [ $$(Rscript -e 'cat(read.csv("$(METADATA_STATUS)")$$exit_code[1])') -eq '0' \
-      -a $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
+	if [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 1) -eq '0' -a \
+         $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ]; then \
         $(AMM) $(SCRIPTS_DIR)/extract-implicits.sc > $(IMPLICITS_LOG) 2>&1; \
         exit_code=$$?; \
         echo "$$exit_code,$$SECONDS" >> $(IMPLICITS_STATUS); \
@@ -159,7 +164,6 @@ endif
 implicits:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
-    [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
     rm $(IMPLICITS_STATUS) || echo "No need to redo"
 endif
