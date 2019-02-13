@@ -24,7 +24,6 @@ REDO ?= 0
 .PHONY: \
     all \
 	clean \
-	clean-classes \
 	clean-compile \
 	clean-implicits \
 	clean-metadata \
@@ -134,10 +133,6 @@ $(REPO_SLOC):
 # removes the artifacts created by running tasks from this Makefile
 clean:
 	rm -fr $(ANALYSIS_DIR)
-
-# removes classes under target (only works for regular sbt projects)
-clean-classes:
-	find . -type d -name "target" | parallel find "{1}" -type f -name "\*.class" -delete
 
 clean-compile:
 	rm -f $(COMPILE_STATUS) $(COMPILE_LOG)
