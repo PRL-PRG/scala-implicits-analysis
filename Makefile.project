@@ -10,8 +10,7 @@ SHELL := /bin/bash
 define SBT_BASE
 COURSIER_CACHE=$(COURSIER_DIR) \
   sbt \
-    -Dsbt.ivy.home=$(IVY_DIR) \
-    -Dsbt.boot.directory=$(SBT_BOOT_DIR) \
+    -Dsbt.override.build.repos=true \
     -ivy $(IVY_DIR) \
     -sbt-boot $(SBT_BOOT_DIR) \
     -Dsbt.log.noformat=true \
