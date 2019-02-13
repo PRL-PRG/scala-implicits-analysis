@@ -62,6 +62,8 @@ $(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
       echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS); \
     fi
 
+	git clean -fdX
+
 $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
 	if [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 1) -eq '0' -a \
