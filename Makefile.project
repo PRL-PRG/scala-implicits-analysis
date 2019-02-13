@@ -39,10 +39,11 @@ REDO ?= 0
 	repo-metadata \
 	repo-sloc \
 	reset \
+	reset-all \
 	sbt \
 	semanticdb
 
-all: repo-build-system repo-metadata repo-sloc metadata semanticdb implicits
+all: repo-build-system repo-metadata repo-sloc compile implicits
 
 define BOOTSTRAP
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
@@ -204,6 +205,9 @@ repo-metadata: $(REPO_METADATA)
 repo-sloc: $(REPO_SLOC)
 
 reset:
+	git clean -fdX
+
+reset-all:
 	git clean -fdx
 
 sbt:

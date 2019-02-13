@@ -33,7 +33,6 @@ bootstrap :=
 .PHONY: \
   all \
 	clean \
-	clean-classes \
 	clean-compile \
 	clean-dejavu \
 	clean-implicits \
@@ -70,6 +69,7 @@ bootstrap :=
     repo-sloc \
 	report \
 	reset \
+	reset-all \
 	semanticdb
 
 $(LOG_DIR):
@@ -320,6 +320,9 @@ report: $(GLOBAL_COMPILE_STATUS) $(GLOBAL_METADATA_STATUS) $(GLOBAL_SEMANTICDB_S
 	@echo ">> Report is in report.html"
 
 reset: $(bootstrap)
+	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
+
+reset-all: $(bootstrap)
 	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
 
 semanticdb: $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
