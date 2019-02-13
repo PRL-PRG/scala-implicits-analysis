@@ -110,16 +110,3 @@ GLOBAL_IMPLICITS_EXCEPTIONS := $(notdir $(IMPLICITS_EXCEPTIONS))
 #AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 
-$(IVY_DIR):
-	mkdir -p $(IVY_DIR)
-	ln -sf $(GLOBAL_IVY_DIR)/cache $(IVY_DIR)
-	ln -sf $(GLOBAL_IVY_DIR)/local $(IVY_DIR)
-
-$(SBT_BOOT_DIR):
-	mkdir -p $(SBT_BOOT_DIR)
-	ls -1 $(GLOBAL_SBT_BOOT_DIR) |\
-        grep "^scala-" |\
-        parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"
-
-$(COURSIER_DIR):
-	ln -sf $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)

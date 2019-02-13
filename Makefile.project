@@ -23,7 +23,6 @@ REDO ?= 0
 
 .PHONY: \
     all \
-    bootstrap \
 	clean \
 	clean-classes \
 	clean-compile \
@@ -46,13 +45,28 @@ REDO ?= 0
 
 all: repo-build-system repo-metadata repo-sloc compile implicits
 
-bootstrap:
+define BOOTSTRAP
 	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
 
-$(COMPILE_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
-	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
+	if [ ! -d $(IVY_DIR) ]; then \
+      mkdir -p $(IVY_DIR); \
+      ln -sf $(GLOBAL_IVY_DIR)/cache $(IVY_DIR); \
+      ln -sf $(GLOBAL_IVY_DIR)/local $(IVY_DIR); \
+    fi
 
-	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ]; then \
+	if [ ! -d $(SBT_BOOT_DIR) ]; then \
+      mkdir -p $(SBT_BOOT_DIR); \
+      ls -1 $(GLOBAL_SBT_BOOT_DIR) | \
+        grep "^scala-" | \
+        parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"; \
+    fi
+
+	[ -d $(COURSIER_DIR) ] || ln -s $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
+endef
+
+$(COMPILE_STATUS):
+	$(BOOTSTRAP)
+	if [ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ]; then \
       cp $(SEMANTICDB_STATUS) $(COMPILE_STATUS); \
 	else \
       JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
@@ -75,8 +89,8 @@ $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED
       echo "-1,0" >> $(IMPLICITS_STATUS); \
     fi
 
-$(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
-	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
+$(METADATA_STATUS):
+	$(BOOTSTRAP)
     # we cannot tee the output since we want to keep the error code
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
@@ -85,8 +99,8 @@ $(METADATA_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
 
 # runs the semanticdb task on a clean project
-$(SEMANTICDB_STATUS): $(IVY_DIR) $(SBT_BOOT_DIR) $(COURSIER_DIR)
-	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
+$(SEMANTICDB_STATUS):
+	$(BOOTSTRAP)
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
     $(SBT) clean semanticdb >$(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
@@ -98,10 +112,12 @@ $(SEMANTICDB_MERGED_FILE): $(SEMANTICDB_STATUS)
       $(AMM) $(SCRIPTS_DIR)/merge-semanticdbs.sc; \
     fi
 
-$(REPO_BUILD_SYSTEM): bootstrap
+$(REPO_BUILD_SYSTEM):
+	$(BOOTSTRAP)
 	$(SCRIPTS_DIR)/guess-build-system.R . $(REPO_BUILD_SYSTEM)
 
-$(REPO_METADATA): bootstrap
+$(REPO_METADATA):
+	$(BOOTSTRAP)
 	commit_count=$$(git rev-list --count HEAD); \
     commit=$$(git log --pretty=format:'%H' -n 1); \
     commit_date=$$(git log --date=unix --pretty=format:'%cd' -n 1); \
@@ -110,7 +126,8 @@ $(REPO_METADATA): bootstrap
     echo "commit_count,commit,first_commit_date,commit_date,size" > $(REPO_METADATA); \
     echo "$$commit_count,$$commit,$$first_commit_date,$$commit_date,$$size" >> $(REPO_METADATA)
 
-$(REPO_SLOC): bootstrap
+$(REPO_SLOC):
+	$(BOOTSTRAP)
 	echo "files,language,blank,comment,code" > $(REPO_SLOC)
 	cloc --vcs=git -q --csv . | tail +3 >> $(REPO_SLOC)
 
@@ -191,11 +208,11 @@ repo-metadata: $(REPO_METADATA)
 
 repo-sloc: $(REPO_SLOC)
 
-# removes all that was not original part of the repository
 reset:
 	git clean -fdx
 
 sbt:
+	$(BOOTSTRAP)
 	$(SBT_BASE)
 
 semanticdb:
