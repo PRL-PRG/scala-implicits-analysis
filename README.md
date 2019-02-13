@@ -63,3 +63,27 @@ make
 - `semanticdb-stats.csv` - number of semanticdb files, symbols, occurences and synthetics
 - `semanticdb-status.csv` - result of semanticdb compilation
 - `so-projects.txt` - list of unique projects
+
+### Caching
+
+It is a good idea to setup a cache for dependencies. One way is:
+
+1. spawn a docker container with arfifactory-oss
+
+```sh
+docker pull docker.bintray.io/jfrog/artifactory-oss
+docker volume create --name scala-implicits-artifactory-cache
+docker run --name scala-implicits-artifactory -d -v scala-implicits-artifactory-cache:/var/opt/jfrog/artifactory -p 8081:8081 docker.bintray.io/jfrog/artifactory-oss:latest
+```
+
+2. log into http://localhost:8081 and create a new virtual repository called `local-sbt-cache`
+
+3. put the following into `~/.sbt/repositories`:
+
+```
+[repositories]
+local
+my-ivy-proxy-releases: http://localhost:8081/artifactory/local-sbt-cache/, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
+my-maven-proxy-releases: http://localhost:8081/artifactory/local-sbt-cache/
+```
+
