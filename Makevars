@@ -49,9 +49,9 @@ PROJECTS_FILE := projects.txt
 MAX_REPEAT := 2
 ANALYSIS_DIR := _analysis_
 SCRIPTS_DIR := $(base_dir)scripts
-IVY_DIR := .ivy
-SBT_BOOT_DIR := .sbt-boot
-COURSIER_DIR := .coursier
+IVY_DIR := _ivy_
+SBT_BOOT_DIR := _sbt-boot_
+COURSIER_DIR := _coursier_
 SCALAMETA_VERSION := 4.1.0
 
 REPO_BUILD_SYSTEM := $(ANALYSIS_DIR)/repo-build-system.csv
