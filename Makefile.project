@@ -72,8 +72,9 @@ $(COMPILE_STATUS):
       JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
       $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
       exit_code=$$?; \
-      echo "exit_code,duration" > $(COMPILE_STATUS); \
-      echo "$$exit_code,$$SECONDS" >> $(COMPILE_STATUS); \
+      classes=$(find . -name "*.class" | wc -l); \
+      echo "exit_code,duration,classes" > $(COMPILE_STATUS); \
+      echo "$$exit_code,$$SECONDS,$$classes" >> $(COMPILE_STATUS); \
     fi
 
 	git clean -fdX
@@ -104,8 +105,9 @@ $(SEMANTICDB_STATUS):
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
     $(SBT) clean semanticdb >$(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
-    echo "exit_code,duration" > $(SEMANTICDB_STATUS); \
-    echo "$$exit_code,$$SECONDS" >> $(SEMANTICDB_STATUS)
+    classes=$(find . -name "*.class" | wc -l); \
+    echo "exit_code,duration,classes" > $(SEMANTICDB_STATUS); \
+    echo "$$exit_code,$$SECONDS,$classes" >> $(SEMANTICDB_STATUS)
 
 $(SEMANTICDB_MERGED_FILE): $(SEMANTICDB_STATUS)
 	if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
