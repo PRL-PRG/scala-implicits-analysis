@@ -17,11 +17,6 @@ ifndef GLOBAL_SBT_BOOT_DIR
 $(error GLOBAL_SBT_BOOT_DIR is not set. Typically ~/.sbt/boot)
 endif
 
-# absolute path to the prepopulated sbt-boot directory
-ifndef GLOBAL_COURSIER_DIR
-$(error GLOBAL_COURSIER_DIR is not set. Typically ~/.cache/coursier)
-endif
-
 # level of concurrency
 ifndef N_JOBS
 $(error N_JOBS is not set. Controls the number of parallel jobs)
@@ -51,7 +46,6 @@ ANALYSIS_DIR := _analysis_
 SCRIPTS_DIR := $(base_dir)scripts
 IVY_DIR := _ivy_
 SBT_BOOT_DIR := _sbt-boot_
-COURSIER_DIR := _coursier_
 SCALAMETA_VERSION := 4.1.0
 
 REPO_BUILD_SYSTEM := $(ANALYSIS_DIR)/repo-build-system.csv
