@@ -8,6 +8,7 @@ include $(base_dir)/Makevars
 SHELL := /bin/bash
 
 define SBT_BASE
+COURSIER_CACHE=$(COURSIER_DIR) \
   sbt \
     -ivy $(IVY_DIR) \
     -sbt-boot $(SBT_BOOT_DIR) \
@@ -58,6 +59,8 @@ define BOOTSTRAP
         grep "^scala-" | \
         parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"; \
     fi
+
+	[ -d $(COURSIER_DIR) ] || ln -s $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
 endef
 
 $(COMPILE_STATUS):
