@@ -61,9 +61,13 @@ bootstrap :=
 	parallel \
 	patch-downloaded-projects \
 	redo-failed-compile \
+	redo-failed-implicits \
 	redo-failed-metadata \
 	redo-failed-semanticdb \
-	redo-failed-implicits \
+	redo-compile \
+	redo-implicits \
+	redo-metadata \
+	redo-semanticdb \
     repo-build-system \
     repo-metadata \
     repo-sloc \
@@ -307,6 +311,22 @@ redo-failed-metadata:
 redo-failed-semanticdb: $(bootstrap)
 	-rm $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
 	$(MAKE) -f $(this_makefile) semanticdb REDO=1
+
+redo-compile: $(bootstrap)
+	-rm $(GLOBAL_COMPILE_STATUS)
+	$(MAKE) -f $(this_makefile) compile REDO=2
+
+redo-implicits:
+	-rm $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	$(MAKE) -f $(this_makefile) implicits REDO=2
+
+redo-metadata:
+	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS)
+	$(MAKE) -f $(this_makefile) metadata REDO=2
+
+redo-semanticdb: $(bootstrap)
+	-rm $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
+	$(MAKE) -f $(this_makefile) semanticdb REDO=2
 
 repo-build-system: $(GLOBAL_REPO_BUILD_SYSTEM)
 

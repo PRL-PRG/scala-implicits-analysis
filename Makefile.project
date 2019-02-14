@@ -169,6 +169,9 @@ clean-semanticdb:
       $(SEMANTICDB_MERGED_STATS_FILE)
 
 compile:
+ifeq ($(REDO), 2)
+	rm $(COMPILE_STATUS)
+endif
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 0) -ne '0' ] && \
     rm $(COMPILE_STATUS) || echo "No need to redo"
@@ -176,6 +179,9 @@ endif
 	$(MAKE) -f $(this_makefile) $(COMPILE_STATUS)
 
 implicits:
+ifeq ($(REDO), 2)
+	rm $(IMPLICITS_STATUS)
+endif
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
@@ -184,19 +190,14 @@ endif
 	$(MAKE) -f $(this_makefile) $(IMPLICITS_STATUS)
 
 metadata:
+ifeq ($(REDO), 2)
+	rm $(METADATA_STATUS)
+endif
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -ne '0' ] && \
     rm $(METADATA_STATUS) || echo "No need to redo"
 endif
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
-
-redo-compile: clean-compile compile
-
-redo-metadata: clean-metadata metadata
-
-redo-semanticdb: clean-semanticdb semanticdb
-
-redo-implicits: clean-implicits implicits
 
 repo-build-system: $(REPO_BUILD_SYSTEM)
 
@@ -215,6 +216,9 @@ sbt:
 	$(SBT_BASE)
 
 semanticdb:
+ifeq ($(REDO), 2)
+	rm $(SEMANTICDB_STATUS)
+endif
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
