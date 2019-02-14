@@ -287,7 +287,6 @@ parallel:
       --result "$(PROJECTS_DIR)/{1}/$(ANALYSIS_DIR)/parallel/$(TASK)" \
       --joblog "$(LOG_DIR)/$(TASK)-parallel.log" \
       --timeout $(TIMEOUT) \
-      --shuf \
       make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project $(TASK) REDO=$(REDO)
 
 patch-downloaded-projects:
