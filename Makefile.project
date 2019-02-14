@@ -105,7 +105,7 @@ $(SEMANTICDB_STATUS):
     exit_code=$$?; \
     classes=$(find . -name "*.class" | wc -l); \
     echo "exit_code,duration,classes" > $(SEMANTICDB_STATUS); \
-    echo "$$exit_code,$$SECONDS,$classes" >> $(SEMANTICDB_STATUS)
+    echo "$$exit_code,$$SECONDS,$$classes" >> $(SEMANTICDB_STATUS)
 
 $(SEMANTICDB_MERGED_FILE): $(SEMANTICDB_STATUS)
 	if [ $$(Rscript -e 'cat(read.csv("$(SEMANTICDB_STATUS)")$$exit_code[1])') -eq '0' ]; then \
