@@ -68,11 +68,12 @@ $(COMPILE_STATUS):
 	$(BOOTSTRAP)
 	if [ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ]; then \
       cp $(SEMANTICDB_STATUS) $(COMPILE_STATUS); \
+      echo "Project compiled with semanticdb..."; \
 	else \
       JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
       $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
       exit_code=$$?; \
-      classes=$(find . -name "*.class" | wc -l); \
+      classes=$$(find . -name "*.class" | wc -l); \
       echo "exit_code,duration,classes" > $(COMPILE_STATUS); \
       echo "$$exit_code,$$SECONDS,$$classes" >> $(COMPILE_STATUS); \
     fi
@@ -103,7 +104,7 @@ $(SEMANTICDB_STATUS):
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
     $(SBT) clean semanticdb >$(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
-    classes=$(find . -name "*.class" | wc -l); \
+    classes=$$(find . -name "*.class" | wc -l); \
     echo "exit_code,duration,classes" > $(SEMANTICDB_STATUS); \
     echo "$$exit_code,$$SECONDS,$$classes" >> $(SEMANTICDB_STATUS)
 
