@@ -141,7 +141,7 @@ private:
                         try {
                             Downloader::Schedule(DownloaderJob(new ClonedProject(
                                 std::atoi(row[0].c_str()),
-                                row[1].substr(29),
+                                row[1].substr(28),
                                 timestampFrom(row[6]))));
                         } catch (...) {
                             Error("Invalid projects row");
