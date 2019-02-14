@@ -1,0 +1,4 @@
+[repositories]
+local
+my-ivy-proxy-releases: http://prl4:8081/artifactory/ivy-releases/, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
+my-maven-proxy-releases: http://prl4:8081/artifactory/mvn-releases/
