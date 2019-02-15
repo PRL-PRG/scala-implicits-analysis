@@ -144,7 +144,7 @@ downloadSemanticdbProto := {
 }
 
 // Libraries
-lazy val ScalametaVersion = "4.1.0"
+lazy val ScalametaVersion = "4.1.4"
 
 lazy val TypeLevelCats = "org.typelevel" %% "cats-core" % "1.5.0"
 lazy val TypeLevelKittens = "org.typelevel" %% "kittens" % "1.2.0"

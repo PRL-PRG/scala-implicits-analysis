@@ -52,7 +52,7 @@ SCRIPTS_DIR := $(base_dir)scripts
 IVY_DIR := _ivy_
 SBT_BOOT_DIR := _sbt-boot_
 COURSIER_DIR := _coursier_
-SCALAMETA_VERSION := 4.1.0
+SCALAMETA_VERSION := 4.1.4
 
 REPO_BUILD_SYSTEM := $(ANALYSIS_DIR)/repo-build-system.csv
 REPO_METADATA := $(ANALYSIS_DIR)/repo-metadata.csv
