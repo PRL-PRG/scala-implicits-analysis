@@ -18,5 +18,11 @@ object MetadataFilenames {
   val SemanticdbMergedFilename = s"semanticdb.bin"
   val SemanticdbMergedStatsFilename = s"semanticdb-stats.csv"
 
-  val ExcludedDirs: Seq[String] = Seq(".git", AnalysisDirname)
+  val ExcludedDirs: Seq[String] = Seq(
+    AnalysisDirname,
+    "_coursier_",
+    ".git",
+    "_ivy_",
+    "_sbt_"
+  )
 }
