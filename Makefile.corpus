@@ -60,6 +60,10 @@ bootstrap :=
 	metadata \
 	parallel \
 	patch-downloaded-projects \
+	redo-good-compile \
+	redo-good-implicits \
+	redo-good-metadata \
+	redo-good-semanticdb \
 	redo-failed-compile \
 	redo-failed-implicits \
 	redo-failed-metadata \
@@ -295,6 +299,22 @@ parallel:
 
 patch-downloaded-projects:
 	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
+
+redo-good-compile:
+	-rm $(GLOBAL_COMPILE_STATUS)
+	$(MAKE) -f $(this_makefile) compile REDO=3
+
+redo-good-implicits:
+	-rm $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	$(MAKE) -f $(this_makefile) implicits REDO=3
+
+redo-good-metadata:
+	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS)
+	$(MAKE) -f $(this_makefile) metadata REDO=3
+
+redo-good-semanticdb: $(bootstrap)
+	-rm $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
+	$(MAKE) -f $(this_makefile) semanticdb REDO=3
 
 redo-failed-compile:
 	-rm $(GLOBAL_COMPILE_STATUS)
