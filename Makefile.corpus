@@ -305,7 +305,7 @@ redo-failed-implicits:
 	$(MAKE) -f $(this_makefile) implicits REDO=1
 
 redo-failed-metadata:
-	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS)
+	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
 	$(MAKE) -f $(this_makefile) metadata REDO=1
 
 redo-failed-semanticdb: $(bootstrap)
@@ -321,7 +321,7 @@ redo-implicits:
 	$(MAKE) -f $(this_makefile) implicits REDO=2
 
 redo-metadata:
-	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS)
+	-rm $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
 	$(MAKE) -f $(this_makefile) metadata REDO=2
 
 redo-semanticdb: $(bootstrap)
