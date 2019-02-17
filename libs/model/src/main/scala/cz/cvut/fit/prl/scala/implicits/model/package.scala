@@ -132,6 +132,13 @@ package object model {
   implicit class XtensionDeclaration(that: Declaration) extends ModuleOps with LocationOps {
     import Declaration.Kind._
 
+    object declaration {
+      def unapply(tpe: Type)(implicit resolver: TypeResolver): Option[Declaration] = tpe match {
+        case TypeRef(declarationId, _) => Some(DeclarationRef(that.moduleId, declarationId).declaration)
+        case _ => None
+      }
+    }
+
     def isMethod: Boolean = that.kind == DEF
     def isVal: Boolean = that.kind == VAL
     def isVar: Boolean = that.kind == VAR
@@ -163,12 +170,11 @@ package object model {
       that.implicitClassCompanion.isDefined
 
     def implicitClassCompanion(implicit resolver: TypeResolver): Option[Declaration] =
-      if (that.isMethod && that.signature.isMethod && that.parameterLists.headOption.exists(_.parameters.size == 1)) {
-        val rt = that.returnType
-        if (rt.isImplicit && rt.isClass) {
-          Some(rt)
-        } else {
-          None
+      if (that.isMethod) {
+        that.signature.value match {
+          // a method that has one parameter and returns an implicit class
+          case MethodSignature(_, Seq(_), declaration(ret)) if ret.isImplicit && ret.isClass => Some(ret)
+          case _ => None
         }
       } else {
         None
@@ -195,16 +201,12 @@ package object model {
     def hasImplicitParameters: Boolean =
       that.implicitParameterList.isDefined
 
-    def returnTypeRef: DeclarationRef =
+    def returnType(implicit resolver: TypeResolver): Declaration =
       that.signature.value match {
-        case x: MethodSignature =>
-          DeclarationRef(that.moduleId, x.returnType.declarationId)
+        case MethodSignature(_, _, declaration(rt)) => rt
         case _ =>
           throw new Exception(s"Trying to get returnType on ${that.signature}")
       }
-
-    def returnType(implicit resolver: TypeResolver): Declaration =
-      returnTypeRef.declaration
 
     def declaringTypeRef: DeclarationRef =
       that.signature.value match {
