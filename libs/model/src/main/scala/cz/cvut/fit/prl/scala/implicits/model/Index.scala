@@ -2,10 +2,10 @@ package cz.cvut.fit.prl.scala.implicits.model
 
 import better.files._
 import cats.Monoid
-
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames.ExtractedImplicitsFilename
-
-import com.typesafe.scalalogging.LazyLogging
+import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
+import com.typesafe.scalalogging.{LazyLogging, Logger}
+import org.slf4j.LoggerFactory
 
 /**
   * @param projects - a map from projects' ids to projects
@@ -26,7 +26,8 @@ case class Index(
   }
 }
 
-object Index extends LazyLogging {
+object Index  {
+  implicit val logger = Logger(LoggerFactory.getLogger(getClass.getName))
   implicit val monoid: Monoid[Index] = new Monoid[Index] {
 
     override def combine(x: Index, y: Index): Index = {
@@ -45,23 +46,6 @@ object Index extends LazyLogging {
     override def empty: Index = Index(Map(), Map(), List(), List(), Map())
   }
 
-  private def task[T](name: String, thunk: => T): T = {
-    logger.debug(name + "...")
-
-    val time = System.currentTimeMillis()
-
-    try {
-      val result = thunk
-      val elapsed = System.currentTimeMillis() - time
-      logger.debug(name + " in " + elapsed)
-      result
-    } catch {
-      case e: Throwable =>
-        logger.warn(name + " FAILED")
-        throw e
-    }
-  }
-
   def apply(path: String): Index = apply(File(path))
 
   def apply(path: File): Index = {
@@ -71,8 +55,8 @@ object Index extends LazyLogging {
       path
     }
 
-    val index = task("Building index", {
-      val projects = task(s"Loading implicits from $input", {
+    val index = timedTask("Building index", {
+      val projects = timedTask(s"Loading implicits from $input", {
         input.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
       })
 
@@ -91,7 +75,7 @@ object Index extends LazyLogging {
   }
 
   def apply(projects: Iterable[Project]): Index = {
-    task(s"Indexing", {
+    timedTask(s"Indexing", {
       val projectStream = projects.toStream
         .map(buildIndex)
 
@@ -100,7 +84,7 @@ object Index extends LazyLogging {
   }
 
   private def buildIndex(project: Project): Index =
-    task(s"Index for project ${project.projectId}", {
+    timedTask(s"Index for project ${project.projectId}", {
       val moduleStream = project.modules.toStream
         .map(buildModuleIndex(project, _))
 
@@ -108,7 +92,7 @@ object Index extends LazyLogging {
     })
 
   private def buildModuleIndex(project: Project, module: Module): Index =
-    task(s"Index for module ${module.moduleId}", {
+    timedTask(s"Index for module ${module.moduleId}", {
       val implicitDeclarations = module.declarations.values.filter(_.isImplicit)
 
       Index(
