@@ -96,13 +96,12 @@ trait ModelSimplification {
 
       def simplify(ctx: ExtractionContext): m.Location = {
         that match {
-          // coming from a class file from the locally compiled project
           case m.Location(path, _, _) if ctx.sourcePaths.contains(path) =>
             TestLocalLocation
-          // coming from a local symbol from sdb.symbols
           case m.Location("", _, _) =>
             TestLocalLocation
-          case _ => TestExternalLocation
+          case _ =>
+            TestExternalLocation
         }
       }
     }
@@ -175,7 +174,7 @@ abstract class ExtractionContextSuite
     }
 
     database(name, code) { (outputPath, db) =>
-      val symtab = GlobalSymbolTable(classpath ++ Classpath(outputPath.path))
+      val symtab = new GlobalSymbolTable(classpath ++ Classpath(outputPath.path), outputPath.path)
       val sourcePaths = List(outputPath.pathAsString)
       val resolver = SemanticdbSymbolResolver(Seq(db), symtab, sourcePaths)
       val ctx = new ExtractionContext(TestModuleId, resolver, sourcePaths)

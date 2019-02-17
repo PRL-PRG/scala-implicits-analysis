@@ -1,5 +1,8 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
+import java.nio.file.{Path, Paths}
+
+import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.Location
 import cz.cvut.fit.prl.scala.implicits.utils.BuildInfo
 
@@ -23,7 +26,9 @@ trait SymbolTable {
 }
 
 // based on the scalameta semtab
-class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
+class GlobalSymbolTable(classpath: Classpath, projectBaseDir: Path) extends SymbolTable {
+
+  def this(classpath: Classpath) = this(classpath, File.currentWorkingDirectory.path)
 
   private val settings = Settings()
   private val reporter = Reporter().withSilentOut().withSilentErr()
@@ -50,9 +55,9 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
             .get(symbol)
             .flatMap(_.members.collectFirst {
               case (_, UncompressedClassfile(_, path)) =>
-                Location(path.toFile.getAbsolutePath, symbol)
+                Location(projectBaseDir.relativize(path.toNIO).toString, symbol)
               case (_, CompressedClassfile(_, path)) =>
-                Location(path.getAbsolutePath, symbol)
+                Location(projectBaseDir.relativize(path.toPath).toString, symbol)
             })
 
           tmp.getOrElse(Location("_package_", symbol))
@@ -111,14 +116,8 @@ class GlobalSymbolTable(classpath: Classpath) extends SymbolTable {
         val fullpath = path.toFile.getAbsolutePath
         val dir =
           fullpath.substring(0, fullpath.length - relativeUri.length - 1)
-        Location(dir, relativeUri)
+        Location(projectBaseDir.relativize(Paths.get(dir)).toString, relativeUri)
       case CompressedClassfile(entry, zipFile) =>
-        Location(zipFile.getAbsolutePath, entry.getName)
+        Location(projectBaseDir.relativize(zipFile.toPath).toString, entry.getName)
     }
-}
-
-object GlobalSymbolTable {
-  def apply(classpath: Classpath): GlobalSymbolTable = {
-    new GlobalSymbolTable(classpath)
-  }
 }

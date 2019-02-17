@@ -26,7 +26,7 @@ class GlobalSymbolTableTest extends FunSuite with Matchers with OptionValues wit
   }
 
   test("Resolves external name") {
-    val tab = GlobalSymbolTable(ExternalClasspath)
+    val tab = new GlobalSymbolTable(ExternalClasspath)
     val symbol = tab.resolve("scala/Int#")
     val location = symbol.value.location
 
@@ -36,13 +36,12 @@ class GlobalSymbolTableTest extends FunSuite with Matchers with OptionValues wit
   }
 
   test("Resolves project local name") {
-    val tab = GlobalSymbolTable(FullClasspath)
-    val symbol =
-      tab.resolve("cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable#")
+    val tab = new GlobalSymbolTable(FullClasspath)
+    val symbol = tab.resolve("cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable#")
     val location = symbol.value.location
 
-    location.path should endWith("target/scala-2.12/classes")
-    location.relativeUri should endWith("cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable.class")
+    location.path should be("tools/target/scala-2.12/classes")
+    location.relativeUri should be("cz/cvut/fit/prl/scala/implicits/extractor/SymbolTable.class")
     location.position should not be defined
   }
 }

@@ -1,13 +1,12 @@
 package cz.cvut.fit.prl.scala.implicits
 
+import java.nio.file.Path
+
 import better.files._
 import cats.instances.list._
 import cats.instances.map._
 import cats.syntax.semigroup._
-import cz.cvut.fit.prl.scala.implicits.extractor.{
-    LoadingMetadataException,
-    SemanticdbSymbolResolver
-  }
+import cz.cvut.fit.prl.scala.implicits.extractor.{LoadingMetadataException, SemanticdbSymbolResolver}
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.metadata._
 import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, SourcepathEntry}
@@ -24,6 +23,7 @@ import scala.meta.internal.{semanticdb => s}
 import scala.meta.io.{AbsolutePath, Classpath}
 
 case class ModuleMetadata(
+    projectBasePath: Path,
     moduleId: String,
     groupId: String,
     artifactId: String,
@@ -38,7 +38,7 @@ case class ModuleMetadata(
 ) {
   private val asts: TrieMap[String, Source] = TrieMap()
 
-  lazy val symbolTable: SymbolTable = GlobalSymbolTable(classpath)
+  lazy val symbolTable: SymbolTable = new GlobalSymbolTable(classpath, projectBasePath)
   lazy val resolver: SemanticdbSymbolResolver =
     SemanticdbSymbolResolver(semanticdbs, symbolTable, sourcepathEntries.map(_.path))
 
@@ -49,7 +49,7 @@ case class ModuleMetadata(
 }
 
 case class ProjectMetadata(
-    path: File,
+    projectPath: Path,
     projectId: String,
     scalaVersion: String,
     sbtVersion: String,
@@ -189,6 +189,7 @@ object ProjectMetadata {
         classpath = classpathMap(moduleId)
       } yield
         ModuleMetadata(
+          projectPath.path,
           projectId + "::" + moduleId,
           version.groupId,
           version.artifactId,
@@ -209,6 +210,6 @@ object ProjectMetadata {
 
     val sbtVersion: String = modules.head.sbtVersion
 
-    (ProjectMetadata(projectPath, projectId, scalaVersion, sbtVersion, subProjects), warnings)
+    (ProjectMetadata(projectPath.path, projectId, scalaVersion, sbtVersion, subProjects), warnings)
   }
 }
