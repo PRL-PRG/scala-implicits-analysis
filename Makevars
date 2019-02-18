@@ -107,6 +107,12 @@ GLOBAL_IMPLICITS_STATUS := $(notdir $(IMPLICITS_STATUS))
 GLOBAL_IMPLICITS_STATS := $(notdir $(IMPLICITS_STATS))
 GLOBAL_IMPLICITS_EXCEPTIONS := $(notdir $(IMPLICITS_EXCEPTIONS))
 
+SBT_STRUCTURE := $(ANALYSIS_DIR)/sbt-stucture.xml
+SBT_STRUCTURE_STATUS := $(ANALYSIS_DIR)/sbt-stucture-status.csv
+SBT_STRUCTURE_LOG := $(ANALYSIS_DIR)/sbt-stucture.log
+
+GLOBAL_SBT_STRUCTURE_STATUS := $(notdir $(SBT_STRUCTURE_STATUS))
+
 #AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 

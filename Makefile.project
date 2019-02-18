@@ -40,6 +40,7 @@ REDO ?= 0
 	reset \
 	reset-all \
 	sbt \
+	sbt-structure \
 	semanticdb
 
 all: repo-build-system repo-metadata repo-sloc compile implicits
@@ -130,6 +131,14 @@ $(REPO_SLOC):
 	$(BOOTSTRAP)
 	echo "files,language,blank,comment,code" > $(REPO_SLOC)
 	cloc --vcs=git -q --csv . | tail +3 >> $(REPO_SLOC)
+
+$(SBT_STRUCTURE_STATUS):
+	$(BOOTSTRAP)
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
+	$(SBT) '*/*:dumpStructureTo $(SBT_STRUCTURE)' > $(SBT_STRUCTURE_LOG) 2>&1; \
+    exit_code=$$?; \
+    echo "exit_code,duration" > $(SBT_STRUCTURE_STATUS); \
+    echo "$$exit_code,$$SECONDS" >> $(SBT_STRUCTURE_STATUS);
 
 # removes the artifacts created by running tasks from this Makefile
 clean:
@@ -226,6 +235,20 @@ reset-all:
 sbt:
 	$(BOOTSTRAP)
 	$(SBT_BASE)
+
+sbt-structure:
+ifeq ($(REDO), 1)
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SBT_STRUCTURE_STATUS)' 0) -ne '0' ] && \
+    rm $(SBT_STRUCTURE_STATUS) || echo "No need to redo"
+endif
+ifeq ($(REDO), 2)
+	rm $(SBT_STRUCTURE_STATUS)
+endif
+ifeq ($(REDO), 3)
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SBT_STRUCTURE_STATUS)' 1) -eq '0' ] && \
+    rm $(SBT_STRUCTURE_STATUS)
+endif
+	$(MAKE) -f $(this_makefile) $(SBT_STRUCTURE_STATUS)
 
 semanticdb:
 ifeq ($(REDO), 1)
