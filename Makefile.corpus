@@ -147,7 +147,7 @@ $(SBT_PROJECTS_DIR): $(SBT_PROJECTS_FILE)
 	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(SBT_PROJECTS_DIR)/{1}'
 
 $(SO_PROJECTS_FILE): $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
-	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
+	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), dplyr::n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
 
 $(SO_PROJECTS_DIR): $(SO_PROJECTS_FILE)
 	rm -fr $(SO_PROJECTS_DIR)
