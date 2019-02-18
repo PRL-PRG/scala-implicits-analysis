@@ -50,6 +50,7 @@ bootstrap :=
 	corpus-summary \
 	dejavu \
 	download-projects \
+	export-implicits \
 	implicits \
 	fetch-github-info \
 	filter-sbt-projects \
@@ -291,6 +292,9 @@ dejavu: $(DEJAVU_FILES_HASH)
 download-projects: $(ALL_PROJECTS_DIR)
 
 implicits: $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+
+export-implicits: $(GLOBAL_IMPLICITS)
+	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc
 
 fetch-github-info: $(PROJECTS_GITHUB_INFO)
 

@@ -10,7 +10,7 @@ import kantan.csv.ops._
 import kantan.csv.generic._
 import org.slf4j.LoggerFactory
 
-object ExportImplicitDeclarations extends App {
+object ExportImplicitDeclarations extends ExportApp {
 
   implicit val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
@@ -87,7 +87,7 @@ object ExportImplicitDeclarations extends App {
     }
   }
 
-  def export(idx: Index, output: File): Unit = {
+  private def export(idx: Index, output: File): Unit = {
     for {
       out <- output.newOutputStream.autoClosed
       writer <- out.asCsvWriter[Output](rfc.withHeader(Output.Header: _*)).autoClosed
@@ -98,21 +98,12 @@ object ExportImplicitDeclarations extends App {
     }
   }
 
-  def run(corpusPath: File): Unit = {
-    println("Using build: " + BuildInfo.buildInfoBuildNumber)
-    println("Using corpus: " + corpusPath.path.toAbsolutePath)
-
-    val index: Index = Index(corpusPath)
-    val output = corpusPath / "implicit-declarations.csv"
-
+  def run(idx: Index, outputFile: File): Unit = {
     timedTask(
-      s"Exporting ${index.implicitDeclarations.size} declarations call sites into $output",
-      export(index, output)
+      s"Exporting ${idx.implicitDeclarations.size} declarations into $outputFile",
+      export(idx, outputFile)
     )
   }
 
-  args.toList match {
-    case output :: Nil => run(File(output))
-    case _ => sys.error("Usage: <corpus path>")
-  }
+  def defaultOutputFilename = "implicit-declarations.csv"
 }

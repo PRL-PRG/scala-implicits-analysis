@@ -1,16 +1,18 @@
 package cz.cvut.fit.prl.scala.implicits.tools
 
 import better.files._
+
 import com.typesafe.scalalogging.Logger
+
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
-import cz.cvut.fit.prl.scala.implicits.utils.BuildInfo
+
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
 import org.slf4j.LoggerFactory
 
-object ExportImplicitCallSites extends App {
+object ExportImplicitCallSites extends ExportApp {
 
   implicit val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
@@ -94,30 +96,21 @@ object ExportImplicitCallSites extends App {
     }
   }
 
-  def export(idx: Index, output: File): Unit = {
+  private def export(idx: Index, outputFile: File): Unit = {
     for {
-      out <- output.newOutputStream.autoClosed
+      out <- outputFile.newOutputStream.autoClosed
       writer <- out.asCsvWriter[Output](rfc.withHeader(Output.Header: _*)).autoClosed
       callSite <- idx.implicitCallSites
       row = Output(callSite)(idx)
     } writer.write(row)
   }
 
-  def run(corpusPath: File): Unit = {
-    println("Using build: " + BuildInfo.buildInfoBuildNumber)
-    println("Using corpus: " + corpusPath.path.toAbsolutePath)
-
-    val index: Index = Index(corpusPath)
-    val output = corpusPath / "implicit-callsites.csv"
-
+  def run(idx: Index, outputFile: File): Unit = {
     timedTask(
-      s"Exporting ${index.implicitCallSites.size} call sites into $output",
-      export(index, output)
+      s"Exporting ${idx.implicitCallSites.size} call sites into $outputFile",
+      export(idx, outputFile)
     )
   }
 
-  args.toList match {
-    case output :: Nil => run(File(output))
-    case _ => sys.error("Usage: <corpus path>")
-  }
+  def defaultOutputFilename = "implicit-callsites.csv"
 }
