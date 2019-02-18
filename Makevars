@@ -28,7 +28,7 @@ $(error N_JOBS is not set. Controls the number of parallel jobs)
 endif
 
 SBT_MEM ?= 16000
-TIMEOUT ?= 120m
+TIMEOUT ?= 90m
 MAX_MEM ?= 128000
 
 # the initial project list
