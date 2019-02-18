@@ -66,17 +66,12 @@ endef
 
 $(COMPILE_STATUS):
 	$(BOOTSTRAP)
-	if [ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ]; then \
-      cp $(SEMANTICDB_STATUS) $(COMPILE_STATUS); \
-      echo "Project compiled with semanticdb..."; \
-	else \
-      JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
-      $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
-      exit_code=$$?; \
-      classes=$$(find . -name "*.class" | wc -l); \
-      echo "exit_code,duration,classes" > $(COMPILE_STATUS); \
-      echo "$$exit_code,$$SECONDS,$$classes" >> $(COMPILE_STATUS); \
-    fi
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
+    $(SBT) clean compile test:compile > $(COMPILE_LOG) 2>&1; \
+    exit_code=$$?; \
+    classes=$$(find . -name "*.class" | wc -l); \
+    echo "exit_code,duration,classes" > $(COMPILE_STATUS); \
+    echo "$$exit_code,$$SECONDS,$$classes" >> $(COMPILE_STATUS); \
 
 $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
 	echo "exit_code,duration" > $(IMPLICITS_STATUS); \
