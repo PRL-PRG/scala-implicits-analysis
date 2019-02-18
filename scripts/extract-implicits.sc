@@ -8,5 +8,5 @@ import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames.AnalysisDirnam
 
 @main
 def main() = {
-  ExtractImplicits.run(File("."), File(AnalysisDirname))
+  ExtractImplicits.run(File.currentWorkingDirectory, File(AnalysisDirname))
 }
