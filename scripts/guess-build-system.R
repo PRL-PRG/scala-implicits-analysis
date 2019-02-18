@@ -33,7 +33,7 @@ for (i in seq_along(systems_def)) {
     }
 }
 
-if (system == "sbt") {
+if (!is.na(system) && system == "sbt") {
     if (file.exists(file.path(dir, "project", "build.properties"))) {
         props <- read.table(
             "project/build.properties",
@@ -51,6 +51,6 @@ if (system == "sbt") {
     }
 }
 
-df <- tibble::data_frame(build_system=system, sbt_version=sbt_version)
+df <- tibble::tibble(build_system=system, sbt_version=sbt_version)
 
 readr::write_csv(df, output)
