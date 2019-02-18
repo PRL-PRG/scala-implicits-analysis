@@ -72,9 +72,9 @@ bootstrap :=
 	redo-implicits \
 	redo-metadata \
 	redo-semanticdb \
-    repo-build-system \
-    repo-metadata \
-    repo-sloc \
+	repo-build-system \
+	repo-metadata \
+	repo-sloc \
 	report \
 	reset \
 	reset-all \
@@ -214,13 +214,11 @@ endif
 	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SBT_STRUCTURE_STATUS) "ii" $(GLOBAL_SBT_STRUCTURE_STATUS)
 
 all:
+	$(MAKE) -f $(this_makefile) sbt-structure
 	$(MAKE) -f $(this_makefile) metadata
-	$(MAKE) -f $(this_makefile) redo-failed-metadata
 	$(MAKE) -f $(this_makefile) semanticdb
-	$(MAKE) -f $(this_makefile) redo-failed-semanticdb
 	$(MAKE) -f $(this_makefile) implicits
 	$(MAKE) -f $(this_makefile) compile
-	$(MAKE) -f $(this_makefile) report
 
 clean:
 	-$(MAKE) -f $(this_makefile) parallel TASK=$@
