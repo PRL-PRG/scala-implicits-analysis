@@ -47,6 +47,7 @@ bootstrap :=
 	clean-so-projects \
 	clean-classes \
 	compile \
+	corpus-summary \
 	dejavu \
 	download-projects \
 	implicits \
@@ -281,6 +282,9 @@ clean-so-projects:
 	-rm -fr $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 
 compile: $(GLOBAL_COMPILE_STATUS)
+
+corpus-summary: $(GLOBAL_COMPILE_STATUS) $(GLOBAL_METADATA_STATUS) $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE) $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS) $(PROJECTS_GITHUB_INFO) $(GLOBAL_REPO_SLOC) $(GLOBAL_REPO_METADATA)
+	$(SCRIPTS_DIR)/corpus-summary.R .
 
 dejavu: $(DEJAVU_FILES_HASH)
 
