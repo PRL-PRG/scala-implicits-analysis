@@ -194,10 +194,13 @@ dejavu_project_duplication <- local({
 
 })
 
+# we need to keep the paths distinct since for example JS/JVM modules share code
 scala_sloc <-
   filter(metadata_sourcepaths, language=="Scala") %>%
-  select(project_id, files, code) %>%
+  select(project_id, path, files, code) %>%
   group_by(project_id) %>%
+  distinct(path, .keep_all=TRUE) %>%
+  select(-path) %>%
   summarise_all(sum) %>%
   rename_at(vars(-project_id), add_prefix("metadata_scala"))
 
