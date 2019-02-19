@@ -5,6 +5,10 @@ library(httr)
 suppressPackageStartupMessages(library(tidyverse))
 library(pbapply)
 
+args <- commandArgs(trailingOnly=TRUE)
+stopifnot(length(args) == 1)
+output_file <- args[1]
+
 PAGES_TO_FETCH <- 100
 SCALA_VERSIONS <- c("2.11", "2.12")
 
@@ -21,6 +25,6 @@ any(errors)
 
 pages_json <- map(pages, ~content(.)) %>% unlist(recursive = F)
 
-projects <- pages_json %>% map_dfr(~data_frame(project_id=str_c(.$organization, "--", .$repository))) %>% distinct()
+projects <- pages_json %>% map_dfr(~tibble(project_id=str_c(.$organization, "--", .$repository))) %>% distinct()
 
-write_lines(projects$project_id, "all-projects.txt")
+write_lines(projects$project_id, output_file)

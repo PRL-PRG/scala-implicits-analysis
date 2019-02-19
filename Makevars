@@ -113,6 +113,8 @@ SBT_STRUCTURE_LOG := $(ANALYSIS_DIR)/sbt-stucture.log
 
 GLOBAL_SBT_STRUCTURE_STATUS := $(notdir $(SBT_STRUCTURE_STATUS))
 
+SCALADEX := scaladex.txt
+
 #AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 

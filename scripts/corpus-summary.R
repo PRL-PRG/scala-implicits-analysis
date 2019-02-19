@@ -18,6 +18,7 @@ PROJECTS_FILE <- "projects.txt"
 
 DEJAVU_H2I <- "dejavu-files-hash-h2i.csv"
 GITHUB_INFO <- "projects-github-info.csv"
+SCALADEX <- "scaladex.txt"
 
 METADATA_STATUS <- "metadata-status.csv"
 METADATA_SOURCEPATHS <- "metadata-sourcepaths.csv"
@@ -70,11 +71,13 @@ projects_file <- function(project, filename) {
 # load data
 
 project_ids <- read_lines(PROJECTS_FILE)
+scaladex_ids <- read_lines(SCALADEX)
 
-projects <- data_frame(
+projects <- tibble(
     project_id=project_ids,
     origin=str_c("https://github.com/", str_replace(project_id, "--", "/")),
-    project_path=path(PROJECTS_DIR, project_id)
+    project_path=path(PROJECTS_DIR, project_id),
+    scaladex=project_id %in% scaladex_ids
 )
 
 metadata_status <- read_csv(METADATA_STATUS, col_types=cols(
