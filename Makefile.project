@@ -175,14 +175,14 @@ clean-semanticdb:
 compile:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 0) -ne '0' ] && \
-    rm $(COMPILE_STATUS) || echo "No need to redo"
+    rm -f $(COMPILE_STATUS) || echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm $(COMPILE_STATUS)
+	rm -f $(COMPILE_STATUS)
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 1) -eq '0' ] && \
-    rm $(COMPILE_STATUS)
+    rm -f $(COMPILE_STATUS)
 endif
 	$(MAKE) -f $(this_makefile) $(COMPILE_STATUS)
 
@@ -190,28 +190,28 @@ implicits:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
-    rm $(IMPLICITS_STATUS) || echo "No need to redo"
+    rm -f $(IMPLICITS_STATUS) || echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm $(IMPLICITS_STATUS)
+	rm -f $(IMPLICITS_STATUS)
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(IMPLICITS_STATUS)' 1) -eq '0' ] && \
-    rm $(IMPLICITS_STATUS)
+    rm -f $(IMPLICITS_STATUS)
 endif
 	$(MAKE) -f $(this_makefile) $(IMPLICITS_STATUS)
 
 metadata:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -ne '0' ] && \
-    rm $(METADATA_STATUS) || echo "No need to redo"
+    rm -f $(METADATA_STATUS) || echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm $(METADATA_STATUS)
+	rm -f $(METADATA_STATUS)
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 1) -eq '0' ] && \
-    rm $(METADATA_STATUS)
+    rm -f $(METADATA_STATUS)
 endif
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
@@ -234,14 +234,14 @@ sbt:
 sbt-structure:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SBT_STRUCTURE_STATUS)' 0) -ne '0' ] && \
-    rm $(SBT_STRUCTURE_STATUS) || echo "No need to redo"
+    rm -f $(SBT_STRUCTURE_STATUS) || echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm $(SBT_STRUCTURE_STATUS)
+	rm -f $(SBT_STRUCTURE_STATUS)
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SBT_STRUCTURE_STATUS)' 1) -eq '0' ] && \
-    rm $(SBT_STRUCTURE_STATUS)
+    rm -f $(SBT_STRUCTURE_STATUS)
 endif
 	$(MAKE) -f $(this_makefile) $(SBT_STRUCTURE_STATUS)
 
@@ -249,14 +249,14 @@ semanticdb:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
     [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
-    rm $(SEMANTICDB_STATUS) || echo "No need to redo"
+    rm -f $(SEMANTICDB_STATUS) || echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm $(SEMANTICDB_STATUS)
+	rm -f $(SEMANTICDB_STATUS)
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ] && \
-    rm $(SEMANTICDB_STATUS)
+    rm -f $(SEMANTICDB_STATUS)
 endif
 	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
 
