@@ -58,7 +58,7 @@ merge_project_csvs <- function(project_ids, files, col_types) {
   )
 
   if (nrow(df) == 0) {
-    data_frame(project_id=character())
+    tibble(project_id=character())
   } else {
     select(df, project_id, everything())
   }
