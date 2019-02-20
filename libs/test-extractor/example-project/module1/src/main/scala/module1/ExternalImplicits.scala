@@ -1,4 +1,4 @@
-package com.example
+package module1
 
 import scala.meta.internal.semanticdb.Scala._
 

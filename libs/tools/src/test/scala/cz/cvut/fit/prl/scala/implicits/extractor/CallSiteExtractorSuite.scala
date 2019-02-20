@@ -4,16 +4,46 @@ import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 import cz.cvut.fit.prl.scala.implicits.utils._
 
-class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplification  {
+class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplification with ModelDSL {
 
-//  callSites("implicit conversion from scala",
-//    """
-//      | object o {
-//      |   1 -> "A"
-//      | }
-//    """.stripMargin) { res =>
-//    res.callSites.prettyPrint()
-//  }
+  callSites("synthetic and non-synthetic implicit call site with params",
+    """
+      | package p
+      | object o {
+      |   def f()(implicit x: Int) = 1
+      |   implicit val i = 1
+      |
+      |   f()
+      |   f()(2)
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite("p/o.f().", "f", implicitArgumentType("p/o.i."))
+    )
+
+    // only the synthetic call site should be visible
+    checkElements(res.callSites, expected)
+  }
+
+  callSites("synthetic and non-synthetic implicit call site",
+    """
+      | package p
+      | object o {
+      |   1 -> "A"
+      |   ArrowAssoc(2).->("B")
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        "scala/Predef.ArrowAssoc().",
+        code="ArrowAssoc[scala/Int#](1)",
+        typeArgument("scala/Int#")
+      )
+    )
+
+    // only the synthetic call site should be visible
+    checkElements(res.callSites, expected)
+  }
 
 //  callSites("simple implicit parameters",
 //    """

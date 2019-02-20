@@ -25,6 +25,7 @@ object ExportImplicitDeclarations extends ExportApp {
       locationPath: String,
       locationUri: String,
       locationPos: String,
+      locationScope: String,
       defGroupId: String,
       defArtifactId: String,
       defVersion: String,
@@ -47,6 +48,7 @@ object ExportImplicitDeclarations extends ExportApp {
       "location_path",
       "location_uri",
       "location_pos",
+      "location_scope",
       "def_group_id",
       "def_artifact_id",
       "def_version",
@@ -74,6 +76,7 @@ object ExportImplicitDeclarations extends ExportApp {
         locationUri = declaration.location.relativeUri,
         locationPos =
           declaration.location.position.map(x => x.startLine + ":" + x.startCol).getOrElse("NA"),
+        locationScope = declaration.locationScope.getOrElse("NA"),
         defGroupId = library.groupId,
         defArtifactId = library.artifactId,
         defVersion = library.version,

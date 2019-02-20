@@ -19,5 +19,7 @@ lazy val module2 = (project in file("module2"))
   .dependsOn(module1)
   .settings(commonSettings)
   .settings(
-    name := "module2"
+    name := "module2",
+    libraryDependencies +=  "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test,
+    libraryDependencies +=  "org.scalacheck" %% "scalacheck" % "1.13.5" % Test,
   )

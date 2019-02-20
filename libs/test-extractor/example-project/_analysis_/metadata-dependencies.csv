@@ -38,3 +38,9 @@ project_id,module_id,group_id,artifact_id,version,path,scope,transitive
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.lihaoyi","fastparse-utils_2.12","1.0.0",".ivy/cache/com.lihaoyi/fastparse-utils_2.12/jars/fastparse-utils_2.12-1.0.0.jar","test",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.lihaoyi","sourcecode_2.12","0.1.4",".ivy/cache/com.lihaoyi/sourcecode_2.12/bundles/sourcecode_2.12-0.1.4.jar","test",true
 "PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","com.google.protobuf","protobuf-java","3.5.1",".ivy/cache/com.google.protobuf/protobuf-java/bundles/protobuf-java-3.5.1.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scalatest","scalatest_2.12","3.2.0-SNAP10",".ivy/cache/org.scalatest/scalatest_2.12/bundles/scalatest_2.12-3.2.0-SNAP10.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scalactic","scalactic_2.12","3.2.0-SNAP10",".ivy/cache/org.scalactic/scalactic_2.12/bundles/scalactic_2.12-3.2.0-SNAP10.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scala-lang","scala-reflect","2.12.7",".ivy/cache/org.scala-lang/scala-reflect/jars/scala-reflect-2.12.7.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scala-lang.modules","scala-xml_2.12","1.0.6",".ivy/cache/org.scala-lang.modules/scala-xml_2.12/bundles/scala-xml_2.12-1.0.6.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scalacheck","scalacheck_2.12","1.13.5",".ivy/cache/org.scalacheck/scalacheck_2.12/jars/scalacheck_2.12-1.13.5.jar","test",true
+"PRL-PRG--scala-implicits-analysis","org.example:module2:1.0-SNAPSHOT:jvm","org.scala-sbt","test-interface","1.0",".ivy/cache/org.scala-sbt/test-interface/jars/test-interface-1.0.jar","test",true

@@ -1,4 +1,6 @@
-import com.example.JsonExample._
+package module2
+
+import module1.JsonExample._
 
 object Example extends App {
 
@@ -7,5 +9,7 @@ object Example extends App {
   }
 
   println(Seq("A", "B").toJson)
+
+  def fun = 1
 
 }

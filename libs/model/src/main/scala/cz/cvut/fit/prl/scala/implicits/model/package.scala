@@ -2,6 +2,7 @@ package cz.cvut.fit.prl.scala.implicits
 
 import scala.language.implicitConversions
 import scala.meta.internal.semanticdb.Scala._
+import scala.meta.internal.semanticdb.{Language => ScalaMetaLanguage}
 
 package object model {
 
@@ -45,6 +46,13 @@ package object model {
         None
       }
     }
+
+    def locationScope(implicit idx: Index): Option[String] = module.paths.get(location.path) match {
+      case Some(SourcepathEntry(_, scope, _)) => Some(scope)
+      case Some(ClasspathEntry(_, _, _, _, scope, true, _, _)) => Some(scope)
+      case Some(ClasspathEntry(_, _, _, _, scope, false, _, _)) => Some(scope + "_dependency")
+      case _ => None
+    }
   }
 
   implicit class IdentityHashCode(x: AnyRef) {
@@ -69,6 +77,8 @@ package object model {
     def project(implicit idx: Index): Project = idx.projects(that.projectId)
     def library: Library = Library(that.groupId, that.artifactId, that.version)
     def githubURL(implicit idx: Index): String = project.githubURL
+    def compilePaths: Map[String, PathEntry] = that.paths.filter(_._2.scope == "compile")
+    def testPaths: Map[String, PathEntry] = that.paths.filter(_._2.scope == "test")
   }
 
   implicit class XtensionParameterList(that: ParameterList) {
@@ -76,6 +86,12 @@ package object model {
   }
 
   implicit class XtensionPathEntry(that: PathEntry) {
+    def scope: String = that match {
+      case SourcepathEntry(_, scope, _) => scope
+      case ClasspathEntry(_, _, _, _, scope, _, _, _) => scope
+      case PathEntry.Empty => throw new IllegalStateException("Calling PathEntry.Empty.scope")
+    }
+
     def path: String = that match {
       case x: SourcepathEntry => x.path
       case x: ClasspathEntry => x.path
@@ -134,7 +150,8 @@ package object model {
 
     object declaration {
       def unapply(tpe: Type)(implicit resolver: TypeResolver): Option[Declaration] = tpe match {
-        case TypeRef(declarationId, _) => Some(DeclarationRef(that.moduleId, declarationId).declaration)
+        case TypeRef(declarationId, _) =>
+          Some(DeclarationRef(that.moduleId, declarationId).declaration)
         case _ => None
       }
     }
@@ -173,7 +190,8 @@ package object model {
       if (that.isMethod) {
         that.signature.value match {
           // a method that has one parameter and returns an implicit class
-          case MethodSignature(_, Seq(_), declaration(ret)) if ret.isImplicit && ret.isClass => Some(ret)
+          case MethodSignature(_, Seq(_), declaration(ret)) if ret.isImplicit && ret.isClass =>
+            Some(ret)
           case _ => None
         }
       } else {
@@ -201,11 +219,10 @@ package object model {
     def hasImplicitParameters: Boolean =
       that.implicitParameterList.isDefined
 
-    def returnType(implicit resolver: TypeResolver): Declaration =
+    def returnType(implicit resolver: TypeResolver): Option[Declaration] =
       that.signature.value match {
-        case MethodSignature(_, _, declaration(rt)) => rt
-        case _ =>
-          throw new Exception(s"Trying to get returnType on ${that.signature}")
+        case MethodSignature(_, _, declaration(rt)) => Some(rt)
+        case _ => None
       }
 
     def declaringTypeRef: DeclarationRef =
@@ -228,6 +245,20 @@ package object model {
           throw new Exception(s"Trying to get parents on ${that.signature}")
       }
 
+    def allParameters: Iterable[Parameter] = parameterLists.flatMap(_.parameters)
+
+    def parameterDeclaration(name: String)(implicit ctx: TypeResolver): Declaration = {
+      allParameters.find(_.name == name) match {
+        case Some(param) => parameterDeclaration(param)
+        case _ => throw new IllegalArgumentException(s"Parameter $name does not exist in $this")
+      }
+    }
+
+    def parameterDeclaration(param: Parameter)(implicit ctx: TypeResolver): Declaration = {
+      val ref = DeclarationRef(moduleId, param.tpe.declarationId)
+      ref.declaration
+    }
+
     def ref: DeclarationRef = DeclarationRef(that.moduleId, that.declarationId)
 
     override protected def moduleId: String = that.moduleId
@@ -240,4 +271,10 @@ package object model {
 
   implicit def methodSignature2method(x: MethodSignature): Declaration.Signature.Method =
     Declaration.Signature.Method(x)
+
+  implicit def scalaMetaLanguage2Language(x: ScalaMetaLanguage): Language = x match {
+    case ScalaMetaLanguage.JAVA => Language.JAVA
+    case ScalaMetaLanguage.SCALA => Language.SCALA
+    case _ => Language.UNKNOWN_LANGUAGE
+  }
 }

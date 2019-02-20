@@ -93,7 +93,7 @@ object Index  {
 
   private def buildModuleIndex(project: Project, module: Module): Index =
     timedTask(s"Index for module ${module.moduleId}", {
-      val implicitDeclarations = module.declarations.values.filter(_.isImplicit)
+      val implicitDeclarations = module.declarations.values.filter(x => x.isImplicit || x.hasImplicitParameters)
 
       Index(
         Map(project.projectId -> project),

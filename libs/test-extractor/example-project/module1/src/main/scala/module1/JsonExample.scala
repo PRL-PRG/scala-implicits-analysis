@@ -1,4 +1,4 @@
-package com.example
+package module1
 
 object JsonExample extends App {
 

@@ -16,10 +16,6 @@ object ExportImplicitCallSites extends ExportApp {
 
   implicit val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
-  /**
-    *
-    * @param local - 0 - not local, 1 - module local, 2 - project local
-    */
   case class Output(
       projectId: String,
       groupId: String,
@@ -35,6 +31,7 @@ object ExportImplicitCallSites extends ExportApp {
       locationPath: String,
       locationUri: String,
       locationPos: String,
+      locationScope: String,
       numTypeArguments: Int,
       numImplicitArguments: Int
   )
@@ -55,6 +52,7 @@ object ExportImplicitCallSites extends ExportApp {
       "location_path",
       "location_uri",
       "location_pos",
+      "location_scope",
       "num_type_arguments",
       "num_implicit_arguments"
     )
@@ -90,6 +88,7 @@ object ExportImplicitCallSites extends ExportApp {
         locationUri = callSite.location.relativeUri,
         locationPos =
           callSite.location.position.map(x => x.startLine + ":" + x.startCol).getOrElse("NA"),
+        locationScope = callSite.locationScope.getOrElse("NA"),
         numTypeArguments = callSite.typeArguments.size,
         numImplicitArguments = callSite.implicitArgumentTypes.size
       )

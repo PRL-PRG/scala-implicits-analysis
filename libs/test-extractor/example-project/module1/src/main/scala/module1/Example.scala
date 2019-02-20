@@ -1,8 +1,8 @@
-package com.example
+package module1
+
+import module1.auxiliary.{A, B}
 
 import scala.concurrent.ExecutionContext
-import scala.language.implicitConversions
-import com.example.auxiliary._
 
 object Example {
 

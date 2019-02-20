@@ -2,8 +2,8 @@ package cz.cvut.fit.prl.scala.implicits.model
 
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind.{CLASS, DEF}
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
-
 import scalapb.lenses.{Lens, Mutation}
+
 import scala.meta.internal.semanticdb.Scala._
 
 object ModelDSL {
@@ -41,6 +41,12 @@ trait ModelDSL {
   def returnType(ref: String, typeArguments: List[TypeRef] = Nil): Update[Declaration] =
     _.method.returnType := typeRef(ref, typeArguments)
 
+  def implicitArgumentType(ref: String, typeArguments: List[TypeRef] = Nil): Update[CallSite] =
+    _.implicitArgumentTypes.modify(_ :+ typeRef(ref, typeArguments))
+
+  def typeArgument(ref: String, typeArguments: List[TypeRef] = Nil): Update[CallSite] =
+    _.typeArguments.modify(_ :+ typeRef(ref, typeArguments))
+
   def method(declarationId: String, updates: Update[Declaration]*): Declaration = {
     val d = Declaration(
       declarationId = declarationId,
@@ -68,5 +74,10 @@ trait ModelDSL {
   )
 
     d.update(updates: _*)
+  }
+
+  def callSite(declarationId: String, code: String, updates: Update[CallSite]*): CallSite = {
+    val cs = CallSite(TestModuleId, declarationId, code, TestLocalLocation)
+    cs.update(updates: _*)
   }
 }

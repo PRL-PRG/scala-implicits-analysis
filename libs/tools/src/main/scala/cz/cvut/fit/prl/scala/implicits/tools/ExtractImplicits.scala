@@ -182,7 +182,9 @@ object ExtractImplicits extends App {
     val (callSites, csExceptions) =
       metadata.semanticdbs
         .map(x => x -> metadata.ast(x.uri))
-        .flatMap { case (db, ast) => csExtractor.extractImplicitCallSites(metadata.moduleId, db, ast) }
+        .flatMap {
+          case (db, ast) => csExtractor.extractImplicitCallSites(metadata.moduleId, db, ast)
+        }
         .split()
 
     val csCount =
@@ -192,7 +194,7 @@ object ExtractImplicits extends App {
         .sum
 
     val classpath =
-        metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
+      metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
 
     val exceptions = declExceptions ++ csExceptions
 
@@ -205,15 +207,27 @@ object ExtractImplicits extends App {
         scope,
         true,
         false,
-        false)
+        false
+      )
+
+    val allPaths =
+      classpath.map(x => x.path -> x) ++
+        metadata.sourcepathEntries.map(x => x.path -> x) ++
+        metadata.outputPath.map(x => x -> classPathEntry(x, "compile")) ++
+        metadata.testOutputPath.map(x => x -> classPathEntry(x, "test"))
 
     val paths =
-      (
-    classpath.map(x => x.path -> x) ++
-      metadata.sourcepathEntries.map(x => x.path -> x) ++
-      metadata.outputPath.map(x => x -> classPathEntry(x, "compile")) ++
-      metadata.testOutputPath.map(x => x -> classPathEntry(x, "test"))
-  ).toMap
+      allPaths
+        .foldLeft(Map[String, PathEntry]()) {
+          case (res, entry @ (path, _)) =>
+            res.get(path) match {
+              case Some(x) if x.scope == "test" =>
+                res + entry
+              case Some(_) => res
+              case None =>
+                res + entry
+            }
+        }
 
     val module = Module(
       projectId = projectId,

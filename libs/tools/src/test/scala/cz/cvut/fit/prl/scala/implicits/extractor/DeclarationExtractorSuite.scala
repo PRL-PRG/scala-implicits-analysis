@@ -1,11 +1,31 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
-import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
+import cz.cvut.fit.prl.scala.implicits.model.Language.{JAVA, SCALA}
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 
 class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplification {
+
+  declarations("identify java/scala symbol",
+    """
+      | package p
+      | object o {
+      |   implicit class C(that: java.io.File) {
+      |     def x = 1
+      |   }
+      |
+      |   new java.io.File("").x
+      | }
+    """.stripMargin) { implicit res =>
+    res.declarations.apply(1)
+
+    val decl = res.declarations.find(_.isMethod).get
+    val param = decl.parameterDeclaration("that")
+
+    param.language should be(JAVA)
+    decl.returnType.get.language should be(SCALA)
+  }
 
   declarations(
     "java reference",
@@ -126,7 +146,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
         d.isImplicit shouldBe true
         d.location shouldBe TestLocalLocation
         d.language.isScala shouldBe true
-        d.returnType.name shouldBe "String"
+        d.returnType.get.name shouldBe "String"
 
         d.parameterLists should have size 1
         inside(d.parameterLists.head) {
