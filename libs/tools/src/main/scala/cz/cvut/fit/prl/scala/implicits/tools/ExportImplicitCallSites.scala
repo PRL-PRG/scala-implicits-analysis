@@ -28,7 +28,7 @@ object ExportImplicitCallSites extends ExportApp {
       declarationGroupId: String,
       declarationArtifactId: String,
       declarationVersion: String,
-      local: Int,
+      local: String,
       locationPath: String,
       locationUri: String,
       locationPos: String,
@@ -67,11 +67,11 @@ object ExportImplicitCallSites extends ExportApp {
       val declarationLibrary = declaration.library
       val local =
         if (library == declarationLibrary) {
-          1
+          "module"
         } else if (library.groupId == declarationLibrary.groupId) {
-          2
+          "project"
         } else {
-          0
+          "NA"
         }
 
       Output(
