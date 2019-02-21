@@ -14,6 +14,10 @@ import scala.meta.io.{AbsolutePath, Classpath}
 import scala.util.{Failure, Success, Try}
 
 package object utils {
+  implicit class XtensionSynthetic(that: s.Synthetic) {
+    def toStringLegacy: String = LegacySyntheticPrinter.toLegacy(that)
+  }
+
   implicit class XtensionSymbolInformation(that: s.SymbolInformation) {
 
     def parent(implicit resolver: SymbolResolver): s.SymbolInformation =

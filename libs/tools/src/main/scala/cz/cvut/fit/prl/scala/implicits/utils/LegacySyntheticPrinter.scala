@@ -163,3 +163,9 @@ class LegacySyntheticPrinter {
     text.toString()
   }
 }
+
+object LegacySyntheticPrinter {
+  def toLegacy(synthetic: s.Synthetic): String = {
+    new LegacySyntheticPrinter().toLegacy(synthetic)
+  }
+}
