@@ -16,6 +16,7 @@ object ExportImplicitDeclarations extends ExportApp {
 
   case class Output(
       projectId: String,
+      moduleId: String,
       groupId: String,
       artifactId: String,
       version: String,
@@ -39,6 +40,7 @@ object ExportImplicitDeclarations extends ExportApp {
   object Output {
     val Header = Seq(
       "project_id",
+      "module_id",
       "group_id",
       "artifact_id",
       "version",
@@ -66,6 +68,7 @@ object ExportImplicitDeclarations extends ExportApp {
 
       Output(
         projectId = project.projectId,
+        moduleId = module.moduleId,
         groupId = module.groupId,
         artifactId = module.artifactId,
         version = module.version,
