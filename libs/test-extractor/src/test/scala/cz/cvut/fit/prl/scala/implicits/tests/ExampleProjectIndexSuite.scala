@@ -14,6 +14,15 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
     Index(List(result.project))
   }
 
+  test("Issue #22 - implicit argument from macro") {
+    val css = idx.modules.values.find(_.artifactId == "module2").get.implicitCallSites
+    val testCss = css.filter(_.location.relativeUri.contains("Issue22"))
+
+    testCss should have size 1
+
+    testCss.head.declaration.name should be ("test")
+  }
+
   test("classpath scope") {
     val module2 = idx.modules.filterKeys(_.contains("module2")).head._2
     val paths = module2.paths.values
@@ -41,10 +50,5 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
 
     css.exists(x => x.code == "int2string(Example.fun)" && x.locationScope.contains("test")) should be(
       true)
-  }
-
-  test("Index") {
-    idx.implicitDeclarations.size shouldBe 26
-    idx.implicitCallSites.size shouldBe 15
   }
 }

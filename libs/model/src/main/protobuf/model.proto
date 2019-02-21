@@ -193,5 +193,9 @@ message CallSite {
     // resolved type arguments
     repeated Type type_arguments = 5;
     // types of implicit arguments (if any)
+    // this is just an approximation
+    // there are cases this will not work:
+    // - implicit arguments expanded from macros (cf. #22)
+    // - local implicit arguments (cf. #21)
     repeated TypeRef implicit_argument_types = 6;
 }

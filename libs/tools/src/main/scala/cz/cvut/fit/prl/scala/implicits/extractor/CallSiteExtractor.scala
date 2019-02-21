@@ -39,7 +39,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         argumentss: List[List[Argument]] = Nil) {
 
       def isImplicit: Boolean =
-        declaration.isImplicit || argumentss.flatten.exists(_.declaration.isImplicit)
+        declaration.isImplicit || declaration.hasImplicitParameters
 
       def toCallSite: m.CallSite = {
         val implicitArgumentsTypes: Seq[m.TypeRef] = {
