@@ -43,7 +43,7 @@ object ExtractImplicits extends App {
       Stats(
         project.modules.map(_.declarations.size).sum,
         project.modules.map(_.callSitesCount).sum,
-        project.modules.map(_.declarations.values.count(_.isImplicit)).sum,
+        project.modules.map(_.declarations.values.count(x => x.isImplicit || x.hasImplicitParameters)).sum,
         project.modules.map(_.implicitCallSites.size).sum,
         exceptions.size)
   }
