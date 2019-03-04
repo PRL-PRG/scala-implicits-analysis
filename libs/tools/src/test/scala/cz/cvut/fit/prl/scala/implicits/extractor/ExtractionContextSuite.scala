@@ -11,100 +11,101 @@ import scala.meta.internal.{semanticdb => s}
 import scala.meta._
 import scala.meta.io.Classpath
 
+// TODO: rewrite using scrap your boilerplate pattern
 trait ModelSimplification {
 
   implicit class SimplifyCallSite(that: m.CallSite) {
 
-      def simplify(ctx: ExtractionContext): m.CallSite = that.copy(
-        location = that.location.simplify(ctx),
-        typeArguments = that.typeArguments.map(_.simplify),
-        implicitArgumentTypes = that.implicitArgumentTypes.map(_.simplify)
-      )
-    }
+    def simplify(ctx: ExtractionContext): m.CallSite = that.copy(
+      location = that.location.simplify(ctx),
+      typeArguments = that.typeArguments.map(_.simplify),
+      implicitArgumentTypes = that.implicitArgumentTypes
+    )
+  }
 
   implicit class SimplifyDeclaration(that: m.Declaration) {
 
-      def simplify(ctx: ExtractionContext): m.Declaration =
-        that.copy(
-          location = that.location.simplify(ctx),
-          signature = that.signature.simplify
-        )
-    }
+    def simplify(ctx: ExtractionContext): m.Declaration =
+      that.copy(
+        location = that.location.simplify(ctx),
+        signature = that.signature.simplify
+      )
+  }
   implicit class SimplifySignature(that: m.Declaration.Signature) {
 
-      def simplify: m.Declaration.Signature = that match {
-        case m.Declaration.Signature.Method(v) =>
-          m.Declaration.Signature.Method(v.simplify)
-        case m.Declaration.Signature.Type(v) => m.Declaration.Signature.Type(v.simplify)
-        case y => y
-      }
+    def simplify: m.Declaration.Signature = that match {
+      case m.Declaration.Signature.Method(v) =>
+        m.Declaration.Signature.Method(v.simplify)
+      case m.Declaration.Signature.Type(v) => m.Declaration.Signature.Type(v.simplify)
+      case y => y
     }
+  }
 
   implicit class SimplifyMethodSignature(that: m.MethodSignature) {
 
-      def simplify: m.MethodSignature = that.copy(
-        typeParameters = that.typeParameters.map(_.simplify),
-        parameterLists = that.parameterLists.map(_.simplify),
-        returnType = that.returnType.simplify
-      )
-    }
+    def simplify: m.MethodSignature = that.copy(
+      typeParameters = that.typeParameters.map(_.simplify),
+      parameterLists = that.parameterLists.map(_.simplify),
+      returnType = that.returnType.simplify
+    )
+  }
 
   implicit class SimplifyTypeSignature(that: m.TypeSignature) {
 
-      def simplify: m.TypeSignature = that.copy(
-        parents = that.parents.map(_.simplify),
-        typeParameters = that.typeParameters.map(_.simplify)
-      )
-    }
+    def simplify: m.TypeSignature = that.copy(
+      parents = that.parents.map(_.simplify),
+      typeParameters = that.typeParameters.map(_.simplify)
+    )
+  }
 
   implicit class SimplifyParameterList(that: m.ParameterList) {
-      def simplify: m.ParameterList = that.copy(that.parameters.map(_.simplify))
-    }
+    def simplify: m.ParameterList = that.copy(that.parameters.map(_.simplify))
+  }
 
   implicit class SimplifyParameter(that: m.Parameter) {
-      def simplify: m.Parameter = that.copy(tpe = that.tpe.simplify)
-    }
+    def simplify: m.Parameter = that.copy(tpe = that.tpe.simplify)
+  }
 
   implicit class SimplifyTypeParameter(that: m.TypeParameter) {
 
     def simplify: m.TypeParameter =
-        that.copy(
-          typeParameters = that.typeParameters.map(_.simplify),
-          upperBound = that.upperBound.simplify,
-          lowerBound = that.lowerBound.simplify)
-    }
+      that.copy(
+        typeParameters = that.typeParameters.map(_.simplify),
+        upperBound = that.upperBound.simplify,
+        lowerBound = that.lowerBound.simplify)
+  }
 
   implicit class SimplifyType(that: m.Type) {
 
-      def simplify: m.Type = that match {
-        case y: m.TypeRef => y.simplify
-        case y: m.TypeParameterRef =>
-          y.copy(typeArguments = y.typeArguments.map(_.simplify))
-        case y => y
-      }
+    def simplify: m.Type = that match {
+      case y: m.TypeRef => y.simplify
+      case y: m.TypeParameterRef =>
+        y.copy(typeArguments = y.typeArguments.map(_.simplify))
+      case y => y
     }
+  }
 
   implicit class SimplifyTypeRef(that: m.TypeRef) {
 
-      def simplify: m.TypeRef =
-        that.copy(
-          typeArguments = that.typeArguments.map(_.simplify)
-        )
-    }
+    def simplify: m.TypeRef =
+      that.copy(
+        typeArguments = that.typeArguments.map(_.simplify)
+      )
+  }
 
   implicit class SimplifyLocation(that: m.Location) {
 
-      def simplify(ctx: ExtractionContext): m.Location = {
-        that match {
-          case m.Location(path, _, _) if ctx.sourcePaths.contains(path) =>
-            TestLocalLocation
-          case m.Location("", _, _) =>
-            TestLocalLocation
-          case _ =>
-            TestExternalLocation
-        }
+    def simplify(ctx: ExtractionContext): m.Location = {
+      that match {
+        case m.Location(path, _, _) if ctx.sourcePaths.contains(path) =>
+          TestLocalLocation
+        case m.Location("", _, _) =>
+          TestLocalLocation
+        case _ =>
+          TestExternalLocation
       }
     }
+  }
 }
 
 case class DeclarationsResult(
@@ -121,12 +122,12 @@ case class DeclarationsResult(
 object DeclarationsResult extends ModelSimplification {
 
   def apply(ctx: ExtractionContext, db: s.TextDocument): DeclarationsResult = {
-      val extractor = new DeclarationExtractor(ctx)
+    val extractor = new DeclarationExtractor(ctx)
     val result = extractor.extractImplicitDeclarations(db)
-      val (declarations, failures) = result.split()
+    val (declarations, failures) = result.split()
 
-      DeclarationsResult(declarations.map(_.simplify(ctx)), declarations, failures, ctx, db)
-    }
+    DeclarationsResult(declarations.map(_.simplify(ctx)), declarations, failures, ctx, db)
+  }
 }
 
 case class CallSitesResult(
@@ -144,14 +145,14 @@ case class CallSitesResult(
 object CallSitesResult extends ModelSimplification {
 
   def apply(ctx: ExtractionContext, db: s.TextDocument): CallSitesResult = {
-      val ast = db.text.parse[Source].get
-      val extractor = new CallSiteExtractor(ctx)
-      val result = extractor.extractImplicitCallSites(TestModuleId, db, ast)
-      val (callSites, failures) = result.split()
-      val count = extractor.callSiteCount(ast)
+    val ast = db.text.parse[Source].get
+    val extractor = new CallSiteExtractor(ctx)
+    val result = extractor.extractImplicitCallSites(TestModuleId, db, ast)
+    val (callSites, failures) = result.split()
+    val count = extractor.callSiteCount(ast)
 
-      CallSitesResult(callSites.map(_.simplify(ctx)), callSites, failures, count, ctx, db)
-    }
+    CallSitesResult(callSites.map(_.simplify(ctx)), callSites, failures, count, ctx, db)
+  }
 }
 
 abstract class ExtractionContextSuite

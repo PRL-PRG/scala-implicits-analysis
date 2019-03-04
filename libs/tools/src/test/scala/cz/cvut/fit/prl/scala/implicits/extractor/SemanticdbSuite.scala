@@ -1,7 +1,7 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import java.io.{File => JFile}
-import java.net.URLClassLoader
+import java.net.{URLClassLoader, URLDecoder}
 
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.utils.{BuildInfo, Libraries}
@@ -28,7 +28,11 @@ abstract class SemanticdbSuite extends FunSuite {
   }
 
   lazy val pluginClasspath: String = classOf[SemanticdbPlugin].getClassLoader match {
-    case cl: URLClassLoader => cl.getURLs.map(_.getFile).mkString(JFile.pathSeparator)
+    case cl: URLClassLoader =>
+      cl.getURLs
+        .map(_.getFile)
+        .map(x => URLDecoder.decode(x, "ASCII"))
+        .mkString(JFile.pathSeparator)
     case cl => sys.error(s"unsupported classloader: $cl")
   }
 

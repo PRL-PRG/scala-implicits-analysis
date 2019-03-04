@@ -182,20 +182,39 @@ message TypeParameterRef {
 }
 
 message CallSite {
+    // an unique call site ID
+    required int32 call_site_id = 1;
+    // id of the parent call site in the case it is nested
+    optional int32 parent_id = 2;
     // an identifier of a module this callsite belongs to
-    required string module_id = 1;
+    required string module_id = 3;
     // what is being called
-    required string declaration_id = 2;
+    required string declaration_id = 4;
     // the call source code
-    required string code = 3;
+    required string code = 5;
     // location of the callsite
-    required Location location = 4;
+    required Location location = 6;
     // resolved type arguments
-    repeated Type type_arguments = 5;
+    repeated Type type_arguments = 7;
     // types of implicit arguments (if any)
     // this is just an approximation
     // there are cases this will not work:
     // - implicit arguments expanded from macros (cf. #22)
     // - local implicit arguments (cf. #21)
-    repeated TypeRef implicit_argument_types = 6;
+    repeated Argument implicit_argument_types = 8;
+}
+
+message Argument {
+    oneof sealed_value {
+        ValueRef value_ref = 1;
+        CallSiteRef callsite_ref = 2;
+    }
+}
+
+message ValueRef {
+    required string declaration_id = 1;
+}
+
+message CallSiteRef {
+    required int32 callsite_id = 1;
 }

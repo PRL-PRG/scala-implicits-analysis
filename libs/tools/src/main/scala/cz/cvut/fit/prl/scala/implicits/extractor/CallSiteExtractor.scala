@@ -2,8 +2,8 @@ package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.utils._
-import cz.cvut.fit.prl.scala.implicits.{ModuleMetadata, model => m}
 
+import scala.collection.mutable
 import scala.meta._
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
@@ -16,7 +16,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
   class Converter(moduleId: String, db: s.TextDocument, terms: Map[s.Range, Term]) {
 
     def findFunctionTerm(t: Term): Option[Tree] = t match {
-      case Term.Select(_, name) => Some(t)
+      case Term.Select(_, _) => Some(t)
       case Term.Name(_) => Some(t)
       case Term.ApplyType(fun, _) => findFunctionTerm(fun)
       case Term.Apply(fun, _) => findFunctionTerm(fun)
@@ -24,82 +24,91 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       case _ => None
     }
 
-    case class Argument(declaration: m.Declaration, typeArguments: List[m.Type]) {
-
-      def toTypeRef: m.TypeRef =
-        m.TypeRef(declaration.declarationId, typeArguments)
-    }
-
-    // arguments are inversed - the implicit ones are on top
-    case class Call(
-        declaration: m.Declaration,
-        code: String = "",
-        location: m.Location,
-        typeArguments: List[m.Type] = Nil,
-        argumentss: List[List[Argument]] = Nil) {
-
-      def isImplicit: Boolean =
-        declaration.isImplicit || declaration.hasImplicitParameters
-
-      def toCallSite: m.CallSite = {
-        val implicitArgumentsTypes: Seq[m.TypeRef] = {
-          try {
-            if (declaration.hasImplicitParameters) argumentss.head.map(_.toTypeRef) else Seq()
-          } catch {
-            case _: Throwable =>
-              throw new UnexpectedElementException("Callsite declaration", s"$code -- $declaration")
-          }
-        }
-
-        m.CallSite(
-          moduleId,
-          declaration.declarationId,
-          code,
-          location,
-          typeArguments,
-          implicitArgumentsTypes
-        )
-      }
-    }
-
-    def createArguments(tree: s.Tree): Option[Argument] = tree match {
-      case s.ApplyTree(fn, _) => createArguments(fn)
-      case s.TypeApplyTree(fn, args) =>
-        createArguments(fn).map(_.copy(typeArguments = ctx.createTypeArguments(args)))
-      case s.FunctionTree(_, body) =>
-        createArguments(body)
-      case s.SelectTree(_, Some(id)) =>
-        createArguments(id)
-      case s.IdTree(symbol) if !symbol.isLocal =>
-        val declaration = ctx.resolveDeclaration(symbol)
-        Some(Argument(declaration, Nil))
-      case _ => None
-    }
-
-    def convert(synthetic: s.Synthetic): List[m.CallSite] = {
-
+    def processSynthetic(synthetic: s.Synthetic): Iterable[CallSite] = {
       val path = ctx.relaxedSourcePath(db.uri)
       val relativeUri = db.uri.substring(path.length)
       val syntheticLocation = Location(path, relativeUri, Some(synthetic.range.get))
 
-      def convertInternal(tree: s.Tree, inCall: Boolean): List[Call] = tree match {
+      val extractedCallSites = mutable.Map[Int, CallSite]()
+      val extractedCallSiteArguments =
+        mutable.Map[Int, List[List[Argument]]]().withDefaultValue(Nil)
 
-        case s.ApplyTree(fn, arguments) => {
-          val callSitesFromArguments = arguments.flatMap(x => convertInternal(x, false))
+      // creates either a ValueRef or a CallSiteRef if extractedArgumentCallSite is defined
+      // and the tree is eventually resolves to a method
+      def createArgument(
+          callSite: CallSite,
+          tree: s.Tree,
+          extractedArgumentCallSite: Option[CallSite]): Option[Argument] = tree match {
+        case s.ApplyTree(fn, _) =>
+          createArgument(callSite, fn, extractedArgumentCallSite)
+        case s.TypeApplyTree(fn, _) =>
+          // we do not need to care about type arguments since if there were any
+          // they will be already part of the call site in extractedArgumentCallSite
+          createArgument(callSite, fn, extractedArgumentCallSite)
+        case s.FunctionTree(_, body) =>
+          createArgument(callSite, body, extractedArgumentCallSite)
+        case s.SelectTree(_, Some(id)) =>
+          createArgument(callSite, id, extractedArgumentCallSite)
+        case s.IdTree(symbol) if !symbol.isLocal =>
+          val declaration = ctx.resolveDeclaration(symbol)
+          (declaration.isMethod, extractedArgumentCallSite) match {
+            case (true, Some(cs)) =>
+              extractedCallSites
+                .updateValue(cs.callSiteId, _.copy(parentId = Some(callSite.callSiteId)))
+              Some(CallSiteRef(cs.callSiteId))
+            case (false, None) =>
+              Some(ValueRef(declaration.declarationId))
+            case _ =>
+              throw new Exception(
+                s"Invalid argument $declaration and argument call site ($extractedArgumentCallSite)")
+          }
+        case s.IdTree(symbol) =>
+          None
+        case s.MacroExpansionTree(beforeExpansion, tpe) =>
+          createArgument(callSite, beforeExpansion, extractedArgumentCallSite)
+        case s.OriginalTree(_) =>
+          None
+        case s.Tree.Empty =>
+          None
+      }
 
-          (convertInternal(fn, true) match {
-            case cs :: css =>
-              arguments match {
-                case Seq(s.OriginalTree(Some(range))) =>
-                  // implicit conversion
-                  cs.copy(code = cs.code + terms.get(range).map(x => s"($x)").getOrElse("")) :: css
-                case _ =>
-                  val args = arguments.toList.flatMap(createArguments)
-                  cs.copy(argumentss = args :: cs.argumentss) :: css
-              }
-            case css => css
-          }) ++ callSitesFromArguments
+      def createCallSite(declaration: Declaration, code: String, location: Location): CallSite = {
+        val id = ctx.createCallSiteId
+        val cs = CallSite(id, None, moduleId, declaration.declarationId, code, location)
+        extractedCallSites += id -> cs
+        cs
+      }
 
+      // inCall signals if we are resolving from children of ApplyTree
+      def convertInternal(tree: s.Tree, inCall: Boolean): Option[CallSite] = tree match {
+
+        case s.ApplyTree(fn, argumentsTree) => {
+
+          val callSitesFromArguments = argumentsTree.map(x => convertInternal(x, false))
+
+          convertInternal(fn, true).map { callSite =>
+            argumentsTree match {
+              case Seq(s.OriginalTree(Some(range))) =>
+                // implicit conversion
+                extractedCallSites.updateValue(
+                  callSite.callSiteId,
+                  _.copy(code = callSite.code + terms.get(range).map(x => s"($x)").getOrElse(""))
+                )
+              case _ =>
+                val arguments =
+                  argumentsTree
+                    .zip(callSitesFromArguments)
+                    .map(x => createArgument(callSite, x._1, x._2))
+                    .collect { case Some(x) => x }
+                    .toList
+
+                if (arguments.nonEmpty) {
+                  extractedCallSiteArguments.updateValue(callSite.callSiteId, arguments :: _)
+                }
+            }
+
+            callSite
+          }
         }
 
         case s.SelectTree(qualifier, Some(s.IdTree(symbol))) => {
@@ -107,31 +116,33 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // this hack is here because we do not want to create
             // implicit calls from inferred method calls like .apply on
             // companion objects
-            Nil
+            None
           } else {
             val declaration = ctx.resolveDeclaration(symbol)
             val code = s".${declaration.name}"
-            val cs = Call(declaration, code, location = syntheticLocation)
+            val cs = createCallSite(declaration, code, syntheticLocation)
 
             qualifier match {
               case s.OriginalTree(Some(range)) =>
-                val location = m.Location(path, relativeUri, Some(range))
-                cs.copy(location = location) :: Nil
+                val location = Location(path, relativeUri, Some(range))
+                Some(extractedCallSites.updateValue(cs.callSiteId, _.copy(location = location)))
               case _ =>
-                cs :: convertInternal(qualifier, false)
+                convertInternal(qualifier, false)
+                Some(cs)
             }
           }
         }
 
         case s.TypeApplyTree(fn, args) => {
-          convertInternal(fn, inCall) match {
-            case cs :: css =>
-              val typeArguments = ctx.createTypeArguments(args)
-              cs.copy(
-                code = cs.code + typeArguments.map(_.asCode).mkString("[", ", ", "]"),
-                typeArguments = typeArguments
-              ) :: css
-            case css => css
+          convertInternal(fn, inCall).map { cs =>
+            val typeArguments = ctx.createTypeArguments(args, includeTopBottom = true)
+            extractedCallSites.updateValue(
+              cs.callSiteId,
+              _.copy(
+                typeArguments = typeArguments,
+                code = cs.code + typeArguments.map(_.asCode).mkString("[", ", ", "]")
+              )
+            )
           }
         }
 
@@ -148,7 +159,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // we want ot get a reference to actual methods, not objects
             db.synthetics
               .find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange))
-              .flatMap(x => convertInternal(x.tree, true).headOption)
+              .flatMap(x => convertInternal(x.tree, true))
               .getOrElse {
 
                 val nestedTermsToTry = fnTerm :: fnTerm.collect {
@@ -168,13 +179,13 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                 }
 
                 val declaration = ctx.resolveDeclaration(symbol)
-                val location = m.Location(path, relativeUri, Some(range))
+                val location = Location(path, relativeUri, Some(range))
                 val code = declaration.name
-                Call(declaration, code, location)
+                createCallSite(declaration, code, location)
               }
           }
 
-          csOpt.toList
+          csOpt
         }
 
         case s.IdTree(symbol) => {
@@ -183,37 +194,57 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           if (inCall || (declaration.isImplicit && declaration.isFunctionLike)) {
             val code = declaration.name
 
-            Call(declaration, code, location = syntheticLocation) :: Nil
+            Some(createCallSite(declaration, code, syntheticLocation))
           } else {
-            Nil
+            None
           }
         }
 
-        case _ => Nil
+        case _ => None
       }
 
-      val intermediate = convertInternal(synthetic.tree, false)
-      intermediate.filter(_.isImplicit).map(_.toCallSite)
+      convertInternal(synthetic.tree, false)
+
+      extractedCallSites.values.map { cs =>
+        val takesImplicitParams = cs.declaration.hasImplicitParameters
+
+        val implicitArgumentsTypes = extractedCallSiteArguments.get(cs.callSiteId) match {
+          case Some(argumentsLists) if takesImplicitParams =>
+            argumentsLists.head
+          case None if !takesImplicitParams =>
+            Seq.empty
+          case _ =>
+            throw new UnexpectedElementException(
+              "Callsite declaration",
+              s"${cs.code} -- ${cs.declarationId}")
+        }
+
+        cs.copy(implicitArgumentTypes = implicitArgumentsTypes)
+      }
     }
   }
 
   def extractImplicitCallSites(
       moduleId: String,
       db: s.TextDocument,
-      ast: Source): Seq[Try[m.CallSite]] = {
+      ast: Source): Iterable[Try[CallSite]] = {
+
     val terms = ast.collect {
       case x: Term => x.pos.toRange -> x
     }.toMap
 
     val converter = new Converter(moduleId, db, terms)
-    db.synthetics.toList
-      .map(x => x -> Try(converter.convert(x)))
+    val result = db.synthetics.toList
+      .map(x => x -> Try(converter.processSynthetic(x)))
       .collect {
-        case (_, Success(xs)) => xs.filter(_.isImplicit).map(Success(_))
+        case (_, Success(xs)) =>
+          xs.filter(_.isImplicit).map(Success(_))
         case (synthetic, Failure(x)) =>
           List(Failure(new CallSiteConversionException(x, db.uri, synthetic)))
       }
       .flatten
+
+    result
   }
 
   def callSiteCount(ast: Source): Int = {

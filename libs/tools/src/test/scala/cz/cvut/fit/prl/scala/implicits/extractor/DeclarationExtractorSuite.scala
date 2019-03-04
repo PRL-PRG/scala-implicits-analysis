@@ -367,7 +367,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
       )
     )
 
-    checkElement(expected, res.declarations)
+    checkElements(expected, res.declarations)
   }
 
 }

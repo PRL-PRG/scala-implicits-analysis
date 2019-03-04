@@ -7,10 +7,11 @@ import scalapb.lenses.{Lens, Mutation}
 import scala.meta.internal.semanticdb.Scala._
 
 object ModelDSL {
-    val TestLocalLocation = Location("test-location", "", Some(Position(0, 0, 0, 0)))
-    val TestExternalLocation = Location("test-external-location", "", None)
-    val TestModuleId = "test-module"
-  }
+  val TestLocalLocation = Location("test-location", "", Some(Position(0, 0, 0, 0)))
+  val TestExternalLocation = Location("test-external-location", "", None)
+  val TestModuleId = "test-module"
+  val TestCallSiteId: Int = 1
+}
 
 trait ModelDSL {
   import ModelDSL._
@@ -35,17 +36,23 @@ trait ModelDSL {
   def parameter(name: String, ref: String, isImplicit: Boolean = false): Parameter =
     Parameter(name, typeRef(ref), isImplicit)
 
-  def typeRef(ref: String, typeArguments: List[TypeRef] = Nil): TypeRef =
-    TypeRef(ref, typeArguments)
+  def typeRef(ref: String, typeArguments: TypeRef*): TypeRef =
+    TypeRef(ref, typeArguments.toList)
 
-  def returnType(ref: String, typeArguments: List[TypeRef] = Nil): Update[Declaration] =
-    _.method.returnType := typeRef(ref, typeArguments)
+  def returnType(ref: String, typeArguments: TypeRef*): Update[Declaration] =
+    _.method.returnType := typeRef(ref, typeArguments: _*)
 
-  def implicitArgumentType(ref: String, typeArguments: List[TypeRef] = Nil): Update[CallSite] =
-    _.implicitArgumentTypes.modify(_ :+ typeRef(ref, typeArguments))
+  def implicitArgumentVal(ref: String): Update[CallSite] =
+    _.implicitArgumentTypes.modify(_ :+ ValueRef(ref))
 
-  def typeArgument(ref: String, typeArguments: List[TypeRef] = Nil): Update[CallSite] =
-    _.typeArguments.modify(_ :+ typeRef(ref, typeArguments))
+  def implicitArgumentCall(callSiteId: Int): Update[CallSite] =
+    _.implicitArgumentTypes.modify(_ :+ CallSiteRef(callSiteId))
+
+  def typeArgument(ref: String, typeArguments: TypeRef*): Update[CallSite] =
+    _.typeArguments.modify(_ :+ typeRef(ref, typeArguments:_*))
+
+  def parentCallSite(id: Int): Update[CallSite] =
+    _.parentId := id
 
   def method(declarationId: String, updates: Update[Declaration]*): Declaration = {
     val d = Declaration(
@@ -64,20 +71,28 @@ trait ModelDSL {
   def clazz(declarationId: String, updates: Update[Declaration]*): Declaration = {
     val d =
       Declaration(
-    declarationId = declarationId,
-    moduleId = TestModuleId,
-    CLASS,
-    declarationId.desc.name.value,
-    TestLocalLocation,
-    SCALA,
-    false
-  )
+        declarationId = declarationId,
+        moduleId = TestModuleId,
+        CLASS,
+        declarationId.desc.name.value,
+        TestLocalLocation,
+        SCALA,
+        false
+      )
 
     d.update(updates: _*)
   }
 
   def callSite(declarationId: String, code: String, updates: Update[CallSite]*): CallSite = {
-    val cs = CallSite(TestModuleId, declarationId, code, TestLocalLocation)
+    callSite(TestCallSiteId, declarationId, code, updates: _*)
+  }
+
+  def callSite(
+      callSiteId: Int,
+      declarationId: String,
+      code: String,
+      updates: Update[CallSite]*): CallSite = {
+    val cs = CallSite(callSiteId, None, TestModuleId, declarationId, code, TestLocalLocation)
     cs.update(updates: _*)
   }
 }

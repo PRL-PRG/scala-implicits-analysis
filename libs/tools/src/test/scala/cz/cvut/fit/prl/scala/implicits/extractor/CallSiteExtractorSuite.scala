@@ -1,12 +1,33 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
 import cz.cvut.fit.prl.scala.implicits.model._
-import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
-import cz.cvut.fit.prl.scala.implicits.utils._
 
 class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplification with ModelDSL {
 
-  callSites("synthetic and non-synthetic implicit call site with params",
+  implicit val callSiteOrdering: Ordering[CallSite] = (x: CallSite, y: CallSite) =>
+    implicitly[Ordering[Int]].compare(x.callSiteId, y.callSiteId)
+
+  callSites(
+    "call site count",
+    """
+      | package p
+      | object o {
+      |  trait T
+      |  class C
+      |
+      |  val t: T = new T {} // 1
+      |  val c: C = new C  // 2
+      |
+      |  def f(x: Seq[_]) = x.hashCode // 3
+      |
+      |  f(Seq(new C)) // 4, 5, 6
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 6
+  }
+
+  callSites(
+    "synthetic and non-synthetic implicit call site with params",
     """
       | package p
       | object o {
@@ -17,15 +38,15 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       |   f()(2)
       | }
     """.stripMargin) { res =>
-    val expected = List(
-      callSite("p/o.f().", "f", implicitArgumentType("p/o.i."))
-    )
+    val expected =
+      callSite("p/o.f().", "f", implicitArgumentVal("p/o.i."))
 
     // only the synthetic call site should be visible
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, List(expected))
   }
 
-  callSites("synthetic and non-synthetic implicit call site",
+  callSites(
+    "synthetic and non-synthetic implicit call site",
     """
       | package p
       | object o {
@@ -33,74 +54,108 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       |   ArrowAssoc(2).->("B")
       | }
     """.stripMargin) { res =>
-    val expected = List(
+    val expected =
       callSite(
         "scala/Predef.ArrowAssoc().",
-        code="ArrowAssoc[scala/Int#](1)",
+        code = "ArrowAssoc[scala/Int#](1)",
         typeArgument("scala/Int#")
+      )
+
+    checkElementsSorted(res.callSites, List(expected))
+  }
+
+  callSites(
+    "simple implicit parameters",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   class B
+      |
+      |   implicit val a = new A
+      |   implicit def b = new B
+      |
+      |   def f(x: Int)(implicit a: A, b: B) = 1
+      |
+      |   f(1)
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(callSiteId = 1, declarationId = "p/o.b().", code = "b", parentCallSite(2)),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.f().",
+        code = "f",
+        implicitArgumentVal("p/o.a."),
+        implicitArgumentCall(1))
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
+
+  callSites(
+    "implicit parameter on select",
+    """
+      | object o {
+      |   List(1).map(_.toString)
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/collection/immutable/List.canBuildFrom().",
+        code = "canBuildFrom[java/lang/String#]",
+        typeArgument("java/lang/String#"),
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/collection/immutable/List#map().",
+        code = "map[java/lang/String#, scala/collection/immutable/List#[java/lang/String#]]",
+        typeArgument("java/lang/String#"),
+        typeArgument("scala/collection/immutable/List#", typeRef("java/lang/String#")),
+        implicitArgumentCall(1)
       )
     )
 
-    // only the synthetic call site should be visible
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, expected)
   }
 
-//  callSites("simple implicit parameters",
-//    """
-//      | object o {
-//      |   class A
-//      |   class B
-//      |
-//      |   implicit val a = new A
-//      |   implicit def b = new B
-//      |
-//      |   def f(x: Int)(implicit a: A, b: B)
-//      |
-//      |   f(1)
-//      | }
-//    """.stripMargin) { res =>
-//      res.callSites.prettyPrint()
-//  }
+  callSites(
+    "orderingToOrdered",
+    """
+      |package p
+      |
+      |import scala.math.Ordered.orderingToOrdered
+      |
+      |case class Loc(row: Int, col: Int) {
+      |  def compareTo(that: Loc): Int = {
+      |    (row, col) compareTo(that.row, that.col)
+      |  }
+      |}
+      |
+    """.stripMargin
+  ) { implicit res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/math/Ordering.Tuple2().",
+        code = "Tuple2",
+        implicitArgumentVal("scala/math/Ordering.Int."),
+        implicitArgumentVal("scala/math/Ordering.Int."),
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/math/Ordered.orderingToOrdered().",
+        code = "orderingToOrdered[scala/Tuple2#[scala/Int#,scala/Int#]]((row, col))",
+        typeArgument("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#")),
+        implicitArgumentCall(1)
+      )
+    )
 
-//  callSites("implicit parameter on select",
-//    """
-//      | object o {
-//      |   List(1).map(_.toString)
-//      | }
-//    """.stripMargin) { res =>
-//      res.callSites.prettyPrint()
-//  }
-
-//  callSites(
-//    "orderingToOrdered",
-//    """
-//      |package p
-//      |
-//      |import scala.math.Ordered.orderingToOrdered
-//      |
-//      |case class Loc(row: Int, col: Int) {
-//      |  def compareTo(that: Loc): Int = {
-//      |    (row, col) compareTo(that.row, that.col)
-//      |  }
-//      |}
-//      |
-//    """.stripMargin
-//  ) { implicit res =>
-//    res.ctx.resolveSymbol("scala/math/Ordered.orderingToOrdered().").prettyPrint()
-//    res.ctx.resolveDeclaration("scala/math/Ordered.orderingToOrdered().").prettyPrint()
-//    res.callSites.prettyPrint()
-//    res.ctx.declarations.prettyPrint()
-//
-//    val css = res.callSites
-//
-//    val implicitConversion = (x: Declaration) => x.isImplicit && (
-//      x.parameterLists.size == 1 ||
-//        (x.parameterLists.size == 2 && x.parameterLists(1).isImplicit)
-//      )
-//
-//    css.filter(x => implicitConversion(x.declaration) && x.location.isLocal)
-//
-//  }
+    checkElementsSorted(res.callSites, expected)
+  }
 
   callSites(
     ".apply with implicit parameter",
@@ -108,18 +163,26 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       | package p
       | object o {
       |   class A
-      |   class B
+      |   class B[T](x: T)
+      |
       |   object B {
-      |     implicit def apply(x: String)(implicit y: A) = ???
+      |     implicit def apply[T](x: T)(implicit y: T) = new B(y)
       |   }
       |
       |   implicit val a = new A
       |
-      |   B("A")
+      |   B(new A)
       | }
     """.stripMargin
   ) { res =>
-    res.callSites.prettyPrint()
+    val expected = callSite(
+      declarationId = "p/o.B.apply().",
+      code = ".apply[p/o.A#]",
+      typeArgument("p/o.A#"),
+      implicitArgumentVal("p/o.a.")
+    )
+
+    checkElements(res.callSites, List(expected))
   }
 
   callSites(
@@ -139,7 +202,6 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     res.callSites shouldBe empty
   }
 
-  // FIXME: this test is not correct, it is missing the type parameters and code should be pipe[Int]
   callSites(
     "explicit call of implicit def with implicit parameter",
     """
@@ -154,22 +216,17 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       | }
     """.stripMargin
   ) { res =>
-    // There shall be only one call - adding the implicit arguments
-    val expected = List(
-      CallSite(
-        TestModuleId,
-        "p/o.pipe().",
-        "pipe[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
-        List(TypeRef("p/o.a.", List()))
+    val expected =
+      callSite(
+        declarationId = "p/o.pipe().",
+        code = "pipe[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.a.")
       )
-    )
 
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, List(expected))
   }
 
-  // FIXME: this test is not correct, it is missing the type parameters and code should be pipe[Int]
   callSites(
     "explicit call of implicit def with implicit parameter and types",
     """
@@ -184,19 +241,15 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       | }
     """.stripMargin
   ) { res =>
-    // There shall be only one call - adding the implicit arguments
-    val expected = List(
-      CallSite(
-        TestModuleId,
-        "p/o.pipe().",
-        "pipe[p/o.A#]",
-        TestLocalLocation,
-        List(TypeRef("p/o.A#", List())),
-        List(TypeRef("p/o.a.", List()))
+    val expected =
+      callSite(
+        declarationId = "p/o.pipe().",
+        code = "pipe[p/o.A#]",
+        typeArgument("p/o.A#"),
+        implicitArgumentVal("p/o.a.")
       )
-    )
 
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, List(expected))
   }
 
   callSites(
@@ -213,7 +266,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       | }
     """.stripMargin
   ) { res =>
-    res.callSites.prettyPrint()
+    res.callSites shouldBe empty
+    res.callSitesCount shouldBe 2
   }
 
   callSites(
@@ -230,29 +284,56 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = List(
-      CallSite(
-        TestModuleId,
-        "p/o.a().",
-        "a",
-        TestLocalLocation,
-        List(),
+      callSite(1, "p/o.a().", "a", parentCallSite(2)),
+      callSite(2, "p/o.f().", "f", implicitArgumentCall(1))
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
+
+  callSites(
+    "call with implicit parameter from def with type argument",
+    """
+      | package p
+      | object o {
+      |  trait TC[X]
+      |  class A
+      |
+      |  implicit val ta: TC[A] = new TC[A] {}
+      |
+      |  implicit def tcSeq[T](implicit ev: TC[T]): TC[Seq[T]] = new TC[Seq[T]] {}
+      |
+      |  def f[T](x: T)(implicit tc: TC[T]) = tc.hashCode
+      |
+      |  f(Seq(Seq(new A)))
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.tcSeq().",
+        code = "tcSeq",
+        implicitArgumentVal("p/o.ta."),
+        parentCallSite(2)
       ),
-      CallSite(
-        TestModuleId,
-        "p/o.f().",
-        "f",
-        TestLocalLocation,
-        List(),
-        List(
-          TypeRef(
-            "p/o.a().",
-            List()
-          )
-        )
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.tcSeq().",
+        code = "tcSeq",
+        implicitArgumentCall(1),
+        parentCallSite(3)
+      ),
+      callSite(
+        callSiteId = 3,
+        declarationId = "p/o.f().",
+        code = "f[scala/collection/Seq#[scala/collection/Seq#[p/o.A#]]]",
+        implicitArgumentCall(2),
+        typeArgument("scala/collection/Seq#", typeRef("scala/collection/Seq#", typeRef("p/o.A#")))
       )
     )
 
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites.sorted, expected)
   }
 
   // inspired by ensimefile.scala:44
@@ -277,27 +358,20 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = List(
-      CallSite(
-        TestModuleId,
-        "p/o.RichPath().",
-        "RichPath(raw.file)",
-        TestLocalLocation
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.RichPath().",
+        code = "RichPath(raw.file)"
       ),
-      CallSite(
-        TestModuleId,
-        "p/o.RichPath#readString().",
-        "readString",
-        TestLocalLocation,
-        List(),
-        List(
-          TypeRef(
-            "p/o.utf."
-          )
-        )
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.RichPath#readString().",
+        code = "readString",
+        implicitArgumentVal("p/o.utf.")
       )
     )
 
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, expected)
   }
 
   callSites(
@@ -321,71 +395,113 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = List(
-      CallSite(
-        TestModuleId,
-        "p/o.a().",
-        "a",
-        TestLocalLocation,
-        List()
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.a().",
+        code = "a",
+        parentCallSite(2)
       ),
-      CallSite(
-        TestModuleId,
-        "p/o.a2b().",
-        "a2b",
-        TestLocalLocation,
-        List(),
-        List(
-          TypeRef(
-            "p/o.a()."
-          )
-        )
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.a2b().",
+        code = "a2b",
+        implicitArgumentCall(1),
+        parentCallSite(3)
       ),
-      CallSite(
-        TestModuleId,
-        "p/o.b2c().",
-        "b2c",
-        TestLocalLocation,
-        List(),
-        List(
-          TypeRef(
-            "p/o.a2b()."
-          )
-        )
+      callSite(
+        callSiteId = 3,
+        declarationId = "p/o.b2c().",
+        code = "b2c",
+        implicitArgumentCall(2),
+        parentCallSite(4)
       ),
-      CallSite(
-        TestModuleId,
-        "p/o.f().",
-        "f",
-        TestLocalLocation,
-        List(),
-        List(
-          TypeRef(
-            "p/o.b2c()."
-          )
-        )
+      callSite(
+        callSiteId = 4,
+        declarationId = "p/o.f().",
+        code = "f",
+        implicitArgumentCall(3)
       )
     )
 
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, expected)
   }
 
-//  callSites("implicit conversion with parameters",
-//    """
-//      | object o {
-//      |   class A
-//      |   class B {
-//      |     val x = 1
-//      |   }
-//      |
-//      |   implicit def a = new A
-//      |   implicit def c(x: Int)(implicit a: A) = new B
-//      |
-//      |   1.x
-//      | }
-//    """.stripMargin) { res =>
-//      res.callSites.prettyPrint()
-//  }
-//
+  callSites(
+    "implicit conversion with parameters",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   class B {
+      |     val x = 1
+      |   }
+      |
+      |   implicit def a = new A
+      |   implicit def c(x: Int)(implicit a: A) = new B
+      |
+      |   1.x
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.a().",
+        code = "a",
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.c().",
+        code = "c(1)",
+        implicitArgumentCall(1)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
+
+  callSites(
+    "implicit conversion with parameters and select with implicits",
+    """
+      | package p
+      | object o {
+      |   class A1
+      |   class A2
+      |   class B {
+            def x(implicit a2: A2) = 1
+      |   }
+      |
+      |   implicit def a1 = new A1
+      |   implicit val a2 = new A2
+      |   implicit def c(x: Int)(implicit a: A1) = new B
+      |
+      |   1.x
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.B#x().",
+        code = "x",
+        implicitArgumentVal("p/o.a2.")
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.a1().",
+        code = "a1",
+        parentCallSite(3)
+      ),
+      callSite(
+        callSiteId = 3,
+        declarationId = "p/o.c().",
+        code = "c(1)",
+        implicitArgumentCall(2)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
+
   callSites(
     "implicit conversion with parameters and type parameters",
     """
@@ -405,55 +521,118 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = List(
-      CallSite(
-        TestModuleId,
-        "p/o.a().",
-        "a[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.a().",
+        code = "a[scala/Int#]",
+        typeArgument("scala/Int#"),
+        parentCallSite(2)
       ),
-      CallSite(
-        TestModuleId,
-        "p/o.c().",
-        "c[scala/Int#](1)",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
-        List(
-          TypeRef(
-            "p/o.a().",
-            List(
-              TypeRef("scala/Int#", List())
-            )
-          )
-        )
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.c().",
+        code = "c[scala/Int#](1)",
+        typeArgument("scala/Int#"),
+        implicitArgumentCall(1)
       )
     )
+
+    checkElementsSorted(res.callSites, expected)
   }
 
-//  callSites("for-comprehension",
-//    """
-//      | object o {
-//      |   for {
-//      |     i <- Seq(1,2)
-//      |   } yield "A" + i
-//      | }
-//    """.stripMargin) { res =>
-//      res.callSites.prettyPrint()
-//  }
+  callSites(
+    "for-comprehension",
+    """
+      | object o {
+      |   for {
+      |     i <- Seq(1,2)
+      |   } yield "A" + i
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/collection/Seq.canBuildFrom().",
+        code = "canBuildFrom[java/lang/String#]",
+        typeArgument("java/lang/String#"),
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/collection/TraversableLike#map().",
+        code = ".map[java/lang/String#, scala/collection/Seq#[java/lang/String#]]",
+        typeArgument("java/lang/String#"),
+        typeArgument("scala/collection/Seq#", typeRef("java/lang/String#")),
+        implicitArgumentCall(1)
+      )
+    )
 
-//  callSites(
-//    "for-comprehension with filter",
-//    """
-//      | object o {
-//      |   for {
-//      |     i <- 1 to 10 if i % 2 == 0
-//      |     j <- 1 until i
-//      |   } yield (i, j)
-//      | }
-//    """.stripMargin
-//  ) { res =>
-//    res.callSites.prettyPrint()
-//  }
+    checkElementsSorted(res.callSites, expected)
+  }
+
+  callSites(
+    "for-comprehension with filter",
+    """
+      | object o {
+      |   for {
+      |     i <- 1 to 10 if i % 2 == 0
+      |     j <- 2 until i
+      |   } yield (i, j)
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/collection/immutable/IndexedSeq.canBuildFrom().",
+        code = "canBuildFrom[scala/Tuple2#[scala/Int#,scala/Int#]]",
+        typeArgument("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#")),
+        parentCallSite(4)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/collection/immutable/IndexedSeq.canBuildFrom().",
+        code = "canBuildFrom[scala/Tuple2#[scala/Int#,scala/Int#]]",
+        typeArgument("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#")),
+        parentCallSite(3)
+      ),
+      callSite(
+        callSiteId = 3,
+        declarationId = "scala/collection/TraversableLike#map().",
+        code =
+          ".map[scala/Tuple2#[scala/Int#,scala/Int#], scala/collection/immutable/IndexedSeq#[scala/Tuple2#[scala/Int#,scala/Int#]]]",
+        typeArgument("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#")),
+        typeArgument(
+          "scala/collection/immutable/IndexedSeq#",
+          typeRef("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#"))),
+        implicitArgumentCall(2),
+        parentCallSite(4)
+      ),
+      callSite(
+        callSiteId = 4,
+        declarationId = "scala/collection/generic/FilterMonadic#flatMap().",
+        code =
+          ".flatMap[scala/Tuple2#[scala/Int#,scala/Int#], scala/collection/immutable/IndexedSeq#[scala/Tuple2#[scala/Int#,scala/Int#]]]",
+        typeArgument("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#")),
+        typeArgument(
+          "scala/collection/immutable/IndexedSeq#",
+          typeRef("scala/Tuple2#", typeRef("scala/Int#"), typeRef("scala/Int#"))),
+        implicitArgumentCall(1)
+      ),
+      callSite(
+        callSiteId = 6,
+        declarationId = "scala/LowPriorityImplicits#intWrapper().",
+        code = "intWrapper(1)"
+      ),
+      callSite(
+        callSiteId = 7,
+        declarationId = "scala/LowPriorityImplicits#intWrapper().",
+        code = "intWrapper(2)"
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
 
   callSites(
     "for-comprehension with features",
@@ -471,61 +650,38 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     val expected = List(
-      CallSite(
-        TestModuleId,
-        "scala/concurrent/Future.apply().",
-        ".apply[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
-        List(
-          TypeRef(
-            "scala/concurrent/ExecutionContext.Implicits.global.",
-            List()
-          )
-        )
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/concurrent/Future#map().",
+        code = ".map[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global."),
+        parentCallSite(3)
       ),
-      CallSite(
-        TestModuleId,
-        "scala/concurrent/Future#map().",
-        ".map[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
-        List(
-          TypeRef(
-            "scala/concurrent/ExecutionContext.Implicits.global.",
-            List()
-          )
-        )
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/concurrent/Future.apply().",
+        code = ".apply[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global.")
       ),
-      CallSite(
-        TestModuleId,
-        "scala/concurrent/Future.apply().",
-        ".apply[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
-        List(
-          TypeRef(
-            "scala/concurrent/ExecutionContext.Implicits.global.",
-            List()
-          )
-        )
+      callSite(
+        callSiteId = 3,
+        declarationId = "scala/concurrent/Future#flatMap().",
+        code = ".flatMap[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global.")
       ),
-      CallSite(
-        TestModuleId,
-        "scala/concurrent/Future#flatMap().",
-        ".flatMap[scala/Int#]",
-        TestLocalLocation,
-        List(TypeRef("scala/Int#", List())),
-        List(
-          TypeRef(
-            "scala/concurrent/ExecutionContext.Implicits.global.",
-            List()
-          )
-        )
+      callSite(
+        callSiteId = 4,
+        declarationId = "scala/concurrent/Future.apply().",
+        code = ".apply[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global.")
       )
     )
 
-    checkElements(res.callSites, expected)
+    checkElementsSorted(res.callSites, expected)
   }
 
   callSites(
@@ -536,26 +692,19 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       |   import scala.concurrent.ExecutionContext
       |   import scala.concurrent.ExecutionContext.Implicits.global
       |
-      |   class A(x: Int)(implicit e: ExecutionContext)
+      |   class A[T](x: T)(implicit e: ExecutionContext)
       |
       |   new A(1)
       | }
     """.stripMargin
   ) { res =>
-    val expected = CallSite(
-      TestModuleId,
-      "p/o.A#`<init>`().",
-      "<init>",
-      TestLocalLocation,
-      List(),
-      List(
-        TypeRef(
-          "scala/concurrent/ExecutionContext.Implicits.global."
-        )
-      )
+    val expected = callSite(
+      declarationId = "p/o.A#`<init>`().",
+      code = "<init>",
+      implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global.")
     )
 
-    checkElements(res.callSites, Seq(expected))
+    checkElementsSorted(res.callSites, List(expected))
   }
 
   callSites(
@@ -566,26 +715,20 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       |   import scala.concurrent.ExecutionContext
       |   import scala.concurrent.ExecutionContext.Implicits.global
       |
-      |   case class B(x: Int)(implicit e: ExecutionContext)
+      |   case class B[T](x: T)(implicit e: ExecutionContext)
       |
       |   B(1)
       | }
     """.stripMargin
   ) { res =>
-    val expected = CallSite(
-      TestModuleId,
-      "p/o.B.apply().",
-      ".apply",
-      TestLocalLocation,
-      List(),
-      List(
-        TypeRef(
-          "scala/concurrent/ExecutionContext.Implicits.global."
-        )
-      )
+    val expected = callSite(
+      declarationId = "p/o.B.apply().",
+      code = ".apply[scala/Int#]",
+      typeArgument("scala/Int#"),
+      implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global.")
     )
 
-    checkElements(res.callSites, Seq(expected))
+    checkElementsSorted(res.callSites, List(expected))
   }
 
   callSites(
@@ -622,6 +765,105 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     res.callSites shouldBe empty
   }
 
+  callSites("string interpolation with map",
+    """
+      | package p
+      | object o {
+      |   val xs = Seq(1)
+      |   s"Test ${xs.map(_ + 1)}"
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/collection/Seq.canBuildFrom().",
+        code = "canBuildFrom[scala/Int#]",
+        typeArgument("scala/Int#"),
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/collection/TraversableLike#map().",
+        code="map[scala/Int#, scala/Any#]",
+        typeArgument("scala/Int#"),
+        typeArgument("scala/Any#"), // TODO: why is it Any?
+        implicitArgumentCall(1)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
+
+  callSites("auxiliary constructors with implicits",
+    """
+      | package p
+      | object o {
+      |   class A1
+      |   class A2
+      |
+      |   class B(x: Int) {
+      |     def this(x: Int, y: Int)(implicit z: A1) = this(x)
+      |     def this(x: String)(implicit z: A2) = this(1)
+      |   }
+      |
+      |   implicit val a1 = new A1
+      |   implicit val a2 = new A2
+      |
+      |   new B(1)
+      |   new B(1,2)
+      |   new B("A")
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.B#`<init>`(+1).",
+        code = "<init>",
+        implicitArgumentVal("p/o.a1.")
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.B#`<init>`(+2).",
+        code = "<init>",
+        implicitArgumentVal("p/o.a2.")
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
+
+  callSites("overwritten methods",
+    """
+      | package p
+      | object o {
+      |  class A
+      |
+      |  def f(x: Int)(implicit y: A) = 1
+      |  def f(x: String)(implicit y: A) = 2
+      |
+      |  implicit val a = new A
+      |
+      |  f(1)
+      |  f("A")
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.f().",
+        code = "f",
+        implicitArgumentVal("p/o.a.")
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.f(+1).",
+        code = "f",
+        implicitArgumentVal("p/o.a.")
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
 }
 
 //  def checkNoFailures(extractor: CallSiteExtractor): Unit = {

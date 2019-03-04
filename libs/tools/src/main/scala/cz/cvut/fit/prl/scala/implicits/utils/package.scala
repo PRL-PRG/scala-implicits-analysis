@@ -6,6 +6,7 @@ import cz.cvut.fit.prl.scala.implicits.extractor.SymbolResolver
 import cz.cvut.fit.prl.scala.implicits.metadata.Module
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
+import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.meta.inputs.Position
 import scala.meta.internal.semanticdb.Scala._
@@ -70,13 +71,6 @@ package object utils {
     m.Position(that.startLine, that.startColumn, that.endLine, that.endColumn)
   implicit def range2Local(that: s.Range): m.Position = that.toLocal
 
-  implicit def language2language(that: s.Language): m.Language = that match {
-    case s.Language.UNKNOWN_LANGUAGE => m.Language.UNKNOWN_LANGUAGE
-    case s.Language.SCALA => m.Language.SCALA
-    case s.Language.JAVA => m.Language.JAVA
-    case _ => throw new Exception(s"SDB Language `$that` is not supported yet")
-  }
-
   implicit class XtensionTraversable[T](that: Traversable[T]) {
 
     def mkStringOpt(start: String, sep: String, end: String): String =
@@ -107,6 +101,14 @@ package object utils {
 
     def groupCount[K](f: T => K): Seq[(K, Int)] = {
       that.groupBy(f).mapValues(x => x.size).toSeq.sortBy(-_._2)
+    }
+  }
+
+  implicit class XtensionMap[A, B](that: mutable.Map[A, B]) {
+    def updateValue(key: A, fun: B => B): B = {
+      val n = fun(that(key))
+      that(key) = n
+      n
     }
   }
 }
