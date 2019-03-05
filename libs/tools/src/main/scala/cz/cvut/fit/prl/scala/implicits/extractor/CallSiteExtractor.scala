@@ -22,6 +22,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       case Term.Apply(fun, _) => findFunctionTerm(fun)
       case Term.New(Init(_, name, _)) => Some(name)
       case Term.ApplyUnary(op, _) => Some(op)
+      case Term.ApplyInfix(_, op, _, _) => Some(op)
       case _ => None
     }
 
@@ -234,12 +235,25 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       db: s.TextDocument,
       ast: Source): Iterable[Try[CallSite]] = {
 
+    def rangeFromStartToEndNodes(start: Tree, end: Tree): s.Range =
+        s.Range(
+          start.pos.startLine, start.pos.startColumn,
+          end.pos.endLine, end.pos.endColumn
+        )
+
     val terms = ast.collect {
+      // an expression such as (a + b) will have the Term.pos including the parens
+      // while the OriginalTree from semanticdb will have it without
+      // so we just "unbox" it using op and arg
+      case t @ Term.ApplyInfix(lhs, _, _, args) =>
+        rangeFromStartToEndNodes(lhs, args.last) -> t
+
       // an expression such as (-a) will have the Term.pos including the parens
       // while the OriginalTree from semanticdb will have it without
       // so we just "unbox" it using op and arg
       case t @ Term.ApplyUnary(op, arg) =>
-        s.Range(op.pos.startLine, op.pos.startColumn, arg.pos.endLine, arg.pos.endColumn) -> t
+        rangeFromStartToEndNodes(op, arg) -> t
+
       case t: Term => t.pos.toRange -> t
     }.toMap
 

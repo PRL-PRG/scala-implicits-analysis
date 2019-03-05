@@ -117,6 +117,77 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
   }
 
   callSites(
+    "Infix methods",
+    """
+      | package p
+      | object o {
+      |   List(1) ++ List(2)
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/collection/immutable/List.canBuildFrom().",
+        code = "canBuildFrom[scala/Int#]",
+        typeArgument("scala/Int#"),
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/collection/immutable/List#`++`().",
+        code = "++",
+        implicitArgumentCall(1)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
+  }
+
+  callSites(
+    "Infix methods with parens",
+    """
+      | package p
+      | object o {
+      |   (List(1) ++ List(2)) :+ List(3)
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "scala/collection/immutable/List.canBuildFrom().",
+        code = "canBuildFrom[scala/Any#]",
+        typeArgument("scala/Any#"),
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "scala/collection/SeqLike#`:+`().",
+        code = ":+",
+        implicitArgumentCall(1)
+      ),
+      callSite(
+        callSiteId = 3,
+        declarationId = "scala/collection/immutable/List.canBuildFrom().",
+        code = "canBuildFrom[scala/Int#]",
+        typeArgument("scala/Int#"),
+        parentCallSite(4)
+      ),
+      callSite(
+        callSiteId = 4,
+        declarationId = "scala/collection/immutable/List#`++`().",
+        code = "++",
+        implicitArgumentCall(3)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 5
+  }
+
+  callSites(
     "Unary methods",
     """
       | package p
