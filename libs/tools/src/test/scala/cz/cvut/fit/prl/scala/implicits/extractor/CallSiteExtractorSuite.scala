@@ -8,6 +8,115 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     implicitly[Ordering[Int]].compare(x.callSiteId, y.callSiteId)
 
   callSites(
+    "count infix calls",
+    """
+      | package p
+      | object o {
+      |   class A {
+      |     def +[T](x: T) = 1
+      |   }
+      |
+      |   1 :: 2 :: Nil // 1, 2
+      |
+      |   (new A) + 1 // 3, 4
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 4
+  }
+
+  callSites(
+    "count unary calls",
+    """
+      | package p
+      | object o {
+      |   class A {
+      |     def unary_-[T <: A](implicit x: T): Int = 1
+      |   }
+      |
+      |   implicit val a = new A // 1
+      |
+      |   (-new A) // 2, 3
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 3
+  }
+
+  callSites(
+    "count select with type",
+    """
+      | package p
+      | object o {
+      |   "A".isInstanceOf[String]
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 1
+  }
+
+  callSites(
+    "count multiple parameter lists",
+    """
+      | package p
+      | object o {
+      |   def f(x: Int)(y: Int)(z: Int) = 1
+      |   f(1)(2)(3)
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 1
+  }
+
+  callSites(
+    "count multiple parameter lists and type",
+    """
+      | package p
+      | object o {
+      |   def f[T](x: T)(y: T)(z: T) = 1
+      |   f(1)(2)(3)
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 1
+  }
+
+  callSites(
+    "count constructors",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   class B(x: Int)
+      |   class C(x: Int)(y: Int)(z: A)
+      |   trait T
+      |
+      |   new A
+      |   new B(1)
+      |   new C(1)(2)(new A)
+      |   new T {
+      |     new A
+      |   }
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 6
+  }
+
+  callSites(
+    "call site count",
+    """
+      | package p
+      | object o {
+      |  trait T
+      |  class C
+      |
+      |  val t: T = new T {} // 1
+      |  val c: C = new C  // 2
+      |
+      |  def f(x: Seq[_]) = x.hashCode // 3
+      |
+      |  f(Seq(new C)) // 4, 5, 6
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 6
+  }
+
+  callSites(
     "Unary methods",
     """
       | package p
@@ -50,6 +159,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 9
   }
 
   callSites(
@@ -69,6 +180,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
 
     // only the synthetic call site should be visible
     checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 2
   }
 
   callSites(
@@ -88,6 +201,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       )
 
     checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -117,6 +232,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -145,6 +262,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -181,6 +300,9 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    // it is not for since the (row, col) does not count
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -209,6 +331,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElements(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 4
   }
 
   callSites(
@@ -226,6 +350,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     res.callSites shouldBe empty
+
+    res.callSitesCount shouldBe 1
   }
 
   callSites(
@@ -251,6 +377,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       )
 
     checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 2
   }
 
   callSites(
@@ -276,6 +404,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       )
 
     checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -315,6 +445,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 2
   }
 
   callSites(
@@ -360,6 +492,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites.sorted, expected)
+
+    res.callSitesCount shouldBe 7
   }
 
   // inspired by ensimefile.scala:44
@@ -398,6 +532,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -450,6 +586,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 4
   }
 
   callSites(
@@ -484,6 +622,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -526,6 +666,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 4
   }
 
   callSites(
@@ -564,6 +706,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -594,6 +738,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 2
   }
 
   callSites(
@@ -601,8 +747,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """
       | object o {
       |   for {
-      |     i <- 1 to 10 if i % 2 == 0
-      |     j <- 2 until i
+      |     i <- 1 to 10 if i % 2 == 0 // 1 (1 to 10),2 (i%2), 3 (.. == 0)
+      |     j <- 2 until i // 4
       |   } yield (i, j)
       | }
     """.stripMargin
@@ -658,6 +804,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 4
   }
 
   callSites(
@@ -708,6 +856,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 
   callSites(
@@ -731,6 +881,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 1
   }
 
   callSites(
@@ -755,6 +907,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 1
   }
 
   callSites(
@@ -772,6 +926,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     res.callSites shouldBe empty
+    res.callSitesCount shouldBe 1
   }
 
   callSites(
@@ -789,9 +944,11 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """.stripMargin
   ) { res =>
     res.callSites shouldBe empty
+    res.callSitesCount shouldBe 1
   }
 
-  callSites("string interpolation with map",
+  callSites(
+    "string interpolation with map",
     """
       | package p
       | object o {
@@ -810,7 +967,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
       callSite(
         callSiteId = 2,
         declarationId = "scala/collection/TraversableLike#map().",
-        code="map[scala/Int#, scala/Any#]",
+        code = "map[scala/Int#, scala/Any#]",
         typeArgument("scala/Int#"),
         typeArgument("scala/Any#"), // TODO: why is it Any?
         implicitArgumentCall(1)
@@ -818,9 +975,12 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 4
   }
 
-  callSites("auxiliary constructors with implicits",
+  callSites(
+    "auxiliary constructors with implicits",
     """
       | package p
       | object o {
@@ -856,9 +1016,12 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 5
   }
 
-  callSites("overwritten methods",
+  callSites(
+    "overwritten methods",
     """
       | package p
       | object o {
@@ -889,6 +1052,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 3
   }
 }
 

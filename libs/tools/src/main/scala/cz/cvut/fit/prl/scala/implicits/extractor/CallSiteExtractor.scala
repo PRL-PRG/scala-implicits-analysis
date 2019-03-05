@@ -260,8 +260,15 @@ class CallSiteExtractor(ctx: ExtractionContext) {
   def callSiteCount(ast: Source): Int = {
     def process(n: Int)(tree: Tree): Int =
       tree match {
-        case Term.Apply(_, args) =>
-          n + 1 + args.map(process(0)).sum
+        case Term.Apply(Term.Select(qual, _), args) =>
+          n + 1 + args.map(process(0)).sum + process(0)(qual)
+        case Term.Apply(fun: Term.Apply, args) =>
+          // fun(1)(2)(3) should be one call
+          n + args.map(process(0)).sum + process(0)(fun)
+        case Term.Apply(fun, args) =>
+          n + 1 + args.map(process(0)).sum + process(0)(fun)
+        case Term.ApplyType(Term.Select(qual, _), _) =>
+          n + 1 + process(0)(qual)
         case Term.ApplyType(fun, _) =>
           n + 1 + process(0)(fun)
 
@@ -277,10 +284,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case Term.Interpolate(prefix, _, args) =>
           n + 1 + args.map(process(0)).sum
 
-        case Term.New(Init(tpe, name, argss)) =>
+        // covers Term.NewAnonymous and Term.New
+        case Init(tpe, name, argss) =>
           n + 1 + argss.flatMap(x => x.map(process(0))).sum
-
-        // TODO New.Anonymous
 
         case Pkg(_, stats) =>
           n + stats.map(process(0)).sum
@@ -314,5 +320,4 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
     process(0)(ast)
   }
-
 }
