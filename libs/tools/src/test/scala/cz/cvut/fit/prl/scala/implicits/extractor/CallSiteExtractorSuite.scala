@@ -8,22 +8,48 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     implicitly[Ordering[Int]].compare(x.callSiteId, y.callSiteId)
 
   callSites(
-    "call site count",
+    "Unary methods",
     """
       | package p
       | object o {
-      |  trait T
-      |  class C
+      |   class A {
+      |     def unary_-[T <: A](implicit x: T): Int = -1
+      |   }
       |
-      |  val t: T = new T {} // 1
-      |  val c: C = new C  // 2
+      |   def f[T](x: T)(implicit y: T) = 2
       |
-      |  def f(x: Seq[_]) = x.hashCode // 3
+      |   implicit val a = new A
+      |   implicit val i = 1
+      |   val a1 = new A
       |
-      |  f(Seq(new C)) // 4, 5, 6
+      |   -a1
+      |   (-a1)
+      |   ((-a1))
+      |   f(-a1)
+      |   f((-a1))
       | }
     """.stripMargin) { res =>
-    res.callSitesCount shouldBe 6
+    val expected = List(
+      callSite(1, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(2, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(3, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(
+        4,
+        "p/o.f().",
+        "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.i.")),
+      callSite(5, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(
+        6,
+        "p/o.f().",
+        "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.i.")),
+      callSite(7, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a."))
+    )
+
+    checkElementsSorted(res.callSites, expected)
   }
 
   callSites(

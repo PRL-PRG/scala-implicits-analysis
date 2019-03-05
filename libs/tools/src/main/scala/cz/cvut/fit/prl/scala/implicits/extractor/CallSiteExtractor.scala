@@ -21,6 +21,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       case Term.ApplyType(fun, _) => findFunctionTerm(fun)
       case Term.Apply(fun, _) => findFunctionTerm(fun)
       case Term.New(Init(_, name, _)) => Some(name)
+      case Term.ApplyUnary(op, _) => Some(op)
       case _ => None
     }
 
@@ -86,29 +87,33 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
           val callSitesFromArguments = argumentsTree.map(x => convertInternal(x, false))
 
-          convertInternal(fn, true).map { callSite =>
-            argumentsTree match {
-              case Seq(s.OriginalTree(Some(range))) =>
-                // implicit conversion
-                extractedCallSites.updateValue(
-                  callSite.callSiteId,
-                  _.copy(code = callSite.code + terms.get(range).map(x => s"($x)").getOrElse(""))
-                )
-              case _ =>
-                val arguments =
-                  argumentsTree
-                    .zip(callSitesFromArguments)
-                    .map(x => createArgument(callSite, x._1, x._2))
-                    .collect { case Some(x) => x }
-                    .toList
+          convertInternal(fn, true)
+            .map { callSite =>
+              argumentsTree match {
+                case Seq(s.OriginalTree(Some(range))) =>
+                  // implicit conversion
+                  extractedCallSites.updateValue(
+                    callSite.callSiteId,
+                    _.copy(code = callSite.code + terms.get(range).map(x => s"($x)").getOrElse(""))
+                  )
+                case _ =>
+                  val arguments =
+                    argumentsTree
+                      .zip(callSitesFromArguments)
+                      .map(x => createArgument(callSite, x._1, x._2))
+                      .collect { case Some(x) => x }
+                      .toList
 
-                if (arguments.nonEmpty) {
-                  extractedCallSiteArguments.updateValue(callSite.callSiteId, arguments :: _)
-                }
+                  if (arguments.nonEmpty) {
+                    extractedCallSiteArguments.updateValue(callSite.callSiteId, arguments :: _)
+                  }
+              }
+
+              callSite
             }
-
-            callSite
-          }
+            .orElse {
+              throw new Exception(s"Unable to convert: $tree into a call site")
+            }
         }
 
         case s.SelectTree(qualifier, Some(s.IdTree(symbol))) => {
@@ -230,7 +235,12 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       ast: Source): Iterable[Try[CallSite]] = {
 
     val terms = ast.collect {
-      case x: Term => x.pos.toRange -> x
+      // an expression such as (-a) will have the Term.pos including the parens
+      // while the OriginalTree from semanticdb will have it without
+      // so we just "unbox" it using op and arg
+      case t @ Term.ApplyUnary(op, arg) =>
+        s.Range(op.pos.startLine, op.pos.startColumn, arg.pos.endLine, arg.pos.endColumn) -> t
+      case t: Term => t.pos.toRange -> t
     }.toMap
 
     val converter = new Converter(moduleId, db, terms)
