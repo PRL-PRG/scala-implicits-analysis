@@ -164,7 +164,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           } yield {
             // check if there is some inferred method call e.g.
             // Future(1) ==> Future.apply(1)
-            // we want ot get a reference to actual methods, not objects
+            // we want ot get a reference the actual method (apply), not object (Future)
             db.synthetics
               .find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange))
               .flatMap(x => convertInternal(x.tree, inCall = true))
@@ -316,15 +316,16 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     process(0)(ast)
   }
 
-  private def findFunctionTerm(t: Term): Option[Tree] = t match {
+  private def findFunctionTerm(t: Tree): Option[Tree] = t match {
     case Term.Select(_, _) => Some(t)
     case Term.Name(_) => Some(t)
     case Term.ApplyType(fun, _) => findFunctionTerm(fun)
     case Term.Apply(fun, _) => findFunctionTerm(fun)
     case Term.New(Init(_, name, _)) => Some(name)
+    case Term.NewAnonymous(Template(_, Init(_, name, _) :: _, _, _)) => Some(name)
     case Term.ApplyUnary(op, _) => Some(op)
     case Term.ApplyInfix(_, op, _, _) => Some(op)
-    case _ => None
+    case x => x.parent.flatMap(findFunctionTerm)
   }
 
   private def findTerm(range: s.Range, ast: Source): Option[Term] = {
@@ -339,22 +340,23 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     def containsTarget(x: Tree) =
       x.pos.start <= target.start && x.pos.end >= target.end
 
-    def find(tree: Tree): Option[Term] =
+    def find(tree: Tree, lastTerm: Option[Term]): Option[Term] = {
+      val lt = tree match {
+        case x: Term => Some(x)
+        case _ => lastTerm
+      }
+
       if (containsTarget(tree)) {
         tree.children
           .find(containsTarget)
-          .flatMap(find)
-          .orElse {
-            tree match {
-              case x: Term => Some(x)
-              case _ => None
-            }
-          }
+          .flatMap(x => find(x, lt))
+          .orElse(lt)
       } else {
         None
       }
+    }
 
-    find(ast)
+    find(ast, None)
   }
 
 }

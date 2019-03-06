@@ -1048,10 +1048,9 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     """
       | package p
       | object o {
-      |   import scala.concurrent.ExecutionContext
-      |   import scala.concurrent.ExecutionContext.Implicits.global
+      |   class A[T](x: T)(implicit e: T)
       |
-      |   class A[T](x: T)(implicit e: ExecutionContext)
+      |   implicit val i = 1
       |
       |   new A(1)
       | }
@@ -1060,7 +1059,31 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     val expected = callSite(
       declarationId = "p/o.A#`<init>`().",
       code = "<init>",
-      implicitArgumentVal("scala/concurrent/ExecutionContext.Implicits.global.")
+      implicitArgumentVal("p/o.i.")
+    )
+
+    checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 1
+  }
+
+  callSites(
+    "implicit argument in a constructor in a new anonymous",
+    """
+      | package p
+      | object o {
+      |   class A[T](x: T)(implicit e: T)
+      |
+      |   implicit val i = 1
+      |
+      |   new A(1) { }
+      | }
+    """.stripMargin
+  ) { res =>
+    val expected = callSite(
+      declarationId = "p/o.A#`<init>`().",
+      code = "<init>",
+      implicitArgumentVal("p/o.i.")
     )
 
     checkElementsSorted(res.callSites, List(expected))
