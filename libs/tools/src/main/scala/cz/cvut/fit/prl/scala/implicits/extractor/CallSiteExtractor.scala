@@ -5,6 +5,7 @@ import cz.cvut.fit.prl.scala.implicits.utils._
 
 import scala.collection.mutable
 import scala.meta._
+import scala.meta.inputs.{Position => MetaPos}
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.util.{Failure, Success, Try}
@@ -13,7 +14,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
   implicit val _ctx = ctx
 
-  class Converter(moduleId: String, db: s.TextDocument, terms: Map[s.Range, Term]) {
+  class Converter(moduleId: String, db: s.TextDocument, ast: Source) {
 
     def findFunctionTerm(t: Term): Option[Tree] = t match {
       case Term.Select(_, _) => Some(t)
@@ -95,7 +96,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                   // implicit conversion
                   extractedCallSites.updateValue(
                     callSite.callSiteId,
-                    _.copy(code = callSite.code + terms.get(range).map(x => s"($x)").getOrElse(""))
+                    _.copy(code = callSite.code + findTerm(range, ast).map(x => s"($x)").getOrElse(""))
                   )
                 case _ =>
                   val arguments =
@@ -157,7 +158,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.OriginalTree(Some(range)) if inCall => {
           // TODO: refactor - what we need to is first resolve the inferred method calls and type parameters
           val csOpt = for {
-            term <- terms.get(range)
+            term <- findTerm(range, ast)
             fnTerm <- findFunctionTerm(term)
           } yield {
             // check if there is some inferred method call e.g.
@@ -235,29 +236,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       db: s.TextDocument,
       ast: Source): Iterable[Try[CallSite]] = {
 
-    def rangeFromStartToEndNodes(start: Tree, end: Tree): s.Range =
-        s.Range(
-          start.pos.startLine, start.pos.startColumn,
-          end.pos.endLine, end.pos.endColumn
-        )
-
-    val terms = ast.collect {
-      // an expression such as (a + b) will have the Term.pos including the parens
-      // while the OriginalTree from semanticdb will have it without
-      // so we just "unbox" it using op and arg
-      case t @ Term.ApplyInfix(lhs, _, _, args) =>
-        rangeFromStartToEndNodes(lhs, args.last) -> t
-
-      // an expression such as (-a) will have the Term.pos including the parens
-      // while the OriginalTree from semanticdb will have it without
-      // so we just "unbox" it using op and arg
-      case t @ Term.ApplyUnary(op, arg) =>
-        rangeFromStartToEndNodes(op, arg) -> t
-
-      case t: Term => t.pos.toRange -> t
-    }.toMap
-
-    val converter = new Converter(moduleId, db, terms)
+    val converter = new Converter(moduleId, db, ast)
     val result = db.synthetics.toList
       .map(x => x -> Try(converter.processSynthetic(x)))
       .collect {
@@ -269,6 +248,36 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       .flatten
 
     result
+  }
+
+  private def findTerm(range: s.Range, ast: Source): Option[Term] = {
+    val target = MetaPos.Range(
+      ast.pos.input,
+      range.startLine,
+      range.startCharacter,
+      range.endLine,
+      range.endCharacter
+    )
+
+    def containsTarget(x: Tree) =
+      x.pos.start <= target.start && x.pos.end >= target.end
+
+    def find(tree: Tree): Option[Term] =
+      if (containsTarget(tree)) {
+        tree.children
+          .find(containsTarget)
+          .flatMap(find)
+          .orElse {
+            tree match {
+              case x: Term => Some(x)
+              case _ => None
+            }
+          }
+      } else {
+        None
+      }
+
+    find(ast)
   }
 
   def callSiteCount(ast: Source): Int = {

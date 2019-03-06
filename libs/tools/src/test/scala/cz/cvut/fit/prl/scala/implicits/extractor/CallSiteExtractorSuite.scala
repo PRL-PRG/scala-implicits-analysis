@@ -116,6 +116,165 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     res.callSitesCount shouldBe 6
   }
 
+// IGNORED till #33 is resolved
+//  callSites("constructor with implicits with comment",
+//    """
+//      | package p
+//      | object o {
+//      |   class C(implicit i: Int)
+//      |   implicit val i = 1
+//      |   val c = (
+//      |    (new
+//      |     /* a comment */
+//      |     C)
+//      |   )
+//      | }
+//    """.stripMargin) { res =>
+//    val expected =
+//      callSite("p/o.C#`<init>`().", "<init>", implicitArgumentVal("p/o.i."))
+//
+//    checkElementsSorted(res.callSites, List(expected))
+//
+//    res.callSitesCount shouldBe 1
+//  }
+//
+//  callSites("constructor with implicits with parens",
+//    """
+//      | package p
+//      | object o {
+//      |   class C(implicit i: Int)
+//      |   implicit val i = 1
+//      |   val c = ((new C))
+//      | }
+//    """.stripMargin) { res =>
+//    val expected =
+//      callSite("p/o.C#`<init>`().", "<init>", implicitArgumentVal("p/o.i."))
+//
+//    checkElementsSorted(res.callSites, List(expected))
+//
+//    res.callSitesCount shouldBe 1
+//  }
+
+  callSites("call with parens",
+    """
+      | package p
+      | object o {
+      |   def f[T](x: T)(implicit y: T) = 1
+      |   def g[T](x: T)(implicit y: T) = 1
+      |
+      |   implicit val i = 1
+      |   (f((g((1)))))
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.f().",
+        code = "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.i.")
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.g().",
+        code = "g[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.i.")
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 2
+  }
+
+  callSites(
+    "postfix calls",
+    """
+      | package p
+      | object o {
+      |   List(1,2,3) sum
+      | }
+    """.stripMargin) { res =>
+    val expected =
+      callSite(
+        declarationId = "scala/collection/TraversableOnce#sum().",
+        code = "sum",
+        implicitArgumentVal("scala/math/Numeric.IntIsIntegral.")
+      )
+
+    checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 2
+  }
+
+  callSites(
+    "postfix calls with parens",
+    """
+      | package p
+      | object o {
+      |   ((List(1,2,3)) sum)
+      | }
+    """.stripMargin) { res =>
+    val expected =
+      callSite(
+        declarationId = "scala/collection/TraversableOnce#sum().",
+        code = "sum",
+        implicitArgumentVal("scala/math/Numeric.IntIsIntegral.")
+      )
+
+    checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 2
+  }
+
+  callSites(
+    "Unary methods",
+    """
+      | package p
+      | object o {
+      |   class A {
+      |     def unary_-[T <: A](implicit x: T): Int = -1
+      |   }
+      |
+      |   def f[T](x: T)(implicit y: T) = 2
+      |
+      |   implicit val a = new A
+      |   implicit val i = 1
+      |   val a1 = new A
+      |
+      |   -a1
+      |   (-a1)
+      |   ((-a1))
+      |   f(-a1)
+      |   f((-a1))
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(1, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(2, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(3, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(
+        4,
+        "p/o.f().",
+        "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.i.")),
+      callSite(5, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
+      callSite(
+        6,
+        "p/o.f().",
+        "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("p/o.i.")),
+      callSite(7, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a."))
+    )
+
+    checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 9
+  }
+
   callSites(
     "Infix methods",
     """
@@ -185,53 +344,6 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     checkElementsSorted(res.callSites, expected)
 
     res.callSitesCount shouldBe 5
-  }
-
-  callSites(
-    "Unary methods",
-    """
-      | package p
-      | object o {
-      |   class A {
-      |     def unary_-[T <: A](implicit x: T): Int = -1
-      |   }
-      |
-      |   def f[T](x: T)(implicit y: T) = 2
-      |
-      |   implicit val a = new A
-      |   implicit val i = 1
-      |   val a1 = new A
-      |
-      |   -a1
-      |   (-a1)
-      |   ((-a1))
-      |   f(-a1)
-      |   f((-a1))
-      | }
-    """.stripMargin) { res =>
-    val expected = List(
-      callSite(1, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
-      callSite(2, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
-      callSite(3, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
-      callSite(
-        4,
-        "p/o.f().",
-        "f[scala/Int#]",
-        typeArgument("scala/Int#"),
-        implicitArgumentVal("p/o.i.")),
-      callSite(5, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a.")),
-      callSite(
-        6,
-        "p/o.f().",
-        "f[scala/Int#]",
-        typeArgument("scala/Int#"),
-        implicitArgumentVal("p/o.i.")),
-      callSite(7, "p/o.A#`unary_-`().", "unary_-", implicitArgumentVal("p/o.a."))
-    )
-
-    checkElementsSorted(res.callSites, expected)
-
-    res.callSitesCount shouldBe 9
   }
 
   callSites(
