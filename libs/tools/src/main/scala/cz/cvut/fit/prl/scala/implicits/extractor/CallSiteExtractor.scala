@@ -12,25 +12,14 @@ import scala.util.{Failure, Success, Try}
 
 class CallSiteExtractor(ctx: ExtractionContext) {
 
-  implicit val _ctx = ctx
+  implicit val _ctx: ExtractionContext = ctx
 
   class Converter(moduleId: String, db: s.TextDocument, ast: Source) {
-
-    def findFunctionTerm(t: Term): Option[Tree] = t match {
-      case Term.Select(_, _) => Some(t)
-      case Term.Name(_) => Some(t)
-      case Term.ApplyType(fun, _) => findFunctionTerm(fun)
-      case Term.Apply(fun, _) => findFunctionTerm(fun)
-      case Term.New(Init(_, name, _)) => Some(name)
-      case Term.ApplyUnary(op, _) => Some(op)
-      case Term.ApplyInfix(_, op, _, _) => Some(op)
-      case _ => None
-    }
 
     def processSynthetic(synthetic: s.Synthetic): Iterable[CallSite] = {
       val path = ctx.relaxedSourcePath(db.uri)
       val relativeUri = db.uri.substring(path.length)
-      val syntheticLocation = Location(path, relativeUri, Some(synthetic.range.get))
+      val syntheticLocation = Location(path, relativeUri, Some(synthetic.range.get.toPos))
 
       val extractedCallSites = mutable.Map[Int, CallSite]()
       val extractedCallSiteArguments =
@@ -42,18 +31,24 @@ class CallSiteExtractor(ctx: ExtractionContext) {
           callSite: CallSite,
           tree: s.Tree,
           extractedArgumentCallSite: Option[CallSite]): Option[Argument] = tree match {
+
         case s.ApplyTree(fn, _) =>
           createArgument(callSite, fn, extractedArgumentCallSite)
+
         case s.TypeApplyTree(fn, _) =>
           // we do not need to care about type arguments since if there were any
           // they will be already part of the call site in extractedArgumentCallSite
           createArgument(callSite, fn, extractedArgumentCallSite)
+
         case s.FunctionTree(_, body) =>
           createArgument(callSite, body, extractedArgumentCallSite)
+
         case s.SelectTree(_, Some(id)) =>
           createArgument(callSite, id, extractedArgumentCallSite)
+
         case s.IdTree(symbol) if !symbol.isLocal =>
           val declaration = ctx.resolveDeclaration(symbol)
+
           (declaration.isMethod, extractedArgumentCallSite) match {
             case (true, Some(cs)) =>
               extractedCallSites
@@ -65,12 +60,16 @@ class CallSiteExtractor(ctx: ExtractionContext) {
               throw new Exception(
                 s"Invalid argument $declaration and argument call site ($extractedArgumentCallSite)")
           }
-        case s.IdTree(symbol) =>
-          None
-        case s.MacroExpansionTree(beforeExpansion, tpe) =>
+
+        case s.MacroExpansionTree(beforeExpansion, _) =>
           createArgument(callSite, beforeExpansion, extractedArgumentCallSite)
+
+        case s.IdTree(_) =>
+          None
+
         case s.OriginalTree(_) =>
           None
+
         case s.Tree.Empty =>
           None
       }
@@ -87,16 +86,18 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
         case s.ApplyTree(fn, argumentsTree) => {
 
-          val callSitesFromArguments = argumentsTree.map(x => convertInternal(x, false))
+          val callSitesFromArguments = argumentsTree.map(x => convertInternal(x, inCall = false))
 
-          convertInternal(fn, true)
+          convertInternal(fn, inCall = true)
             .map { callSite =>
               argumentsTree match {
                 case Seq(s.OriginalTree(Some(range))) =>
                   // implicit conversion
                   extractedCallSites.updateValue(
                     callSite.callSiteId,
-                    _.copy(code = callSite.code + findTerm(range, ast).map(x => s"($x)").getOrElse(""))
+                    _.copy(
+                      code = callSite.code + findTerm(range, ast).map(x => s"($x)").getOrElse("")
+                    )
                   )
                 case _ =>
                   val arguments =
@@ -131,10 +132,10 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
             qualifier match {
               case s.OriginalTree(Some(range)) =>
-                val location = Location(path, relativeUri, Some(range))
+                val location = Location(path, relativeUri, Some(range.toPos))
                 Some(extractedCallSites.updateValue(cs.callSiteId, _.copy(location = location)))
               case _ =>
-                convertInternal(qualifier, false)
+                convertInternal(qualifier, inCall = false)
                 Some(cs)
             }
           }
@@ -166,7 +167,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // we want ot get a reference to actual methods, not objects
             db.synthetics
               .find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange))
-              .flatMap(x => convertInternal(x.tree, true))
+              .flatMap(x => convertInternal(x.tree, inCall = true))
               .getOrElse {
 
                 val nestedTermsToTry = fnTerm :: fnTerm.collect {
@@ -186,8 +187,9 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                 }
 
                 val declaration = ctx.resolveDeclaration(symbol)
-                val location = Location(path, relativeUri, Some(range))
+                val location = Location(path, relativeUri, Some(range.toPos))
                 val code = declaration.name
+
                 createCallSite(declaration, code, location)
               }
           }
@@ -210,7 +212,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case _ => None
       }
 
-      convertInternal(synthetic.tree, false)
+      convertInternal(synthetic.tree, inCall = false)
 
       extractedCallSites.values.map { cs =>
         val takesImplicitParams = cs.declaration.hasImplicitParameters
@@ -222,7 +224,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             Seq.empty
           case _ =>
             throw new UnexpectedElementException(
-              "Callsite declaration",
+              "Call site declaration",
               s"${cs.code} -- ${cs.declarationId}")
         }
 
@@ -250,36 +252,6 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     result
   }
 
-  private def findTerm(range: s.Range, ast: Source): Option[Term] = {
-    val target = MetaPos.Range(
-      ast.pos.input,
-      range.startLine,
-      range.startCharacter,
-      range.endLine,
-      range.endCharacter
-    )
-
-    def containsTarget(x: Tree) =
-      x.pos.start <= target.start && x.pos.end >= target.end
-
-    def find(tree: Tree): Option[Term] =
-      if (containsTarget(tree)) {
-        tree.children
-          .find(containsTarget)
-          .flatMap(find)
-          .orElse {
-            tree match {
-              case x: Term => Some(x)
-              case _ => None
-            }
-          }
-      } else {
-        None
-      }
-
-    find(ast)
-  }
-
   def callSiteCount(ast: Source): Int = {
     def process(n: Int)(tree: Tree): Int =
       tree match {
@@ -301,14 +273,14 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case Term.ApplyInfix(lhs, _, _, args) =>
           n + 1 + process(0)(lhs) + args.map(process(0)).sum
 
-        case Term.ApplyUnary(op, arg) =>
+        case Term.ApplyUnary(_, arg) =>
           n + 1 + process(0)(arg)
 
-        case Term.Interpolate(prefix, _, args) =>
+        case Term.Interpolate(_, _, args) =>
           n + 1 + args.map(process(0)).sum
 
         // covers Term.NewAnonymous and Term.New
-        case Init(tpe, name, argss) =>
+        case Init(_, _, argss) =>
           n + 1 + argss.flatMap(x => x.map(process(0))).sum
 
         case Pkg(_, stats) =>
@@ -343,4 +315,46 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
     process(0)(ast)
   }
+
+  private def findFunctionTerm(t: Term): Option[Tree] = t match {
+    case Term.Select(_, _) => Some(t)
+    case Term.Name(_) => Some(t)
+    case Term.ApplyType(fun, _) => findFunctionTerm(fun)
+    case Term.Apply(fun, _) => findFunctionTerm(fun)
+    case Term.New(Init(_, name, _)) => Some(name)
+    case Term.ApplyUnary(op, _) => Some(op)
+    case Term.ApplyInfix(_, op, _, _) => Some(op)
+    case _ => None
+  }
+
+  private def findTerm(range: s.Range, ast: Source): Option[Term] = {
+    val target = MetaPos.Range(
+      ast.pos.input,
+      range.startLine,
+      range.startCharacter,
+      range.endLine,
+      range.endCharacter
+    )
+
+    def containsTarget(x: Tree) =
+      x.pos.start <= target.start && x.pos.end >= target.end
+
+    def find(tree: Tree): Option[Term] =
+      if (containsTarget(tree)) {
+        tree.children
+          .find(containsTarget)
+          .flatMap(find)
+          .orElse {
+            tree match {
+              case x: Term => Some(x)
+              case _ => None
+            }
+          }
+      } else {
+        None
+      }
+
+    find(ast)
+  }
+
 }

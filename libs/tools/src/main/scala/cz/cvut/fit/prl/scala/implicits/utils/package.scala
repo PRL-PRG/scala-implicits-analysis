@@ -20,13 +20,11 @@ package object utils {
   }
 
   implicit class XtensionSymbolInformation(that: s.SymbolInformation) {
-
     def parent(implicit resolver: SymbolResolver): s.SymbolInformation =
       resolver.resolveSymbol(that.symbol.owner).symbolInfo
   }
 
   implicit class XtensionSDBType(that: s.Type) {
-
     def isTopOrBottom: Boolean = that match {
       case s.TypeRef(_, "scala/AnyRef#", _) => true
       case s.TypeRef(_, "scala/Any#", _) => true
@@ -35,50 +33,38 @@ package object utils {
     }
   }
 
+  implicit class XtensionAnyRef(that: AnyRef) {
+    def prettyPrint(): Unit = pprint.pprintln(that, height = Integer.MAX_VALUE)
+  }
+
+  implicit class XtensionPosition(that: Position) {
+    def toRange: s.Range =
+      s.Range(that.startLine, that.startColumn, that.endLine, that.endColumn)
+  }
+
+  implicit class XtensionRange(that: s.Range) {
+    def toPos: m.Position =
+      m.Position(that.startLine, that.startCharacter, that.endLine, that.endCharacter)
+  }
+
   implicit class XtensionModuleClasspath(that: Module) {
     def classpath: Classpath = Classpath(that.output.map(AbsolutePath(_)).toList)
   }
 
 
   implicit class XtensionOptions[+A](that: Option[A]) {
-
     def getOrThrow(e: => Throwable): A = that match {
       case Some(x) => x
       case None => throw e
     }
   }
 
-  implicit class XtensionAnyRef(that: AnyRef) {
-    def prettyPrint(): Unit = pprint.pprintln(that, height = Integer.MAX_VALUE)
-  }
-
-  // TODO: do we need this?
-  implicit class XtensionPosition(that: Position) {
-
-    def toRange: s.Range =
-      s.Range(that.startLine, that.startColumn, that.endLine, that.endColumn)
-  }
-
-  implicit class XtensionRange(that: s.Range) {
-
-    def toLocal: m.Position =
-      m.Position(that.startLine, that.startCharacter, that.endLine, that.endCharacter)
-  }
-
-  // TODO: do we need this?
-  implicit def position2Range(that: Position): s.Range = that.toRange
-  implicit def position2Local(that: Position): m.Position =
-    m.Position(that.startLine, that.startColumn, that.endLine, that.endColumn)
-  implicit def range2Local(that: s.Range): m.Position = that.toLocal
-
   implicit class XtensionTraversable[T](that: Traversable[T]) {
-
     def mkStringOpt(start: String, sep: String, end: String): String =
       if (that.isEmpty) "" else that.mkString(start, sep, end)
   }
 
   implicit class XtensionTraversableTry[T](that: Traversable[Try[T]]) {
-
     def split(): (List[T], List[Throwable]) =
       that.foldLeft((List[T](), List[Throwable]())) {
         case ((succ, fail), t) =>
@@ -90,7 +76,6 @@ package object utils {
   }
 
   implicit class XtensionTranverable[T](that: Traversable[T]) {
-
     def printGroups[K](f: T => K, out: PrintWriter = new PrintWriter(System.out)): Unit = {
       that.groupCount(f).foreach {
         case (problem, size) =>

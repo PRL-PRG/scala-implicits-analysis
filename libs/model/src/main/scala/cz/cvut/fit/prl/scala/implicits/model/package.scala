@@ -2,7 +2,7 @@ package cz.cvut.fit.prl.scala.implicits
 
 import scala.language.implicitConversions
 import scala.meta.internal.semanticdb.Scala._
-import scala.meta.internal.semanticdb.{Language => ScalaMetaLanguage}
+import scala.meta.internal.{semanticdb => s}
 
 package object model {
 
@@ -272,9 +272,9 @@ package object model {
   implicit def methodSignature2method(x: MethodSignature): Declaration.Signature.Method =
     Declaration.Signature.Method(x)
 
-  implicit def scalaMetaLanguage2Language(x: ScalaMetaLanguage): Language = x match {
-    case ScalaMetaLanguage.JAVA => Language.JAVA
-    case ScalaMetaLanguage.SCALA => Language.SCALA
+  implicit def scalaMetaLanguage2Language(x: s.Language): Language = x match {
+    case s.Language.JAVA => Language.JAVA
+    case s.Language.SCALA => Language.SCALA
     case _ => Language.UNKNOWN_LANGUAGE
   }
 }

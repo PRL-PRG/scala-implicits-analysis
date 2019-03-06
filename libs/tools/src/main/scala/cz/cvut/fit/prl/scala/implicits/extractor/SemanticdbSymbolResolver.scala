@@ -32,7 +32,7 @@ object SemanticdbSymbolResolver {
         relativeUri = db.uri.substring(path.length)
         s.SymbolOccurrence(rangeOpt, symbol, s.SymbolOccurrence.Role.DEFINITION) <- db.occurrences
         symbolInfo <- db.symbols.find(_.symbol == symbol)
-        range = rangeOpt.map(_.toLocal)
+        range = rangeOpt.map(_.toPos)
       } yield symbolInfo.symbol -> ResolvedSymbol(symbolInfo, Location(path, relativeUri, range))
     }.toMap
 
