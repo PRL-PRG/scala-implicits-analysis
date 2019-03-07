@@ -155,7 +155,8 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
 //    res.callSitesCount shouldBe 1
 //  }
 
-  callSites("call with parens",
+  callSites(
+    "call with parens",
     """
       | package p
       | object o {
@@ -1261,4 +1262,49 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
 
     res.callSitesCount shouldBe 3
   }
+
+  callSites(
+    "default parameter values with implicit call",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   implicit def a: A = new A
+      |
+      |   def f[T](x: T)(implicit y: Numeric[T], a: A) = y.abs(x)
+      |
+      |   def g[T](x: T = f(1))(implicit y: Numeric[T]) = 1
+      |
+      |   g(1)
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.a().",
+        code = "a",
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.f().",
+        code = "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/math/Numeric.IntIsIntegral."),
+        implicitArgumentCall(1)
+      ),
+      callSite(
+        callSiteId = 3,
+        declarationId = "p/o.g().",
+        code = "g[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/math/Numeric.IntIsIntegral.")
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 4
+  }
+
 }
