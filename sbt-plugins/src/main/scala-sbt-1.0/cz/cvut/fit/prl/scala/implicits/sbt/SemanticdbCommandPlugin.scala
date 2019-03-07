@@ -42,8 +42,6 @@ import sbt.{AutoPlugin, Command, Def, PluginTrigger, Plugins, Project, ProjectRe
         println("** SEMANTICDB VERSION: " + ScalametaVersion)
         println("** SEMANTICDB OPTIONS: " + SemanticdbScalacOptions)
         val extracted = Project.extract(s)
-        val toCompile = List.newBuilder[TaskKey[Analysis]]
-        val refs = List.newBuilder[ProjectRef]
         val settings: Seq[Setting[_]] = for {
           (p, fullVersion) <- relevantProjects(s)
           setting <- List(
@@ -54,8 +52,7 @@ import sbt.{AutoPlugin, Command, Def, PluginTrigger, Plugins, Project, ProjectRe
           )
         } yield setting
         val installed = extracted.append(settings, s)
-        "compile" :: "test:compile" ::
-          installed
+        "compile" :: "test:compile" :: installed
       }
     )
   }

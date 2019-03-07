@@ -31,16 +31,15 @@ object SemanticdbCommandPlugin extends AutoPlugin {
     aggregate.in(compileAll) := false,
     compileAll := Def.taskDyn {
       val refs = relevantProjects(state.value).map(_._1)
-      println(refs.toList)
       val filter = ScopeFilter(
         projects = inProjects(refs: _*),
         configurations = inConfigurations(Compile, Test))
       compile.all(filter)
     }.value,
     commands += Command.command("semanticdb") { s =>
+      println("** SEMANTICDB VERSION: " + ScalametaVersion)
+      println("** SEMANTICDB OPTIONS: " + SemanticdbScalacOptions)
       val extracted = Project.extract(s)
-      val toCompile = List.newBuilder[TaskKey[Analysis]]
-      val refs = List.newBuilder[ProjectRef]
       val settings: Seq[Setting[_]] = for {
         (p, fullVersion) <- relevantProjects(s)
         setting <- List(
@@ -51,8 +50,7 @@ object SemanticdbCommandPlugin extends AutoPlugin {
         )
       } yield setting
       val installed = extracted.append(settings, s)
-      "compile" :: "test:compile" ::
-        installed
+      "compile" :: "test:compile" :: installed
     }
   )
 }
