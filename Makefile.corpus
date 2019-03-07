@@ -389,9 +389,9 @@ repo-metadata: $(GLOBAL_REPO_METADATA)
 
 repo-sloc: $(GLOBAL_REPO_SLOC)
 
-report: $(GLOBAL_COMPILE_STATUS) $(GLOBAL_METADATA_STATUS) $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE) $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS)
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/report.Rmd", output_file=file.path("$(CURDIR)/report.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(base_dir)", current_dir="$(CURDIR)"))'
-	@echo ">> Report is in report.html"
+report: $(CORPUS_SUMMARY) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/implicits-analysis.Rmd", output_file=file.path("$(CURDIR)/implicits-analysis.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(CURDIR)"))'
+	@echo ">> Report is in implicits-analysis.html"
 
 reset: $(bootstrap)
 	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)

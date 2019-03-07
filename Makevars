@@ -107,6 +107,10 @@ GLOBAL_IMPLICITS_STATUS := $(notdir $(IMPLICITS_STATUS))
 GLOBAL_IMPLICITS_STATS := $(notdir $(IMPLICITS_STATS))
 GLOBAL_IMPLICITS_EXCEPTIONS := $(notdir $(IMPLICITS_EXCEPTIONS))
 
+CORPUS_SUMMARY := corpus.csv
+IMPLICIT_CALLSITES := implicit-callsites.csv
+IMPLICIT_DECLARATIONS := implicit-declarations.csv
+
 SBT_STRUCTURE := $(ANALYSIS_DIR)/sbt-stucture.xml
 SBT_STRUCTURE_STATUS := $(ANALYSIS_DIR)/sbt-stucture-status.csv
 SBT_STRUCTURE_LOG := $(ANALYSIS_DIR)/sbt-stucture.log
