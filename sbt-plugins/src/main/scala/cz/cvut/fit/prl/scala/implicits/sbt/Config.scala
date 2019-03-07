@@ -10,6 +10,9 @@ object Config {
     "-P:semanticdb:diagnostics:off",
     "-P:semanticdb:failures:warning"
   )
+  val StatisticsScalacOptions: Seq[String] = Seq(
+    "-Ystatistics:typer"
+  )
 
   private[this] val supported211 = Seq(9, 10, 11, 12).map(x => s"2.11.$x")
   private[this] val supported212 = Seq(3, 4, 5, 6, 7, 8).map(x => s"2.12.$x")
