@@ -1307,4 +1307,30 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     res.callSitesCount shouldBe 4
   }
 
+  callSites(
+    "early initialization",
+    """
+      | package p
+      | object o {
+      |   def f[T](x: T)(implicit y: Numeric[T]): T = y.abs(x)
+      |   trait T[A] {
+      |     val z: A
+      |   }
+      |   new {
+      |     val z = f(1)
+      |   } with T[Int]
+      | }
+    """.stripMargin) { res =>
+    val expected =
+      callSite(
+        declarationId = "p/o.f().",
+        code = "f[scala/Int#]",
+        typeArgument("scala/Int#"),
+        implicitArgumentVal("scala/math/Numeric.IntIsIntegral.")
+      )
+
+    checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 3
+  }
 }
