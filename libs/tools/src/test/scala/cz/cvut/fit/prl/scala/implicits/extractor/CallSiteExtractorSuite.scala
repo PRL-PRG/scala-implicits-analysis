@@ -1333,4 +1333,50 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
 
     res.callSitesCount shouldBe 3
   }
+
+  callSites(
+    "Check if we are not missing some synthetics type parameters (cf. #30)",
+    """
+      | package p
+      | object o {
+      |   trait T[X] {
+      |     def f(x: X) = 1
+      |   }
+      |   class A
+      |
+      |   implicit val ta = new T[A] {}
+      |   implicit def tseq[X](implicit x: T[X]): T[Seq[X]] = new T[Seq[X]] {}
+      |
+      |   def f[X](x: X)(implicit y: T[X]) = y.f(x)
+      |
+      |   f(Seq(new A))
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.tseq().",
+        code = "tseq",
+        parentCallSite(2),
+        // one would expect here typeArgument of [A]
+        implicitArgumentVal("p/o.ta.")
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.f().",
+        code = "f[scala/collection/Seq#[p/o.A#]]",
+        typeArgument("scala/collection/Seq#", typeRef("p/o.A#")),
+        implicitArgumentCall(1)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 6
+
+    // the injected implicit to call to f: Synthetic(Some(Range(14,3,14,16)),ApplyTree(OriginalTree(Some(Range(14,3,14,16))),Vector(ApplyTree(IdTree(p/o.tseq().),Vector(IdTree(p/o.ta.))))))
+    // the type parameter to f: Synthetic(Some(Range(14,3,14,4)),TypeApplyTree(OriginalTree(Some(Range(14,3,14,4))),Vector(TypeRef(Empty,scala/collection/Seq#,Vector(TypeRef(Empty,p/o.A#,Vector()))))))
+    // the call to .apply in f(Seq(...)): Synthetic(Some(Range(14,5,14,8)),TypeApplyTree(SelectTree(OriginalTree(Some(Range(14,5,14,8))),Some(IdTree(scala/collection/generic/GenericCompanion#apply().))),Vector(TypeRef(Empty,p/o.A#,Vector()))))
+    res.db.synthetics should have size 3
+  }
 }
