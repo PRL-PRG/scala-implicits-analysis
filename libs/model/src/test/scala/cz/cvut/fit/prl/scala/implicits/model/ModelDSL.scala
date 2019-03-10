@@ -35,7 +35,7 @@ trait ModelDSL {
   def parameter(name: String, tpe: Type, isImplicit: Boolean = false): Parameter =
     Parameter(name, tpe, isImplicit)
 
-  def typeRef(ref: String, typeArguments: TypeRef*): TypeRef =
+  def typeRef(ref: String, typeArguments: Type*): TypeRef =
     TypeRef(ref, typeArguments.toList)
 
   def tparamRef(ref: String, name: String): TypeParameterRef =

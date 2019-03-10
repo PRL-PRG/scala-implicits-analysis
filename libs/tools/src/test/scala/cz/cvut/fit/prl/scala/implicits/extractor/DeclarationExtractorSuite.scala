@@ -11,6 +11,28 @@ class DeclarationExtractorSuite
     with ModelDSL {
 
   declarations(
+    "local type parameter",
+    """
+      | package p
+      | object o {
+      |   def f() {
+      |     implicit def c[T](x: T): Seq[T] = Seq(x)
+      |
+      |     1.map(_ + 1)
+      |   }
+      | }
+    """.stripMargin) { res =>
+    val defc = res.originalDeclarations.head
+
+    defc.signature.method.get.returnType shouldBe typeRef(
+      "scala/package.Seq#",
+      tparamRef(defc.declarationId, "T")
+    )
+
+    defc.parameterLists.head.parameters.head.tpe shouldBe tparamRef(defc.declarationId, "T")
+  }
+
+  declarations(
     "implicitNotFound annotation",
     """
       | package p

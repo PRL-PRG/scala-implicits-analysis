@@ -250,13 +250,14 @@ class ExtractionContext(
   def createType(tpe: s.Type, includeTopBottom: Boolean)(implicit db: s.TextDocument): Type =
     tpe match {
       case x: s.TypeRef if !includeTopBottom && x.isTopOrBottom => Type.Empty
-      // TODO: do we need to do anything prefix?
       case s.TypeRef(_, symbol, typeArguments) =>
+        // we do not support dependent types hence no prefix handling
         createTypeReference(symbol, typeArguments)
-      case s.AnnotatedType(annotations, t) =>
-        // TODO: annotation
+      case s.AnnotatedType(_, t) =>
+        // we do not support annotated types
+        // cf. https://www.scala-lang.org/files/archive/spec/2.12/03-types.html#annotated-types
         createType(t, includeTopBottom)
-      case s.SingleType(prefix, symbol) =>
+      case s.SingleType(_, symbol) =>
         val parent = resolveDeclaration(symbol)
         TypeRef(parent.declarationId)
       case s.ByNameType(t) =>
@@ -307,10 +308,27 @@ class ExtractionContext(
           typeArguments.map(x => createType(x, includeTopBottom = false))
         )
       case x if x.isTypeParameter =>
-        // TODO: check this!!!
-        val parent = resolveDeclaration(symbol)
+        val parentSymbol = db.symbols
+          .collectFirst {
+            case s.SymbolInformation(
+                name,
+                _,
+                _,
+                _,
+                _,
+                s.MethodSignature(Some(tparams), _, _),
+                _,
+                _
+                ) if tparams.symlinks.contains(symbol) =>
+              name
+          }
+          .getOrThrow(
+            SymbolNotFoundException(s"Parent to local type parameter $symbol (${db.uri})"))
+
+        val parent = resolveDeclaration(parentSymbol)
+
         TypeParameterRef(
-          symbol,
+          parent.declarationId,
           x.displayName,
           typeArguments.map(x => createType(x, includeTopBottom = false))
         )
