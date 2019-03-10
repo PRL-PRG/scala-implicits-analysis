@@ -1423,5 +1423,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+
+    res.callSitesCount shouldBe 4
   }
 }

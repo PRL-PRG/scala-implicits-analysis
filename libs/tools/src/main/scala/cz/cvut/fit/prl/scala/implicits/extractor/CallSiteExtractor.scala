@@ -292,6 +292,22 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case Term.Interpolate(_, _, args) =>
           n + 1 + args.map(process(0)).sum
 
+        case Term.Block(stats) =>
+          n + stats.map {
+            // this is a call inside a block like
+            // test {
+            //   f
+            // }
+            // where f is a function
+            case x: Term.Name =>
+              Try(ctx.resolveSymbol(x.pos.toRange))
+                .filter(_.symbolInfo.isMethod)
+                .map(_ => 1)
+                .getOrElse(0)
+            case x =>
+              process(0)(x)
+          }.sum
+
         // covers Term.NewAnonymous and Term.New
         case Init(_, _, argss) =>
           n + 1 + argss.flatMap(x => x.map(process(0))).sum
