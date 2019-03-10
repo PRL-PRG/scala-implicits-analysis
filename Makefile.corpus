@@ -301,6 +301,7 @@ dejavu: $(DEJAVU_FILES_HASH)
 download-projects: $(ALL_PROJECTS_DIR)
 
 implicits: $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	$(SCRIPTS_DIR)/quick-summary.R
 
 export-implicits: $(GLOBAL_IMPLICITS)
 	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc
