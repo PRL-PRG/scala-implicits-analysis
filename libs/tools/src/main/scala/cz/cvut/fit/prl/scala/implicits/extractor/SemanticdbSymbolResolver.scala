@@ -63,7 +63,7 @@ class SemanticdbSymbolResolver(
     db.occurrences
       .find(_.range.contains(range))
       .map(x => resolveSymbol(x.symbol))
-      .getOrThrow(MissingSymbolException(s"at ${db.uri}:$range"))
+      .getOrThrow(SymbolNotFoundException(s"at ${db.uri}:$range"))
   }
 
   override def resolveSymbol(name: String)(implicit db: s.TextDocument): ResolvedSymbol = {
@@ -76,7 +76,7 @@ class SemanticdbSymbolResolver(
     }
 
     symbol.getOrThrow({
-      val e = MissingSymbolException(s"symbol: $name")
+      val e = SymbolNotFoundException(s"symbol: $name")
       e
     })
   }

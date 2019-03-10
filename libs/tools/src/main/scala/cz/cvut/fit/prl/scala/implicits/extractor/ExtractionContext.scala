@@ -170,7 +170,7 @@ class ExtractionContext(
       case x: s.ValueSignature =>
         Declaration.Signature.Value(createValueSignature(x))
       case _ =>
-        throw new UnsupportedElementException("signature", signature.getClass.getSimpleName)
+        throw new ElementNotSupportedException("signature", signature.getClass.getSimpleName)
     }
 
   private def createDeclaration(
@@ -193,7 +193,7 @@ class ExtractionContext(
       case x if x.isTypeParameter => TYPE_PARAMETER
       case x if x.isMacro => MACRO
       case x if x.isParameter => PARAMETER
-      case x => throw new UnsupportedElementException("declaration symbol kind", x.kind)
+      case x => throw new ElementNotSupportedException("declaration symbol kind", x.kind)
     }
 
     Declaration(
@@ -222,7 +222,7 @@ class ExtractionContext(
           symbolInfo.isImplicit
         )
       case x =>
-        throw new UnexpectedElementException("parameter signature", x.getClass.getSimpleName)
+        throw ElementNotExpectedException("parameter signature", x.getClass.getSimpleName)
     }
 
   private def createTypeParameter(symbol: String)(implicit db: s.TextDocument): TypeParameter =
@@ -239,7 +239,7 @@ class ExtractionContext(
           upperBound = Try(createType(upperBound, includeTopBottom = false)).getOrElse(Type.Empty)
         )
       case x =>
-        throw new UnexpectedElementException("type parameter signature", x.getClass.getSimpleName)
+        throw ElementNotExpectedException("type parameter signature", x.getClass.getSimpleName)
     }
   }
 
@@ -277,7 +277,7 @@ class ExtractionContext(
       case s.Type.Empty =>
         Type.Empty
       case x =>
-        throw new UnsupportedElementException("type", x.getClass.getSimpleName)
+        throw new ElementNotSupportedException("type", x.getClass.getSimpleName)
     }
 
   def createTypeArguments(typeArguments: Seq[s.Type], includeTopBottom: Boolean)(
@@ -313,7 +313,7 @@ class ExtractionContext(
         val parent = resolveDeclaration(symbol)
         TypeRef(parent.declarationId, createTypeArguments(typeArguments, includeTopBottom = false))
       case x =>
-        throw new UnsupportedElementException("TypeRef type", x)
+        throw new ElementNotSupportedException("TypeRef type", x)
     }
   }
 }

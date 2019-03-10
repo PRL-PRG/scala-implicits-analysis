@@ -40,6 +40,6 @@ class DeclarationExtractor(ctx: ExtractionContext) {
       case x if x.isClass || x.isMethod || x.isObject || x.isField || x.isMacro || x.isParameter || x.isLocal =>
         Some(ctx.resolveDeclaration(symbolInfo.symbol))
       case x =>
-        throw new SkippedSymbolException(x.kind.toString())
+        throw new SkippedSymbolException(x.toString)
     }
 }

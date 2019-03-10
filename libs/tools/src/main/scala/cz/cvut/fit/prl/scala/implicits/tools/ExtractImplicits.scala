@@ -81,21 +81,33 @@ object ExtractImplicits extends App {
     case class ExtractionException(
         projectId: String,
         moduleId: String,
-        cause: String,
+        exception: String,
         message: String,
-        trace: String)
+        trace: String,
+        cause: String,
+        causeMessage: String,
+        causeTrace: String
+    )
 
     object ExtractionException {
       def apply(projectId: String, moduleId: String, exception: Throwable): ExtractionException = {
         val cause = Option(exception.getCause).getOrElse(exception)
         val trace = cause.getStackTrace.head.toString
 
+        val nestedCause = Option(cause.getCause)
+        val nestedCauseMessage = nestedCause.map(_.getMessage)
+        val nestedTrace = nestedCause.map(_.getStackTrace.head.toString)
+
         ExtractionException(
           projectId,
           moduleId,
           cause.getClass.getSimpleName,
           cause.getMessage,
-          trace)
+          trace,
+          nestedCause.map(_.getClass.getSimpleName).getOrElse("NA"),
+          nestedCauseMessage.getOrElse("NA"),
+          nestedTrace.getOrElse("NA")
+        )
       }
     }
 

@@ -187,8 +187,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                   } yield y
 
                 val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
-                  val e =
-                    MissingSymbolException(s"Missing function for $term at $range in ${db.uri}")
+                  val e = FunctionNotFoundException(term.syntax, range, db.uri)
                   e
                 }
 
@@ -235,7 +234,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             case (false, None) =>
               Seq.empty
             case (true, None) =>
-              throw MissingImplicitArguments(cs.code, cs.declarationId)
+              throw ImplicitArgumentNotFoundException(cs.code, cs.declarationId)
           }
 
         cs.copy(implicitArgumentTypes = implicitArgumentsTypes)

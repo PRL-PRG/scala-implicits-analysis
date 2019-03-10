@@ -145,7 +145,7 @@ object ProjectMetadata {
             case Some(moduleId) =>
               acc.updated(moduleId, sdb :: acc(moduleId))
             case None =>
-              warnings += new LoadingMetadataException(s"No module found for ${sdb.uri}")
+              warnings += LoadingMetadataException(s"No module found for ${sdb.uri}")
               acc
           }
         }
@@ -162,10 +162,10 @@ object ProjectMetadata {
               moduleClasspath
                 .foreach { x =>
                   if (x.isDirectory && x.list.isEmpty) {
-                    warnings += new LoadingMetadataException(s"Classpath entry is an empty directory: $x")
+                    warnings += LoadingMetadataException(s"Classpath entry is an empty directory: $x")
                   }
                   if (!x.exists && (x.extension.contains("jar") || x.extension.contains("zip"))) {
-                    warnings += new LoadingMetadataException(s"Missing classpath file: $x")
+                    warnings += LoadingMetadataException(s"Missing classpath file: $x")
                   }
                 }
 
