@@ -57,8 +57,6 @@ class SemanticdbSymbolResolver(
 
   import SemanticdbSymbolResolver._
 
-  private val symbolCache = mutable.Map[(String, String), Option[ResolvedSymbol]]()
-
   override def resolveSymbol(range: s.Range)(implicit db: s.TextDocument): ResolvedSymbol = {
     db.occurrences
       .find(_.range.contains(range))
@@ -68,11 +66,9 @@ class SemanticdbSymbolResolver(
 
   override def resolveSymbol(name: String)(implicit db: s.TextDocument): ResolvedSymbol = {
     val symbol = if (name.isLocal) {
-      val key = (db.uri, name)
-      symbolCache.getOrElseUpdate(key, resolveLocalSymbol(name))
+      resolveLocalSymbol(name)
     } else {
-      val key = ("", name)
-      symbolCache.getOrElseUpdate(key, resolveGlobalSymbol(name).map(fixSymbol))
+      resolveGlobalSymbol(name).map(fixSymbol)
     }
 
     symbol.getOrThrow({

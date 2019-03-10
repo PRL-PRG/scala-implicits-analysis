@@ -248,14 +248,17 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       ast: Source): Iterable[Try[CallSite]] = {
 
     val converter = new Converter(moduleId, db, ast)
-    val declarationResolver: DeclarationResolver =
+    implicit val declarationResolver: DeclarationResolver =
       ref => ctx.resolveDeclaration(ref.declarationId)(db)
 
     val result = db.synthetics.toList
       .map(x => x -> Try(converter.processSynthetic(x)))
       .collect {
-        case (_, Success(xs)) =>
-          xs.filter(_.isImplicit(declarationResolver)).map(Success(_))
+        case (_, Success(css)) =>
+          // next to call sites to implicit declarations, we also need to keep
+          // call sites that are nested in there such as is the case in #22
+          // essentially call sites created by macros
+          css.filter(cs => cs.isImplicit || cs.parentId.isDefined).map(Success(_))
         case (synthetic, Failure(x)) =>
           List(Failure(new CallSiteConversionException(x, db.uri, synthetic)))
       }

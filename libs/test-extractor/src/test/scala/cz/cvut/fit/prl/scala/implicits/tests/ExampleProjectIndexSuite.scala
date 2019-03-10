@@ -24,9 +24,15 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
     val css = idx.modules.values.find(_.artifactId == "module2").get.implicitCallSites
     val testCss = css.filter(_.location.relativeUri.contains("Issue22"))
 
-    testCss should have size 1
+    testCss should have size 2
 
-    testCss.head.declaration.name should be ("test")
+    val testCs = testCss.find(_.declarationId.endsWith("test().")).get
+    val testCsId = testCs.callSiteId
+    testCs.implicitArgumentTypes should contain only CallSiteRef(testCsId - 1)
+
+    val testPosCs = testCss.find(_.callSiteId == testCsId - 1).get
+    testPosCs.declarationId shouldBe "org/scalactic/source/Position.apply()."
+    testPosCs.parentId shouldBe Some(testCsId)
   }
 
   test("classpath scope") {
