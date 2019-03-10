@@ -3,6 +3,8 @@ title: "Implicit Analysis"
 output: html_document
 params:
   base_dir: ~/Research/Projects/scala-implicits-analysis/corpora/top100
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -19,6 +21,7 @@ theme_set(theme_minimal())
 ```{r constants, include=FALSE}
 IMPLICIT_DECLARATIONS <- path(params$base_dir, "implicit-declarations.csv")
 IMPLICIT_CALLSITES <- path(params$base_dir, "implicit-callsites.csv")
+IMPLICITS_EXCEPTIONS <- path(params$base_dir, "implicits-exceptions.csv")
 CORPUS <- path(params$base_dir, "corpus.csv")
 ```
 
@@ -87,6 +90,142 @@ callsites <- semi_join(callsites, projects, by="project_id")
 declarations <- semi_join(declarations, projects, by="project_id")
 ```
 
+```{r stats functions}
+apps <- filter(projects, scaladex==FALSE)
+libs <- filter(projects, scaladex==TRUE)
+
+add_stat <- function(key, expr) {
+  expr <- substitute(expr)
+  fun <- function(x) eval(expr, envir=list2env(list(.=x)))
+  tibble(key, apps=fun(apps), libs=fun(libs), all=fun(projects))
+}
+
+add_stat_num <- function(key, expr) {
+  expr <- substitute(expr)
+  fun <- function(x) eval(expr, envir=list2env(list(.=x)))
+  
+  stats <- list(sum, mean, median, sd)
+  names(stats) <- c(
+    str_glue("Number of {key}"), 
+    str_glue("Average of {key} per project"), 
+    str_glue("Median of {key}"), 
+    str_glue("SD of {key}")
+  )
+  
+  stats %>% imap_dfr(~tibble(key=.y, apps=.x(fun(apps)), libs=.x(fun(libs)), all=.x(fun(projects))))
+}
+
+make_stats <- function(...) {
+  all <- list(...)
+  bind_rows(all)
+}
+```
+
+## Summary
+
+```{r summary}
+stats <- make_stats(
+  add_stat("Number of projects", nrow(.)),
+  add_stat("Number of projects declaring implicits", nrow(filter(., implicit_declarations > 0))),
+  add_stat("Number of projects not declaring implicits", nrow(filter(., implicit_declarations == 0))),
+  add_stat("Number of projects using implicits", nrow(filter(., implicit_callsites > 0))),
+  add_stat("Number of projects not using implicits", nrow(filter(., implicit_callsites == 0))),
+  add_stat("Number of projects failing implicit extraction", nrow(filter(., !is.na(implicit_failure)))),
+  add_stat_num("call sites", .$callsites),
+  add_stat_num("problems extracting exceptions", .$implicit_problems),
+  add_stat_num("implicit call sites", .$implicit_callsites),
+  add_stat_num("implicit declarations", .$implicit_declarations),
+  add_stat_num("github stars", .$github_stars)
+)
+
+stats %>% datatable(options=list(paging=FALSE, searching=FALSE, info=FALSE))
+```
+
+## Problems with implicit extraction
+
+```{r}
+exceptions <- read_csv(IMPLICITS_EXCEPTIONS, col_types="ccccc")
+```
+
+```{r}
+classified_exceptions <- 
+  mutate(
+    exceptions,
+    class=case_when(
+      cause == "MissingSymbolException" & str_detect(message, "symbol: local\\d+") ~ "missing-local-symbol",
+      cause == "MissingSymbolException" & str_detect(message, "at Range\\(\\d+,\\d+,\\d+,\\d+\\)") ~ "missing-symbol-at-range",
+      cause == "MissingSymbolException" ~ "missing-symbol-other",
+      cause == "LoadingMetadataException" & str_detect(message, "No module found") & str_detect(message, "multi-jvm") ~ "missing-module-multijvm",
+      cause == "LoadingMetadataException" & str_detect(message, "No module found") ~ "missing-module",
+      cause == "LoadingMetadataException" ~ "metadata-loading",
+      cause == "NotImplementedError" ~ "not-implemented",
+      cause == "UnexpectedElementException" ~ "unexpected-element",
+      cause == "UnsupportedElementException" ~ "unsupported-element",
+      TRUE ~ "unclassified"
+    )
+  )
+```
+
+
+### Per project summary
+
+```{r}
+count(classified_exceptions, project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Per exception summary
+
+```{r}
+count(classified_exceptions, cause) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Per class summary
+
+```{r}
+count(classified_exceptions, class) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Per project and class summary
+
+```{r}
+count(classified_exceptions, project_id, class) %>% arrange(desc(n)) %>% datatable()
+```
+
+### Missing local symbols
+
+```{r}
+filter(classified_exceptions, class=="missing-local-symbol") %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Missing symbols at range
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-at-range") %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Missing other symbols
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-other") %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Per project and symbol
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-other") %>% 
+  transmute(project_id, symbol=str_replace_all(message, ".*symbol: (.*)$", "\\1")) %>%
+  count(project_id, symbol) %>% 
+  arrange(desc(n)) %>% 
+  datatable()
+```
+
+### Unclassified
+
+```{r}
+uncategorized_exceptions <- filter(classified_exceptions, class=="unclassified")
+```
+
+
 ## Source code 
 
 - add the outlier flag, color the dot and list the projects
@@ -125,54 +264,6 @@ scatter_plot_sloc(quo(implicit_declarations), "Implicit declarations")
 
 ```{r}
 scatter_plot_sloc(quo(callsites), "Call sites")
-```
-
-```{r}
-apps <- filter(projects, scaladex==FALSE)
-libs <- filter(projects, scaladex==TRUE)
-
-add_stat <- function(key, expr) {
-  expr <- substitute(expr)
-  fun <- function(x) eval(expr, envir=list2env(list(.=x)))
-  tibble(key, apps=fun(apps), libs=fun(libs), all=fun(projects))
-}
-
-add_stat_num <- function(key, expr) {
-  expr <- substitute(expr)
-  fun <- function(x) eval(expr, envir=list2env(list(.=x)))
-  
-  stats <- list(sum, mean, median, sd)
-  names(stats) <- c(
-    str_glue("Number of {key}"), 
-    str_glue("Average of {key} per project"), 
-    str_glue("Median of {key}"), 
-    str_glue("SD of {key}")
-  )
-  
-  stats %>% imap_dfr(~tibble(key=.y, apps=.x(fun(apps)), libs=.x(fun(libs)), all=.x(fun(projects))))
-}
-
-make_stats <- function(...) {
-  all <- list(...)
-  bind_rows(all)
-}
-```
-
-## Summary
-
-```{r}
-stats <- make_stats(
-  add_stat("Number of projects", nrow(.)),
-  add_stat("Number of projects declaring implicits", nrow(filter(., implicit_declarations > 0))),
-  add_stat("Number of projects not declaring implicits", nrow(filter(., implicit_declarations == 0))),
-  add_stat("Number of projects using implicits", nrow(filter(., implicit_callsites > 0))),
-  add_stat("Number of projects not using implicits", nrow(filter(., implicit_callsites == 0))),
-  add_stat_num("call sites", .$callsites),
-  add_stat_num("implicit call sites", .$implicit_callsites),
-  add_stat_num("implicit declarations", .$implicit_declarations)
-)
-
-stats %>% datatable(options=list(paging=FALSE, searching=FALSE, info=FALSE))
 ```
 
 ## Implicit conversions
