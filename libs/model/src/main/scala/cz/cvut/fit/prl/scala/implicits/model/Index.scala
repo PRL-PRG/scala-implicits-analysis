@@ -19,10 +19,10 @@ case class Index(
     implicitDeclarations: Iterable[Declaration],
     implicitCallSites: Iterable[CallSite],
     paths: Map[String, Map[String, PathEntry]]
-) extends TypeResolver {
+) extends DeclarationResolver {
 
-  override def resolveType(ref: DeclarationRef): Declaration = {
-    modules(ref.moduleId).declarations(ref.declarationFqn)
+  override def resolveDeclaration(ref: DeclarationRef): Declaration = {
+    modules(ref.moduleId).declarations(ref.declarationId)
   }
 }
 

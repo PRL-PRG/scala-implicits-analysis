@@ -1,15 +1,18 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{DeclarationRef, TypeResolver}
+import cz.cvut.fit.prl.scala.implicits.model.{DeclarationRef, DeclarationResolver}
 import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.scalatest.{Inside, Matchers, OptionValues}
 
 import scala.language.implicitConversions
+import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.meta._
 import scala.meta.io.Classpath
+
+object ModelSimplification extends ModelSimplification
 
 // TODO: rewrite using scrap your boilerplate pattern
 trait ModelSimplification {
@@ -27,6 +30,7 @@ trait ModelSimplification {
 
     def simplify(ctx: ExtractionContext): m.Declaration =
       that.copy(
+        declarationId = if (that.declarationId.isLocal) "local" else that.declarationId,
         location = that.location.simplify(ctx),
         signature = that.signature.simplify
       )
@@ -114,9 +118,19 @@ case class DeclarationsResult(
     failures: Seq[Throwable],
     ctx: ExtractionContext,
     db: s.TextDocument)
-    extends TypeResolver {
+    extends DeclarationResolver {
 
-  override def resolveType(ref: DeclarationRef): m.Declaration = ctx.resolveType(ref)
+  import ModelSimplification._
+
+  override def resolveDeclaration(ref: DeclarationRef): m.Declaration =
+    ctx.resolveDeclaration(ref.declarationId)(db)
+
+  def declarationAt(startLine: Int): m.Declaration = {
+    originalDeclarations
+      .find(_.location.position.exists(_.startLine == startLine))
+      .get
+      .simplify(ctx)
+  }
 }
 
 object DeclarationsResult extends ModelSimplification {
@@ -136,11 +150,8 @@ case class CallSitesResult(
     failures: Seq[Throwable],
     callSitesCount: Int,
     ctx: ExtractionContext,
-    db: s.TextDocument)
-    extends TypeResolver {
-
-  override def resolveType(ref: DeclarationRef): m.Declaration = ctx.resolveType(ref)
-}
+    db: s.TextDocument
+)
 
 object CallSitesResult extends ModelSimplification {
 
@@ -149,7 +160,7 @@ object CallSitesResult extends ModelSimplification {
     val extractor = new CallSiteExtractor(ctx)
     val result = extractor.extractImplicitCallSites(TestModuleId, db, ast)
     val (callSites, failures) = result.split()
-    val count = extractor.callSiteCount(ast)
+    val count = extractor.callSiteCount(ast)(db)
 
     CallSitesResult(callSites.map(_.simplify(ctx)), callSites, failures, count, ctx, db)
   }

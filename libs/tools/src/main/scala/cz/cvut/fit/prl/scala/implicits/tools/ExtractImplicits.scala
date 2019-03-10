@@ -189,8 +189,10 @@ object ExtractImplicits extends App {
 
     val csCount =
       metadata.semanticdbs
-        .map(x => metadata.ast(x.uri))
-        .map(csExtractor.callSiteCount)
+        .map { implicit db =>
+          val ast = metadata.ast(db.uri)
+          csExtractor.callSiteCount(ast)
+        }
         .sum
 
     val classpath =
@@ -205,9 +207,9 @@ object ExtractImplicits extends App {
         metadata.artifactId,
         metadata.version,
         scope,
-        true,
-        false,
-        false
+        internal = true,
+        managed = false,
+        transitive = false
       )
 
     val allPaths =

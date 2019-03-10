@@ -5,9 +5,90 @@ import cz.cvut.fit.prl.scala.implicits.model.Language.{JAVA, SCALA}
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 
-class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplification {
+class DeclarationExtractorSuite
+    extends ExtractionContextSuite
+    with ModelSimplification
+    with ModelDSL {
 
-  declarations("identify java/scala symbol",
+  declarations(
+    "local implicit",
+    """
+      | package p
+      | object o {
+      |   trait T
+      |   def g[T](x: T)(implicit y: T) = y
+      |
+      |   def f() = {
+      |     implicit val i1 = 1
+      |     implicit object i2 extends T
+      |     implicit def i3 = "A"
+      |
+      |     Seq(true, false).foreach { implicit x =>
+      |       g(x)
+      |     }
+      |   }
+      | }
+    """.stripMargin) { res =>
+    checkElement(
+      res.declarationAt(4),
+      methodDeclaration(
+        declarationId = "p/o.g().",
+        typeParameter("T"),
+        parameters(
+          parameter("x", tparamRef("p/o.g().", "T"))
+        ),
+        parameters(
+          parameter("y", tparamRef("p/o.g().", "T"), isImplicit = true)
+        ),
+        returnType(tparamRef("p/o.g().", "T"))
+      )
+    )
+
+    checkElement(
+      res.declarationAt(7),
+      valueDeclaration(
+        declarationId = "local",
+        tpe = typeRef("scala/Int#"),
+        name("i1"),
+        isImplicit
+      )
+    )
+
+    checkElement(
+      res.declarationAt(8),
+      objectDeclaration(
+        declarationId = "local",
+        name("i2"),
+        isImplicit,
+        parent("p/o.T#")
+      )
+    )
+
+    checkElement(
+      res.declarationAt(9),
+      methodDeclaration(
+        declarationId = "local",
+        name("i3"),
+        isImplicit,
+        returnType("java/lang/String#")
+      )
+    )
+
+    checkElement(
+      res.declarationAt(11),
+      parameterDeclaration(
+        declarationId = "local",
+        tpe = typeRef("scala/Boolean#"),
+        name("x"),
+        isImplicit
+      )
+    )
+
+    res.declarations should have size 5
+  }
+
+  declarations(
+    "identify java/scala symbol",
     """
       | package p
       | object o {
@@ -359,7 +440,7 @@ class DeclarationExtractorSuite extends ExtractionContextSuite with ModelSimplif
             List(
               TypeParameterRef(
                 "p/o.XtensionJson().",
-                "T",
+                "T"
               )
             )
           )

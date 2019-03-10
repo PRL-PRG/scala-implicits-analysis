@@ -1,6 +1,8 @@
 package cz.cvut.fit.prl.scala.implicits.model
 
-import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind.{CLASS, DEF}
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Signature
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import scalapb.lenses.{Lens, Mutation}
 
@@ -30,17 +32,20 @@ trait ModelDSL {
   def parameters(v: Parameter*)(implicit ev: OverloadHack1): Update[Declaration] =
     _.method.parameterLists.modify(_ :+ ParameterList(v.toSeq))
 
-  def parameters(v: Parameter*)(implicit ev: OverloadHack2): Update[MethodSignature] =
-    _.parameterLists.modify(_ :+ ParameterList(v.toSeq))
-
-  def parameter(name: String, ref: String, isImplicit: Boolean = false): Parameter =
-    Parameter(name, typeRef(ref), isImplicit)
+  def parameter(name: String, tpe: Type, isImplicit: Boolean = false): Parameter =
+    Parameter(name, tpe, isImplicit)
 
   def typeRef(ref: String, typeArguments: TypeRef*): TypeRef =
     TypeRef(ref, typeArguments.toList)
 
+  def tparamRef(ref: String, name: String): TypeParameterRef =
+    TypeParameterRef(ref, name)
+
   def returnType(ref: String, typeArguments: TypeRef*): Update[Declaration] =
     _.method.returnType := typeRef(ref, typeArguments: _*)
+
+  def returnType(tpe: Type): Update[Declaration] =
+    _.method.returnType := tpe
 
   def implicitArgumentVal(ref: String): Update[CallSite] =
     _.implicitArgumentTypes.modify(_ :+ ValueRef(ref))
@@ -49,35 +54,68 @@ trait ModelDSL {
     _.implicitArgumentTypes.modify(_ :+ CallSiteRef(callSiteId))
 
   def typeArgument(ref: String, typeArguments: TypeRef*): Update[CallSite] =
-    _.typeArguments.modify(_ :+ typeRef(ref, typeArguments:_*))
+    _.typeArguments.modify(_ :+ typeRef(ref, typeArguments: _*))
 
   def parentCallSite(id: Int): Update[CallSite] =
     _.parentId := id
 
-  def method(declarationId: String, updates: Update[Declaration]*): Declaration = {
-    val d = Declaration(
-      declarationId = declarationId,
-      moduleId = TestModuleId,
-      DEF,
-      declarationId.desc.name.value,
-      TestLocalLocation,
-      SCALA,
-      false,
-      MethodSignature(returnType = typeRef("scala/Unit#")))
+  def name(name: String): Update[Declaration] =
+    _.name := name
 
-    d.update(updates: _*)
+  def parent(ref: String, typeArguments: TypeRef*): Update[Declaration] =
+    _.`type`.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
+
+  def typeParameter(
+      name: String,
+      upperBound: Type = Type.Empty,
+      lowerBound: Type = Type.Empty): Update[Declaration] =
+    _.method.typeParameters
+      .modify(_ :+ TypeParameter(name, upperBound = upperBound, lowerBound = lowerBound))
+
+  def methodDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
+    declaration(declarationId, DEF, updates: _*)
   }
 
-  def clazz(declarationId: String, updates: Update[Declaration]*): Declaration = {
+  def classDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
+    declaration(declarationId, CLASS, updates: _*)
+  }
+
+  def objectDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
+    declaration(declarationId, OBJECT, updates: _*)
+  }
+
+  def valueDeclaration(
+      declarationId: String,
+      tpe: Type,
+      updates: Update[Declaration]*): Declaration = {
+    declaration(declarationId, VAL, updates: _*).update(_._value.tpe := tpe)
+  }
+
+  def parameterDeclaration(
+      declarationId: String,
+      tpe: Type,
+      updates: Update[Declaration]*): Declaration = {
+    declaration(declarationId, PARAMETER, updates: _*).update(_._value.tpe := tpe)
+  }
+
+  def declaration(declarationId: String, kind: Kind, updates: Update[Declaration]*): Declaration = {
     val d =
       Declaration(
         declarationId = declarationId,
         moduleId = TestModuleId,
-        CLASS,
+        kind,
         declarationId.desc.name.value,
         TestLocalLocation,
         SCALA,
-        false
+        isImplicit = false,
+        kind match {
+          case DEF =>
+            Signature.Method(MethodSignature(returnType = typeRef("scala/Unit#")))
+          case CLASS | OBJECT =>
+            Signature.Type(TypeSignature())
+          case VAL | VAR | PARAMETER =>
+            Signature.Value(ValueSignature(tpe = typeRef("scala/Unit#")))
+        }
       )
 
     d.update(updates: _*)

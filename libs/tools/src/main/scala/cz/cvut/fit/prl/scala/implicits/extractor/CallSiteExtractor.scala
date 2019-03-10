@@ -6,7 +6,6 @@ import cz.cvut.fit.prl.scala.implicits.utils._
 import scala.collection.mutable
 import scala.meta._
 import scala.meta.inputs.{Position => MetaPos}
-import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.util.{Failure, Success, Try}
 
@@ -16,13 +15,17 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
   class Converter(moduleId: String, db: s.TextDocument, ast: Source) {
 
+    implicit private val _db: s.TextDocument = db
+    implicit private val declarationResolver: DeclarationResolver = (ref: DeclarationRef) =>
+      ctx.resolveDeclaration(ref.declarationId)
+
     def processSynthetic(synthetic: s.Synthetic): Iterable[CallSite] = {
       val path = ctx.relaxedSourcePath(db.uri)
       val relativeUri = db.uri.substring(path.length)
       val syntheticLocation = Location(path, relativeUri, Some(synthetic.range.get.toPos))
 
       val extractedCallSites = mutable.Map[Int, CallSite]()
-      val extractedCallSiteArguments =
+      val extractedCallSiteArgumentsLists =
         mutable.Map[Int, List[List[Argument]]]().withDefaultValue(Nil)
 
       // creates either a ValueRef or a CallSiteRef if extractedArgumentCallSite is defined
@@ -46,7 +49,10 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.SelectTree(_, Some(id)) =>
           createArgument(callSite, id, extractedArgumentCallSite)
 
-        case s.IdTree(symbol) if !symbol.isLocal =>
+        case s.SelectTree(_, None) =>
+          None
+
+        case s.IdTree(symbol) =>
           val declaration = ctx.resolveDeclaration(symbol)
 
           (declaration.isMethod, extractedArgumentCallSite) match {
@@ -64,7 +70,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.MacroExpansionTree(beforeExpansion, _) =>
           createArgument(callSite, beforeExpansion, extractedArgumentCallSite)
 
-        case s.IdTree(_) =>
+        case s.LiteralTree(_) =>
           None
 
         case s.OriginalTree(_) =>
@@ -108,14 +114,14 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                       .toList
 
                   if (arguments.nonEmpty) {
-                    extractedCallSiteArguments.updateValue(callSite.callSiteId, arguments :: _)
+                    extractedCallSiteArgumentsLists.updateValue(callSite.callSiteId, arguments :: _)
                   }
               }
 
               callSite
             }
             .orElse {
-              throw new Exception(s"Unable to convert: $tree into a call site")
+              throw UnExtractableCallSiteException(synthetic, db.uri)
             }
         }
 
@@ -215,18 +221,22 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       convertInternal(synthetic.tree, inCall = false)
 
       extractedCallSites.values.map { cs =>
-        val takesImplicitParams = cs.declaration.hasImplicitParameters
+        val hasImplicitParams = cs.declaration.hasImplicitParameters
+        val recordedArgsLists = extractedCallSiteArgumentsLists.get(cs.callSiteId)
 
-        val implicitArgumentsTypes = extractedCallSiteArguments.get(cs.callSiteId) match {
-          case Some(argumentsLists) if takesImplicitParams =>
-            argumentsLists.head
-          case None if !takesImplicitParams =>
-            Seq.empty
-          case _ =>
-            throw new UnexpectedElementException(
-              "Call site declaration",
-              s"${cs.code} -- ${cs.declarationId}")
-        }
+        val implicitArgumentsTypes =
+          (hasImplicitParams, recordedArgsLists) match {
+            case (true, Some(argsLists)) =>
+              argsLists.head
+            case (false, Some(_)) =>
+              // this is OK since we record all argument lists
+              // these are just a regular arguments
+              Seq.empty
+            case (false, None) =>
+              Seq.empty
+            case (true, None) =>
+              throw MissingImplicitArguments(cs.code, cs.declarationId)
+          }
 
         cs.copy(implicitArgumentTypes = implicitArgumentsTypes)
       }
@@ -239,11 +249,14 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       ast: Source): Iterable[Try[CallSite]] = {
 
     val converter = new Converter(moduleId, db, ast)
+    val declarationResolver: DeclarationResolver =
+      ref => ctx.resolveDeclaration(ref.declarationId)(db)
+
     val result = db.synthetics.toList
       .map(x => x -> Try(converter.processSynthetic(x)))
       .collect {
         case (_, Success(xs)) =>
-          xs.filter(_.isImplicit).map(Success(_))
+          xs.filter(_.isImplicit(declarationResolver)).map(Success(_))
         case (synthetic, Failure(x)) =>
           List(Failure(new CallSiteConversionException(x, db.uri, synthetic)))
       }
@@ -252,7 +265,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     result
   }
 
-  def callSiteCount(ast: Source): Int = {
+  def callSiteCount(ast: Source)(implicit db: s.TextDocument): Int = {
     def process(n: Int)(tree: Tree): Int =
       tree match {
         case Term.Apply(Term.Select(qual, _), args) =>

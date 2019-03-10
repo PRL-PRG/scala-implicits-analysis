@@ -20,7 +20,7 @@ package object utils {
   }
 
   implicit class XtensionSymbolInformation(that: s.SymbolInformation) {
-    def parent(implicit resolver: SymbolResolver): s.SymbolInformation =
+    def parent(implicit resolver: SymbolResolver, db: s.TextDocument): s.SymbolInformation =
       resolver.resolveSymbol(that.symbol.owner).symbolInfo
   }
 
@@ -50,7 +50,6 @@ package object utils {
   implicit class XtensionModuleClasspath(that: Module) {
     def classpath: Classpath = Classpath(that.output.map(AbsolutePath(_)).toList)
   }
-
 
   implicit class XtensionOptions[+A](that: Option[A]) {
     def getOrThrow(e: => Throwable): A = that match {

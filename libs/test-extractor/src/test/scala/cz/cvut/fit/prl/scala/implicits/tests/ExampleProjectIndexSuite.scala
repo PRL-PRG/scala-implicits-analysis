@@ -9,6 +9,12 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
   lazy implicit val idx: Index = {
     val result = ExtractImplicits.extractProject(ExampleProjectPath)
 
+    if (result.exceptions.nonEmpty) {
+      result.exceptions.foreach {
+        case (_, e) => e.printStackTrace()
+      }
+    }
+
     result.exceptions shouldBe empty
 
     Index(List(result.project))

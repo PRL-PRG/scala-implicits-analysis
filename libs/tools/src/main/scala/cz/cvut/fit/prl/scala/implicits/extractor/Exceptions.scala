@@ -23,3 +23,11 @@ class UnexpectedElementException[T](what: String, actual: T)
 case class MissingSymbolException(message: String) extends Exception(message)
 
 class LoadingMetadataException(message: String) extends Exception(message)
+
+case class MissingImplicitArguments(code: String, declarationId: String)
+    extends Exception(s"$code -- $declarationId")
+
+case class UnExtractableCallSiteException(synthetic: s.Synthetic, uri: String)
+    extends Exception(
+      s"Unable to extract ${synthetic.tree} into a call site $uri:${synthetic.range.getOrElse("???")}"
+    )

@@ -1379,4 +1379,49 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     // the call to .apply in f(Seq(...)): Synthetic(Some(Range(14,5,14,8)),TypeApplyTree(SelectTree(OriginalTree(Some(Range(14,5,14,8))),Some(IdTree(scala/collection/generic/GenericCompanion#apply().))),Vector(TypeRef(Empty,p/o.A#,Vector()))))
     res.db.synthetics should have size 3
   }
+
+  callSites(
+    "local implicits",
+    """
+      | package p
+      | object o {
+      |   def f1(implicit x: String) = 1
+      |   def f2(implicit x: String) = 1
+      |   def g(implicit x: Int) = 1
+      |   def test(block: Unit) = block
+      |
+      |   test {
+      |     implicit val s1: String = "A"
+      |     implicit def i1: Int = 1
+      |     f1
+      |     f2
+      |     g
+      |   }
+      | }
+    """.stripMargin) { implicit res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.f1().",
+        code = "f1",
+        implicitArgumentVal("local0::1")),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.f2().",
+        code = "f2",
+        implicitArgumentVal("local0::1")),
+      callSite(
+        callSiteId = 3,
+        declarationId = "local1::2",
+        code = "i1",
+        parentCallSite(4)),
+      callSite(
+        callSiteId = 4,
+        declarationId = "p/o.g().",
+        code = "g",
+        implicitArgumentCall(3))
+    )
+
+    checkElementsSorted(res.callSites, expected)
+  }
 }

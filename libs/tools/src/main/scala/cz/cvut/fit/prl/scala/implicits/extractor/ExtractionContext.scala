@@ -7,24 +7,37 @@ import cz.cvut.fit.prl.scala.implicits.utils._
 import scala.collection.mutable
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
+object ExtractionContext {
+  val LocalIdSep: String = "::"
+}
+
+/**
+  * An extraction context that keeps track of declarations and call sites extracted in
+  * a **single** module.
+  *
+  * @param moduleId id of the module this extractor tracks
+  * @param resolver a resolver aware of the module
+  * @param sourcePaths a list of source paths used in the given module
+  */
 class ExtractionContext(
     moduleId: String,
     resolver: SemanticdbSymbolResolver,
     val sourcePaths: List[String])
-    extends TypeResolver
-    with SymbolResolver {
+    extends SymbolResolver {
 
-  private val declarationIndex: mutable.Map[String, Declaration] = mutable.Map()
+  import ExtractionContext._
+
+  private val declarationIndex: mutable.Map[String, Try[Declaration]] = mutable.Map()
   private var callSiteId: Int = 0
+  private var localDeclarationIndex: mutable.Map[(String, String), String] = mutable.Map()
 
   private val sourcePathIndex: mutable.Map[String, Option[String]] = mutable.Map()
 
-  def resolveDeclaration(symbol: String): Declaration =
-    resolveDeclaration(resolveSymbol(symbol))
-
-  def declarations: Iterable[Declaration] = declarationIndex.values.toList
+  def declarations: Iterable[Declaration] = declarationIndex.collect {
+    case (_, Success(declaration)) => declaration
+  }
 
   def createCallSiteId: Int = {
     callSiteId = callSiteId + 1
@@ -40,54 +53,74 @@ class ExtractionContext(
 
   def relaxedSourcePath(uri: String): String = sourcePath(uri).getOrElse("")
 
-  override def resolveType(ref: DeclarationRef): Declaration = {
-    assert(ref.moduleId == moduleId)
+  /**
+    * Resolves a declaration.
+    *
+    * All requests for declarations from any extraction tool must come through here.
+    *
+    * @param declarationId a declaration id
+    * @param db: a document withing which we are resolving the declaration, needed for local declaration
+    * @return a resolved declaration or throws an exception
+    */
+  def resolveDeclaration(declarationId: String)(implicit db: s.TextDocument): Declaration = {
+    val id = if (declarationId.isLocal && !declarationId.contains(LocalIdSep)) {
+      val key = (db.uri, declarationId)
 
-    declarationIndex(ref.declarationFqn)
-  }
+      localDeclarationIndex.getOrElseUpdate(key, {
+        val size = localDeclarationIndex.size + 1
+        declarationId + LocalIdSep + size
+      })
+    } else {
+      declarationId
+    }
 
-  override def resolveSymbol(symbol: String): ResolvedSymbol =
-    resolver.resolveSymbol(symbol)
+    // There can be cycles in TypeSignature (e.g. class X[A <: X[A]])
+    // because of that we first put into the declarationIndex a prototype
+    // of the final declaration which will come later.
+    // This is safe as long as the only thing that is used is the
+    // declarationId.
+    def create(): Unit = {
+      val resolvedSymbol = resolveSymbol(declarationId)
+      val symbolInfo = resolvedSymbol.symbolInfo
 
-  override def resolveSymbol(unit: String, range: s.Range): ResolvedSymbol =
-    resolver.resolveSymbol(unit, range)
+      try {
+        val prototype =
+          createDeclaration(symbolInfo).copy(
+            declarationId = id,
+            location = resolvedSymbol.location
+          )
 
-  private def resolveSymbolInfo(symbol: String): s.SymbolInformation =
-    resolver.resolveSymbol(symbol).symbolInfo
+        declarationIndex += id -> Success(prototype)
 
-  private def resolveDeclaration(resolvedSymbol: ResolvedSymbol): Declaration = {
-    val symbolInfo = resolvedSymbol.symbolInfo
-    declarationIndex.get(symbolInfo.symbol) match {
-      case Some(x) => x
+        val signature = createSignature(symbolInfo.signature)
+        val declaration = prototype.withSignature(signature)
+
+        declarationIndex += id -> Success(declaration)
+      } catch {
+        case e: Throwable =>
+          declarationIndex += id -> Failure(e)
+      }
+    }
+
+    declarationIndex.get(id) match {
+      case Some(Success(declaration)) => declaration
+      case Some(Failure(exception)) => throw exception
       case None =>
-        // this will be just a temporary one to prevent infinite
-        // loop in the case a TypeSignature contains a cycle
-        // (e.g. class X[A <: X[A]])
-        // The actual value of the key will be replaced later, but
-        // that should be safe since we only call .ref which is
-        // fixed from the symbol
-        try {
-          val prototype =
-            createDeclaration(symbolInfo).copy(location = resolvedSymbol.location)
-
-          declarationIndex += symbolInfo.symbol -> prototype
-
-          val signature = createSignature(symbolInfo.signature)
-          val declaration = prototype.withSignature(signature)
-
-          declarationIndex += symbolInfo.symbol -> declaration
-          declaration
-        } catch {
-          case e: Throwable =>
-            declarationIndex -= symbolInfo.symbol
-            throw e
-        }
+        create()
+        declarationIndex(id).get
     }
   }
 
+  override def resolveSymbol(name: String)(implicit db: s.TextDocument): ResolvedSymbol = {
+    resolver.resolveSymbol(name)
+  }
+
+  override def resolveSymbol(range: s.Range)(implicit db: s.TextDocument): ResolvedSymbol =
+    resolver.resolveSymbol(range)
+
   private def createTypeSignature(
       signature: s.TypeSignature
-  ): TypeSignature = {
+  )(implicit db: s.TextDocument): TypeSignature = {
 
     val typeParameters =
       signature.typeParameters.symbols.map(createTypeParameter)
@@ -95,19 +128,18 @@ class ExtractionContext(
     TypeSignature(typeParameters = typeParameters)
   }
 
-  private def createTypeSignature(
-      signature: s.ClassSignature
-  ): TypeSignature = {
+  private def createTypeSignature(signature: s.ClassSignature)(
+      implicit db: s.TextDocument): TypeSignature = {
     val typeParameters =
       signature.typeParameters.symbols.map(createTypeParameter)
-    val parents = signature.parents.map(x => createType(x, includeTopBottom = false)).filterNot(_.isEmpty)
+    val parents =
+      signature.parents.map(x => createType(x, includeTopBottom = false)).filterNot(_.isEmpty)
 
     TypeSignature(typeParameters = typeParameters, parents = parents)
   }
 
-  private def createMethodSignature(
-      signature: s.MethodSignature
-  ): MethodSignature = {
+  private def createMethodSignature(signature: s.MethodSignature)(
+      implicit db: s.TextDocument): MethodSignature = {
 
     val typeParameters =
       signature.typeParameters.symbols.map(createTypeParameter)
@@ -121,11 +153,13 @@ class ExtractionContext(
     )
   }
 
-  private def createValueSignature(signature: s.ValueSignature): ValueSignature = {
+  private def createValueSignature(signature: s.ValueSignature)(
+      implicit db: s.TextDocument): ValueSignature = {
     ValueSignature(createType(signature.tpe, includeTopBottom = false))
   }
 
-  private def createSignature(signature: s.Signature): Declaration.Signature =
+  private def createSignature(signature: s.Signature)(
+      implicit db: s.TextDocument): Declaration.Signature =
     signature match {
       case x: s.TypeSignature =>
         Declaration.Signature.Type(createTypeSignature(x))
@@ -173,12 +207,13 @@ class ExtractionContext(
     )
   }
 
-  private def createParameterList(scope: s.Scope): ParameterList = {
-    val parameters = scope.symbols.map(resolveSymbolInfo).map(createParameter)
+  private def createParameterList(scope: s.Scope)(implicit db: s.TextDocument): ParameterList = {
+    // TODO: this will fail for hardlinks
+    val parameters = scope.symbols.map(resolveSymbol).map(x => createParameter(x.symbolInfo))
     ParameterList(parameters)
   }
 
-  private def createParameter(symbolInfo: s.SymbolInformation): Parameter =
+  private def createParameter(symbolInfo: s.SymbolInformation)(implicit db: s.TextDocument): Parameter =
     symbolInfo.signature match {
       case s.ValueSignature(tpe) =>
         Parameter(
@@ -190,64 +225,65 @@ class ExtractionContext(
         throw new UnexpectedElementException("parameter signature", x.getClass.getSimpleName)
     }
 
-  private def createTypeParameter(symbol: String): TypeParameter =
-    createTypeParameter(resolveSymbolInfo(symbol))
+  private def createTypeParameter(symbol: String)(implicit db: s.TextDocument): TypeParameter =
+    createTypeParameter(resolveSymbol(symbol).symbolInfo)
 
-  private def createTypeParameter(
-      symbolInfo: s.SymbolInformation
-  ): TypeParameter = symbolInfo.signature match {
-    case s.TypeSignature(typeParameters, lowerBound, upperBound) =>
-      TypeParameter(
-        name = symbolInfo.displayName,
-        typeParameters = typeParameters.symbols.map(createTypeParameter),
-        lowerBound = Try(createType(lowerBound, includeTopBottom = false)).getOrElse(Type.Empty),
-        upperBound = Try(createType(upperBound, includeTopBottom = false)).getOrElse(Type.Empty)
-      )
-    case x =>
-      throw new UnexpectedElementException("type parameter signature", x.getClass.getSimpleName)
+  private def createTypeParameter(symbolInfo: s.SymbolInformation)(
+      implicit db: s.TextDocument): TypeParameter = {
+    symbolInfo.signature match {
+      case s.TypeSignature(typeParameters, lowerBound, upperBound) =>
+        TypeParameter(
+          name = symbolInfo.displayName,
+          typeParameters = typeParameters.symbols.map(createTypeParameter),
+          lowerBound = Try(createType(lowerBound, includeTopBottom = false)).getOrElse(Type.Empty),
+          upperBound = Try(createType(upperBound, includeTopBottom = false)).getOrElse(Type.Empty)
+        )
+      case x =>
+        throw new UnexpectedElementException("type parameter signature", x.getClass.getSimpleName)
+    }
   }
 
-  def createType(tpe: s.Type, includeTopBottom: Boolean): Type = tpe match {
-    case x: s.TypeRef if !includeTopBottom && x.isTopOrBottom => Type.Empty
-    // TODO: do we need to do anything prefix?
-    case s.TypeRef(_, symbol, typeArguments) =>
-      createTypeReference(symbol, typeArguments)
-    case s.AnnotatedType(annotations, t) =>
-      // TODO: annotation
-      createType(t, includeTopBottom)
-    case s.SingleType(prefix, symbol) =>
-      val parent = resolveDeclaration(symbol)
-      TypeRef(parent.declarationId)
-    case s.ByNameType(t) =>
-      createType(t, includeTopBottom)
-    case s.RepeatedType(repeatedType) =>
-      createTypeReference("scala/Array#", Seq(repeatedType))
-    case s.ExistentialType(t, _) =>
-      // TODO: is this ok?
-      createType(t, includeTopBottom)
-    case s.UniversalType(_, t) =>
-      // TODO: is this ok?
-      createType(t, includeTopBottom)
-    case s.StructuralType(t, _) =>
-      createType(t, includeTopBottom)
-    case s.WithType(types) =>
-      // TODO: is this ok?
-      createType(types.head, includeTopBottom)
-    case s.ThisType(symbol) =>
-      TypeRef(resolveDeclaration(symbol).declarationId)
-    case s.Type.Empty =>
-      Type.Empty
-    case x =>
-      throw new UnsupportedElementException("type", x.getClass.getSimpleName)
-  }
+  def createType(tpe: s.Type, includeTopBottom: Boolean)(implicit db: s.TextDocument): Type =
+    tpe match {
+      case x: s.TypeRef if !includeTopBottom && x.isTopOrBottom => Type.Empty
+      // TODO: do we need to do anything prefix?
+      case s.TypeRef(_, symbol, typeArguments) =>
+        createTypeReference(symbol, typeArguments)
+      case s.AnnotatedType(annotations, t) =>
+        // TODO: annotation
+        createType(t, includeTopBottom)
+      case s.SingleType(prefix, symbol) =>
+        val parent = resolveDeclaration(symbol)
+        TypeRef(parent.declarationId)
+      case s.ByNameType(t) =>
+        createType(t, includeTopBottom)
+      case s.RepeatedType(repeatedType) =>
+        createTypeReference("scala/Array#", Seq(repeatedType))
+      case s.ExistentialType(s.TypeRef(p, t, _), _) =>
+        // e.g. Class[T] forSome { type T }
+        // we ignore the arguments for the existentials
+        // otherwise we will have to deal with the scope and hard links, not worth the trouble
+        createType(s.TypeRef(p, t), includeTopBottom)
+      case s.UniversalType(_, t) =>
+        // TODO: is this ok?
+        createType(t, includeTopBottom)
+      case s.StructuralType(t, _) =>
+        createType(t, includeTopBottom)
+      case s.WithType(types) =>
+        // TODO: is this ok?
+        createType(types.head, includeTopBottom)
+      case s.ThisType(symbol) =>
+        TypeRef(resolveDeclaration(symbol).declarationId)
+      case s.Type.Empty =>
+        Type.Empty
+      case x =>
+        throw new UnsupportedElementException("type", x.getClass.getSimpleName)
+    }
 
-  def createTypeArguments(typeArguments: Seq[s.Type], includeTopBottom: Boolean): List[Type] = {
+  def createTypeArguments(typeArguments: Seq[s.Type], includeTopBottom: Boolean)(
+      implicit db: s.TextDocument): List[Type] = {
     // TODO: this one will silently ignore some type resolution errors
     typeArguments
-      .filter {
-        case s.TypeRef(_, symbol, _) if symbol.isLocal => false
-        case _ => true
-      }
       .map(x => Try(createType(x, includeTopBottom)))
       .collect {
         case scala.util.Success(x) => x
@@ -255,14 +291,21 @@ class ExtractionContext(
       .toList
   }
 
-  private def createTypeReference(symbol: String, typeArguments: Seq[s.Type]): Type = {
-    resolveSymbolInfo(symbol) match {
-      case x if x.symbol.isLocal =>
-        throw new UnsupportedElementException("TypeRef type", "local")
-      case x if x.isTypeParameter =>
+  private def createTypeReference(symbol: String, typeArguments: Seq[s.Type])(
+      implicit db: s.TextDocument): Type = {
+
+    resolveSymbol(symbol).symbolInfo match {
+      case x if x.isTypeParameter && !x.symbol.isLocal =>
         val parent = resolveDeclaration(symbol.owner)
         TypeParameterRef(
           parent.declarationId,
+          x.displayName,
+          typeArguments.map(x => createType(x, includeTopBottom = false))
+        )
+      case x if x.isTypeParameter =>
+        val parent = resolveDeclaration(symbol)
+        TypeParameterRef(
+          symbol,
           x.displayName,
           typeArguments.map(x => createType(x, includeTopBottom = false))
         )

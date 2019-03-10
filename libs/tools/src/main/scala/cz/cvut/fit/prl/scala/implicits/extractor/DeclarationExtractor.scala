@@ -3,13 +3,13 @@ package cz.cvut.fit.prl.scala.implicits.extractor
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 
-import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
+import scala.meta.internal.semanticdb.Scala._
 import scala.util.{Failure, Success, Try}
 
 class DeclarationExtractor(ctx: ExtractionContext) {
 
-  implicit private val _ctx = ctx
+  implicit private val _ctx: ExtractionContext = ctx
 
   def extractImplicitDeclarations(db: s.TextDocument): Seq[Try[m.Declaration]] = {
     def position(symbolInfo: s.SymbolInformation): Option[s.Range] =
@@ -18,8 +18,8 @@ class DeclarationExtractor(ctx: ExtractionContext) {
         .flatMap(_.range)
 
     db.symbols
-      .filter(x => x.isImplicit && !x.symbol.isLocal)
-      .map(x => x -> Try(convert(x)))
+      .filter(x => x.isImplicit)
+      .map(x => x -> Try(extract(x)(db)))
       .collect {
         case (_, Success(Some(x))) => Success(x)
         case (symbolInfo, Failure(x)) =>
@@ -27,11 +27,9 @@ class DeclarationExtractor(ctx: ExtractionContext) {
       }
   }
 
-  private def convert(symbolInfo: s.SymbolInformation): Option[m.Declaration] =
+  private def extract(symbolInfo: s.SymbolInformation)(implicit db: s.TextDocument): Option[m.Declaration] =
     symbolInfo match {
-      case x if x.isClass || x.isMethod || x.isObject || x.isField || x.isMacro =>
-        Some(ctx.resolveDeclaration(symbolInfo.symbol))
-      case x if x.isParameter =>
+      case x if x.isParameter && !x.symbol.isLocal =>
         val parent = x.parent
 
         if (parent.isMethod && !parent.isImplicit) {
@@ -39,8 +37,9 @@ class DeclarationExtractor(ctx: ExtractionContext) {
         } else {
           None
         }
+      case x if x.isClass || x.isMethod || x.isObject || x.isField || x.isMacro || x.isParameter || x.isLocal =>
+        Some(ctx.resolveDeclaration(symbolInfo.symbol))
       case x =>
         throw new SkippedSymbolException(x.kind.toString())
     }
-
 }

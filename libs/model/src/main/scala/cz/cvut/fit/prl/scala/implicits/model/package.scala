@@ -128,7 +128,7 @@ package object model {
   }
 
   implicit class XtensionCallSite(that: CallSite) extends ModuleOps with LocationOps {
-    def isImplicit(implicit resolver: TypeResolver): Boolean = {
+    def isImplicit(implicit resolver: DeclarationResolver): Boolean = {
       val declaration = that.declaration
       declaration.signature.isMethod && (
         declaration.isImplicit || declaration.hasImplicitParameters
@@ -137,7 +137,7 @@ package object model {
 
     def declarationRef: DeclarationRef = DeclarationRef(that.moduleId, that.declarationId)
 
-    def declaration(implicit resolver: TypeResolver): Declaration =
+    def declaration(implicit resolver: DeclarationResolver): Declaration =
       that.declarationRef.declaration
 
     override protected def moduleId: String = that.moduleId
@@ -149,7 +149,7 @@ package object model {
     import Declaration.Kind._
 
     object declaration {
-      def unapply(tpe: Type)(implicit resolver: TypeResolver): Option[Declaration] = tpe match {
+      def unapply(tpe: Type)(implicit resolver: DeclarationResolver): Option[Declaration] = tpe match {
         case TypeRef(declarationId, _) =>
           Some(DeclarationRef(that.moduleId, declarationId).declaration)
         case _ => None
@@ -183,10 +183,10 @@ package object model {
       * @param resolver to be used to resolve declarations
       * @return
       */
-    def isImplicitClassCompanionDef(implicit resolver: TypeResolver): Boolean =
+    def isImplicitClassCompanionDef(implicit resolver: DeclarationResolver): Boolean =
       that.implicitClassCompanion.isDefined
 
-    def implicitClassCompanion(implicit resolver: TypeResolver): Option[Declaration] =
+    def implicitClassCompanion(implicit resolver: DeclarationResolver): Option[Declaration] =
       if (that.isMethod) {
         that.signature.value match {
           // a method that has one parameter and returns an implicit class
@@ -219,7 +219,7 @@ package object model {
     def hasImplicitParameters: Boolean =
       that.implicitParameterList.isDefined
 
-    def returnType(implicit resolver: TypeResolver): Option[Declaration] =
+    def returnType(implicit resolver: DeclarationResolver): Option[Declaration] =
       that.signature.value match {
         case MethodSignature(_, _, declaration(rt)) => Some(rt)
         case _ => None
@@ -235,7 +235,7 @@ package object model {
           throw new Exception(s"Trying to get declaringType on ${that.signature}")
       }
 
-    def declaringType(implicit ctx: TypeResolver): Declaration =
+    def declaringType(implicit ctx: DeclarationResolver): Declaration =
       declaringTypeRef.declaration
 
     def parents: Seq[Type] =
@@ -247,14 +247,14 @@ package object model {
 
     def allParameters: Iterable[Parameter] = parameterLists.flatMap(_.parameters)
 
-    def parameterDeclaration(name: String)(implicit ctx: TypeResolver): Declaration = {
+    def parameterDeclaration(name: String)(implicit ctx: DeclarationResolver): Declaration = {
       allParameters.find(_.name == name) match {
         case Some(param) => parameterDeclaration(param)
         case _ => throw new IllegalArgumentException(s"Parameter $name does not exist in $this")
       }
     }
 
-    def parameterDeclaration(param: Parameter)(implicit ctx: TypeResolver): Declaration = {
+    def parameterDeclaration(param: Parameter)(implicit ctx: DeclarationResolver): Declaration = {
       val ref = DeclarationRef(moduleId, param.tpe.declarationId)
       ref.declaration
     }

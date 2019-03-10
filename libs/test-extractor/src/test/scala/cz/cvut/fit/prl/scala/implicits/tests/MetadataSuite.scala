@@ -18,8 +18,7 @@ class MetadataSuite extends FunSuite with Matchers {
   }
 
   test("Load example project") {
-    val (metadata, warnings) = ProjectMetadata(ExampleProjectPath)
-    metadata.modules.head.resolver.resolveSymbol("module1/Example.")
+    val (_, warnings) = ProjectMetadata(ExampleProjectPath)
     warnings should have size 0
   }
 
