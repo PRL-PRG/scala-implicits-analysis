@@ -31,7 +31,7 @@ class ExtractionContext(
 
   private val declarationIndex: mutable.Map[String, Try[Declaration]] = mutable.Map()
   private var callSiteId: Int = 0
-  private var localDeclarationIndex: mutable.Map[(String, String), String] = mutable.Map()
+  private val localDeclarationIndex: mutable.Map[(String, String), String] = mutable.Map()
 
   private val sourcePathIndex: mutable.Map[String, Option[String]] = mutable.Map()
 
@@ -93,7 +93,10 @@ class ExtractionContext(
         declarationIndex += id -> Success(prototype)
 
         val signature = createSignature(symbolInfo.signature)
-        val declaration = prototype.withSignature(signature)
+        val annotations =
+          symbolInfo.annotations.map(x => createType(x.tpe, includeTopBottom = false))
+
+        val declaration = prototype.withSignature(signature).withAnnotations(annotations)
 
         declarationIndex += id -> Success(declaration)
       } catch {
@@ -213,7 +216,8 @@ class ExtractionContext(
     ParameterList(parameters)
   }
 
-  private def createParameter(symbolInfo: s.SymbolInformation)(implicit db: s.TextDocument): Parameter =
+  private def createParameter(symbolInfo: s.SymbolInformation)(
+      implicit db: s.TextDocument): Parameter =
     symbolInfo.signature match {
       case s.ValueSignature(tpe) =>
         Parameter(
@@ -303,6 +307,7 @@ class ExtractionContext(
           typeArguments.map(x => createType(x, includeTopBottom = false))
         )
       case x if x.isTypeParameter =>
+        // TODO: check this!!!
         val parent = resolveDeclaration(symbol)
         TypeParameterRef(
           symbol,
@@ -310,8 +315,10 @@ class ExtractionContext(
           typeArguments.map(x => createType(x, includeTopBottom = false))
         )
       case x if x.isType || x.isClass || x.isTrait || x.isInterface || x.isObject =>
-        val parent = resolveDeclaration(symbol)
-        TypeRef(parent.declarationId, createTypeArguments(typeArguments, includeTopBottom = false))
+        val declaration = resolveDeclaration(symbol)
+        TypeRef(
+          declaration.declarationId,
+          createTypeArguments(typeArguments, includeTopBottom = false))
       case x =>
         throw new ElementNotSupportedException("TypeRef type", x)
     }

@@ -121,11 +121,12 @@ message Declaration {
     required Location location = 5;
     required Language language = 6;
     required bool isImplicit = 7;
+    repeated Type annotations = 8;
 
     oneof signature {
-        TypeSignature type = 8;
-        MethodSignature method = 9;
-        ValueSignature value = 10;
+        TypeSignature type = 9;
+        MethodSignature method = 10;
+        ValueSignature value = 11;
     }
 }
 

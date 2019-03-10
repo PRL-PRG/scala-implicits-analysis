@@ -108,6 +108,7 @@ trait ModelDSL {
         TestLocalLocation,
         SCALA,
         isImplicit = false,
+        annotations = Seq.empty,
         kind match {
           case DEF =>
             Signature.Method(MethodSignature(returnType = typeRef("scala/Unit#")))

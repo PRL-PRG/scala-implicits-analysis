@@ -131,6 +131,10 @@ case class DeclarationsResult(
       .get
       .simplify(ctx)
   }
+
+  def declaration(declarationId: String): m.Declaration = {
+    ctx.resolveDeclaration(declarationId)(db)
+  }
 }
 
 object DeclarationsResult extends ModelSimplification {

@@ -11,6 +11,25 @@ class DeclarationExtractorSuite
     with ModelDSL {
 
   declarations(
+    "implicitNotFound annotation",
+    """
+      | package p
+      | object o {
+      |   @scala.annotation.implicitNotFound("Message")
+      |   trait TC[T]
+      |
+      |   implicit def f[T](x: T)(implicit ev: TC[T]) = x
+      | }
+    """.stripMargin) { res =>
+    res.declarations should have size 1
+
+    val tcId = res.declarationAt(6).implicitParameterList.get.parameters.head.tpe.declarationId
+    val tc = res.declaration(tcId)
+
+    tc.annotations should contain only TypeRef("scala/annotation/implicitNotFound#")
+  }
+
+  declarations(
     "local implicit",
     """
       | package p
@@ -116,20 +135,14 @@ class DeclarationExtractorSuite
       |   implicit def x: java.util.List[String] = ???
       | }
     """.stripMargin) { implicit res =>
-    val expected = Declaration(
-      "p/o.x().",
-      TestModuleId,
-      DEF,
-      "x",
-      TestLocalLocation,
-      SCALA,
-      true,
-      MethodSignature(
-        returnType = TypeRef("java/util/List#", List(TypeRef("scala/Predef.String#", List())))
-      )
+    val expected = methodDeclaration(
+      declarationId = "p/o.x().",
+      name("x"),
+      isImplicit,
+      returnType("java/util/List#", typeRef("scala/Predef.String#"))
     )
 
-    checkElements(res.declarations, Seq(expected))
+    checkElements(res.declarations, List(expected))
   }
 
   declarations(
@@ -142,20 +155,14 @@ class DeclarationExtractorSuite
       |   }
       | }
     """.stripMargin) { implicit res =>
-    val expected = Declaration(
-      "p/o.C#x().",
-      TestModuleId,
-      DEF,
-      "x",
-      TestLocalLocation,
-      SCALA,
-      true,
-      MethodSignature(
-        returnType = TypeRef("p/o.C#")
-      )
+    val expected = methodDeclaration(
+      declarationId = "p/o.C#x().",
+      name("x"),
+      isImplicit,
+      returnType("p/o.C#")
     )
 
-    checkElements(res.declarations, Seq(expected))
+    checkElements(res.declarations, List(expected))
   }
 
   declarations(
@@ -174,6 +181,7 @@ class DeclarationExtractorSuite
       TestLocalLocation,
       SCALA,
       true,
+      Seq.empty,
       MethodSignature(
         returnType = TypeRef("scala/Int#")
       )
@@ -199,6 +207,7 @@ class DeclarationExtractorSuite
       TestLocalLocation,
       SCALA,
       true,
+      Seq.empty,
       TypeSignature(
         parents = Vector(
           TypeRef("p/o.T#")
@@ -269,6 +278,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         true,
+        Seq.empty,
         TypeSignature(List(TypeParameter("T")))
       ),
       Declaration(
@@ -279,6 +289,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         true,
+        Seq.empty,
         MethodSignature(
           returnType = TypeRef(
             "p/o.Jsonable#",
@@ -299,6 +310,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         true,
+        Seq.empty,
         MethodSignature(
           List(TypeParameter("T")),
           List(
@@ -372,6 +384,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         true,
+        Seq.empty,
         MethodSignature(
           returnType = TypeRef(
             "p/o.Jsonable#",
@@ -392,6 +405,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         true,
+        Seq.empty,
         TypeSignature(List(TypeParameter("T")))
       ),
       Declaration(
@@ -402,6 +416,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         true,
+        Seq.empty,
         MethodSignature(
           List(TypeParameter("T")),
           List(
