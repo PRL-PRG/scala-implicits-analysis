@@ -18,12 +18,12 @@ $(JAR):
 
 $(PLUGIN_013): $(JAR)
 	-mkdir -p ~/.sbt/0.13/plugins
-	echo -e 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")\n' > $(PLUGIN_013)
+	echo 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")\n' > $(PLUGIN_013)
 	echo 'addSbtPlugin("org.jetbrains" % "sbt-structure-extractor" % "2018.2.1")' >> $(PLUGIN_013)
 
 $(PLUGIN_10): $(JAR)
 	-mkdir -p ~/.sbt/1.0/plugins
-	echo -e 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")\n' > $(PLUGIN_10)
+	echo 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")\n' > $(PLUGIN_10)
 	echo 'addSbtPlugin("org.jetbrains" % "sbt-structure-extractor" % "2018.2.1")' >> $(PLUGIN_10)
 
 install: $(PLUGIN_013) $(PLUGIN_10)
