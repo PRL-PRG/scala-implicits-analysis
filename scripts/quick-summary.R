@@ -16,3 +16,11 @@ stats %>%
   summarise_at(vars(-project_id), sum) %>% 
   gather() %>% 
   kable()
+
+cat("\nDuration:\n")
+tribble(
+  ~key, ~value, 
+  "Mean", mean(status$duration),
+  "Median", median(status$duration),
+  "Sum", sum(status$duration)
+) %>% kable()
