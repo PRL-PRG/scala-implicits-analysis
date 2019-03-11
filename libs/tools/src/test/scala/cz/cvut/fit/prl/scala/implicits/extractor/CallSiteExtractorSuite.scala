@@ -1533,4 +1533,39 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     checkElementsSorted(res.callSites, expected)
     res.callSitesCount shouldBe 4
   }
+
+  callSites(
+    "update",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   implicit def a: A = new A
+      |
+      |   class B {
+      |     def update(x: Int, y: String)(implicit a: A) = 1
+      |   }
+      |
+      |   val b = new B
+      |   b(1) = "A"
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.a().",
+        code = "a",
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.B#update().",
+        code = "update",
+        implicitArgumentCall(1)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+    res.callSitesCount shouldBe 3
+  }
 }
