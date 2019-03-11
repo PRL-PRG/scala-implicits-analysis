@@ -1426,4 +1426,45 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
 
     res.callSitesCount shouldBe 4
   }
+
+  callSites("string interpolation",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   class B
+      |   implicit def b: B = new B
+      |
+      |   implicit class AHelper(val sc: StringContext) extends AnyVal {
+      |     def a(args: Any*)(implicit b: B): A = new A
+      |   }
+      |
+      |   def consume(a: A) = 1
+      |
+      |   consume(a"some")
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.b().",
+        code = "b",
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.AHelper#a().",
+        code = "a",
+        implicitArgumentCall(1)
+      ),
+      callSite(
+        callSiteId = 3,
+        declarationId = "p/o.AHelper().",
+        code = "AHelper(a\"some\")"
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+    res.callSitesCount shouldBe 4
+  }
 }

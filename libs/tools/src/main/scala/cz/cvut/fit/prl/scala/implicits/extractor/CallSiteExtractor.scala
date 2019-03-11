@@ -357,6 +357,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case Term.NewAnonymous(Template(_, Init(_, name, _) :: _, _, _)) => Some(name)
     case Term.ApplyUnary(op, _) => Some(op)
     case Term.ApplyInfix(_, op, _, _) => Some(op)
+    case Term.Interpolate(prefix, _,  _) => Some(prefix)
     case x => x.parent.flatMap(findFunctionTerm)
   }
 
