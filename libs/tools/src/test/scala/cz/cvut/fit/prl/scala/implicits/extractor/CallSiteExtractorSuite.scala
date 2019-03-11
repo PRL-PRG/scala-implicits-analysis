@@ -116,7 +116,34 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     res.callSitesCount shouldBe 6
   }
 
-// IGNORED till #33 is resolved
+  callSites(
+    "count assign",
+    """
+      | package p
+      | object o {
+      |   class A(var p: Int) {
+      |
+      |   }
+      |
+      |   class B {
+      |     private var _p: Int = 0
+      |     def p = _p
+      |     def p_=(x: Int) {
+      |       this._p = x // 1
+      |     }
+      |   }
+      |
+      |   val a = new A(1) // 2
+      |   a.p = a.p + 1 // 3 4 5
+      |
+      |   val b = new B // 6
+      |   b.p = b.p + 1 // 7 8 9
+      | }
+    """.stripMargin) { res =>
+    res.callSitesCount shouldBe 9
+  }
+
+  // IGNORED till #33 is resolved
 //  callSites("constructor with implicits with comment",
 //    """
 //      | package p
@@ -1461,6 +1488,45 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
         callSiteId = 3,
         declarationId = "p/o.AHelper().",
         code = "AHelper(a\"some\")"
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+    res.callSitesCount shouldBe 4
+  }
+
+  callSites(
+    "assign call",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   implicit def a: A = new A
+      |
+      |   class B {
+      |     private var _p: Int = 0
+      |     def p = _p
+      |     def p_=(x: Int)(implicit a: A) {
+      |       this._p = x
+      |     }
+      |   }
+      |
+      |   val b = new B
+      |   b.p = 1
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.a().",
+        code = "a",
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.B#`p_=`().",
+        code = "p_=",
+        implicitArgumentCall(1)
       )
     )
 
