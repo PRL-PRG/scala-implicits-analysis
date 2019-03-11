@@ -30,7 +30,8 @@ case class LoadingMetadataException(message: String) extends Exception(message)
 case class ImplicitArgumentNotFoundException(code: String, declarationId: String)
     extends Exception(s"$code -- $declarationId")
 
-case class UnExtractableCallSiteException(synthetic: s.Synthetic, uri: String)
+case class UnExtractableCallSiteException(synthetic: s.Synthetic, uri: String, cause: Throwable = null)
     extends Exception(
-      s"Unable to extract ${synthetic.tree} into a call site $uri:${synthetic.range.getOrElse("???")}"
+      s"Unable to extract ${synthetic.tree} into a call site $uri:${synthetic.range.getOrElse("???")}",
+      cause
     )

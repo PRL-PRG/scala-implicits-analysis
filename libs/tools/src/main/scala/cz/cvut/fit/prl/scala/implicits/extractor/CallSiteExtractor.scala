@@ -94,8 +94,8 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
           val callSitesFromArguments = argumentsTree.map(x => convertInternal(x, inCall = false))
 
-          convertInternal(fn, inCall = true)
-            .map { callSite =>
+          Try(convertInternal(fn, inCall = true)) match {
+            case Success(Some(callSite)) =>
               argumentsTree match {
                 case Seq(s.OriginalTree(Some(range))) =>
                   // implicit conversion
@@ -118,11 +118,12 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                   }
               }
 
-              callSite
-            }
-            .orElse {
+              Some(callSite)
+            case Success(None) =>
               throw UnExtractableCallSiteException(synthetic, db.uri)
-            }
+            case Failure(cause) =>
+              throw UnExtractableCallSiteException(synthetic, db.uri, cause)
+          }
         }
 
         case s.SelectTree(qualifier, Some(s.IdTree(symbol))) => {
@@ -163,43 +164,53 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.FunctionTree(_, body) => convertInternal(body, inCall)
 
         case s.OriginalTree(Some(range)) if inCall => {
-          // TODO: refactor - what we need to is first resolve the inferred method calls and type parameters
-          val csOpt = for {
-            term <- findTerm(range, ast)
-            fnTerm <- findFunctionTerm(term)
-          } yield {
-            // check if there is some inferred method call e.g.
-            // Future(1) ==> Future.apply(1)
-            // we want ot get a reference the actual method (apply), not object (Future)
-            db.synthetics
-              .find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange))
-              .flatMap(x => convertInternal(x.tree, inCall = true))
-              .getOrElse {
-
-                val nestedTermsToTry = fnTerm :: fnTerm.collect {
-                  case Term.Select(_, name) => name
-                }
-
-                val occurrences =
-                  for {
-                    x <- nestedTermsToTry
-                    y <- db.occurrences.find(_.range.exists(_ == x.pos.toRange))
-                  } yield y
-
-                val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
-                  val e = FunctionNotFoundException(term.syntax, range, db.uri)
-                  e
-                }
-
-                val declaration = ctx.resolveDeclaration(symbol)
-                val location = Location(path, relativeUri, Some(range.toPos))
-                val code = declaration.name
-
-                createCallSite(declaration, code, location)
-              }
+          val term = findTerm(range, ast).getOrThrow {
+            val text = scala.meta.inputs.Position
+              .Range(
+                ast.pos.input,
+                range.startLine,
+                range.startCharacter,
+                range.endLine,
+                range.endCharacter)
+              .text
+            SymbolNotFoundException(s"No term at ${db.uri}:$range ($text)")
           }
 
-          csOpt
+          val fnTerm = findFunctionTerm(term).getOrThrow {
+            SymbolNotFoundException(s"No function term found for `$term` -- ${term.structure}")
+          }
+
+          // check if there is some inferred method call e.g.
+          // Future(1) ==> Future.apply(1)
+          // we want ot get a reference the actual method (apply), not object (Future)
+          val cs = db.synthetics
+            .find(term != fnTerm && _.range.exists(_ == fnTerm.pos.toRange))
+            .flatMap(x => convertInternal(x.tree, inCall = true))
+            .getOrElse {
+
+              val nestedTermsToTry = fnTerm :: fnTerm.collect {
+                case Term.Select(_, name) => name
+              }
+
+              val occurrences =
+                for {
+                  x <- nestedTermsToTry
+                  y <- db.occurrences.find(_.range.exists(_ == x.pos.toRange))
+                } yield y
+
+              val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
+                val e = FunctionNotFoundException(term.syntax, range, db.uri)
+                e
+              }
+
+              val declaration = ctx.resolveDeclaration(symbol)
+              val location = Location(path, relativeUri, Some(range.toPos))
+              val code = declaration.name
+
+              createCallSite(declaration, code, location)
+            }
+
+          Some(cs)
         }
 
         case s.IdTree(symbol) => {
@@ -398,5 +409,4 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
     find(ast, None)
   }
-
 }
