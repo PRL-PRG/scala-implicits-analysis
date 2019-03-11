@@ -310,9 +310,10 @@ class CallSiteExtractor(ctx: ExtractionContext) {
               process(0)(x)
           }.sum
 
-        // covers Term.NewAnonymous and Term.New
-        case Init(_, _, argss) =>
+        case Term.New(Init(_, _, argss)) =>
           n + 1 + argss.flatMap(x => x.map(process(0))).sum
+        case Term.NewAnonymous(templ) =>
+          n + 1 + process(0)(templ)
 
         case Pkg(_, stats) =>
           n + stats.map(process(0)).sum
