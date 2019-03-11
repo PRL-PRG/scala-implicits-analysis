@@ -360,6 +360,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case Term.ApplyInfix(_, op, _, _) => Some(op)
     case Term.Assign(lhs, _) => findFunctionTerm(lhs)
     case Term.Interpolate(prefix, _,  _) => Some(prefix)
+    case Term.This(_) => Some(t)
     case x => x.parent.flatMap(findFunctionTerm)
   }
 

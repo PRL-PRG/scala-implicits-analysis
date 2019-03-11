@@ -1568,4 +1568,39 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     checkElementsSorted(res.callSites, expected)
     res.callSitesCount shouldBe 3
   }
+
+  callSites(
+    "this call with implicits",
+    """
+      | package p
+      | object o {
+      |   class A
+      |
+      |   class B {
+      |     implicit def a: A = new A
+      |
+      |     def apply(x: Int)(implicit a: A) =  1
+      |
+      |     def f = this(1)
+      |   }
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.B#a().",
+        code = "a",
+        parentCallSite(2)
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.B#apply().",
+        code = ".apply",
+        implicitArgumentCall(1)
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+    res.callSitesCount shouldBe 2
+  }
 }
