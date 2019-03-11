@@ -279,6 +279,13 @@ class CallSiteExtractor(ctx: ExtractionContext) {
   }
 
   def callSiteCount(ast: Source)(implicit db: s.TextDocument): Int = {
+    implicit class XtensionTree(that: Tree) {
+      def countAsMethod: Int = Try(ctx.resolveSymbol(that.pos.toRange))
+        .filter(_.symbolInfo.isMethod)
+        .map(_ => 1)
+        .getOrElse(0)
+    }
+
     def process(n: Int)(tree: Tree): Int =
       tree match {
         case Term.Apply(Term.Select(qual, _), args) =>
@@ -314,10 +321,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             // }
             // where f is a function
             case x: Term.Name =>
-              Try(ctx.resolveSymbol(x.pos.toRange))
-                .filter(_.symbolInfo.isMethod)
-                .map(_ => 1)
-                .getOrElse(0)
+              x.countAsMethod
             case x =>
               process(0)(x)
           }.sum
