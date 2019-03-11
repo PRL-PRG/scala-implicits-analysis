@@ -1603,4 +1603,74 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     checkElementsSorted(res.callSites, expected)
     res.callSitesCount shouldBe 2
   }
+
+//  // IGNORED till #42 is resolved
+//  callSites(
+//    "implicit constructor parameters in extends in nested class",
+//    """
+//      | package p
+//      | object o {
+//      |   class A
+//      |   implicit val a = new A
+//      |
+//      |   object n {
+//      |     class B(x: Int)(implicit a: A)
+//      |   }
+//      |
+//      |   class C(y: String)(implicit a: A) extends n.B(1)
+//      |
+//      |   new C("A")
+//      | }
+//    """.stripMargin) { res =>
+//    val expected = List(
+//      callSite(
+//        callSiteId = 1,
+//        declarationId = "p/o.n.B#`<init>`().",
+//        code = "<init>",
+//        implicitArgumentVal("p/o.C#`<init>`().(a)")
+//      ),
+//      callSite(
+//        callSiteId = 2,
+//        declarationId = "p/o.C#`<init>`().",
+//        code = "<init>",
+//        implicitArgumentVal("p/o.a.")
+//      )
+//    )
+//
+//    checkElementsSorted(res.callSites, expected)
+//    res.callSitesCount shouldBe 2
+//  }
+
+  callSites(
+    "implicit constructor parameters in extends",
+    """
+      | package p
+      | object o {
+      |   class A
+      |   implicit val a = new A
+      |
+      |   class B(x: Int)(implicit a: A)
+      |   class C(y: String)(implicit a: A) extends B(1)
+      |
+      |   new C("A")
+      | }
+    """.stripMargin) { res =>
+    val expected = List(
+      callSite(
+        callSiteId = 1,
+        declarationId = "p/o.B#`<init>`().",
+        code = "<init>",
+        implicitArgumentVal("p/o.C#`<init>`().(a)")
+      ),
+      callSite(
+        callSiteId = 2,
+        declarationId = "p/o.C#`<init>`().",
+        code = "<init>",
+        implicitArgumentVal("p/o.a.")
+      )
+    )
+
+    checkElementsSorted(res.callSites, expected)
+    res.callSitesCount shouldBe 2
+  }
 }

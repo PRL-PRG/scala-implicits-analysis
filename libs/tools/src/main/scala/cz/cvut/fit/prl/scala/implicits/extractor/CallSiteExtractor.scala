@@ -367,7 +367,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
       None
   }
 
-  private def findTerm(range: s.Range, ast: Source): Option[Term] = {
+  private def findTerm(range: s.Range, ast: Source): Option[Tree] = {
     val target = MetaPos.Range(
       ast.pos.input,
       range.startLine,
@@ -379,9 +379,10 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     def containsTarget(x: Tree) =
       x.pos.start <= target.start && x.pos.end >= target.end
 
-    def find(tree: Tree, lastTerm: Option[Term]): Option[Term] = {
+    def find(tree: Tree, lastTerm: Option[Tree]): Option[Tree] = {
       val lt = tree match {
         case x: Term => Some(x)
+        case Defn.Class(_,_,_,_,Template(_, init :: _, _, _)) => Some(init)
         case _ => lastTerm
       }
 
