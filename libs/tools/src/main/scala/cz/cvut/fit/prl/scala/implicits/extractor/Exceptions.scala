@@ -27,8 +27,8 @@ case class FunctionNotFoundException(term: String, range: s.Range, uri: String)
 
 case class LoadingMetadataException(message: String) extends Exception(message)
 
-case class ImplicitArgumentNotFoundException(code: String, declarationId: String)
-    extends Exception(s"$code -- $declarationId")
+case class ImplicitArgumentNotFoundException(code: String, declarationId: String, pos: String)
+    extends Exception(s"$code -- $declarationId ($pos)")
 
 case class UnExtractableCallSiteException(synthetic: s.Synthetic, uri: String, cause: Throwable = null)
     extends Exception(

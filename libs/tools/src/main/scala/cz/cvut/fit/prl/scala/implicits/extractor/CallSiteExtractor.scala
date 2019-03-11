@@ -245,7 +245,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             case (false, None) =>
               Seq.empty
             case (true, None) =>
-              throw ImplicitArgumentNotFoundException(cs.code, cs.declarationId)
+              throw ImplicitArgumentNotFoundException(cs.code, cs.declarationId, cs.location.toString)
           }
 
         cs.copy(implicitArgumentTypes = implicitArgumentsTypes)
