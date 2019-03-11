@@ -43,7 +43,9 @@ object ExtractImplicits extends App {
       Stats(
         project.modules.map(_.declarations.size).sum,
         project.modules.map(_.callSitesCount).sum,
-        project.modules.map(_.declarations.values.count(x => x.isImplicit || x.hasImplicitParameters)).sum,
+        project.modules
+          .map(_.declarations.values.count(x => x.isImplicit || x.hasImplicitParameters))
+          .sum,
         project.modules.map(_.implicitCallSites.size).sum,
         exceptions.size)
   }
@@ -115,7 +117,15 @@ object ExtractImplicits extends App {
     private val exceptionOutput =
       exceptionFile.newOutputStream
         .asCsvWriter[ExtractionException](
-          rfc.withHeader("project_id", "module_id", "cause", "message", "trace"))
+          rfc.withHeader(
+            "project_id",
+            "module_id",
+            "exception",
+            "message",
+            "trace",
+            "cause",
+            "cause_message",
+            "cause_trace"))
 
     private val statsOutput =
       statsFile.newOutputStream
@@ -200,12 +210,10 @@ object ExtractImplicits extends App {
         .split()
 
     val csCount =
-      metadata.semanticdbs
-        .map { implicit db =>
-          val ast = metadata.ast(db.uri)
-          csExtractor.callSiteCount(ast)
-        }
-        .sum
+      metadata.semanticdbs.map { implicit db =>
+        val ast = metadata.ast(db.uri)
+        csExtractor.callSiteCount(ast)
+      }.sum
 
     val classpath =
       metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
