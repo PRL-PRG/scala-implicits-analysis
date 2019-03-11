@@ -67,6 +67,7 @@ class SemanticdbSymbolResolver(
   override def resolveSymbol(name: String)(implicit db: s.TextDocument): ResolvedSymbol = {
     val symbol = if (name.isLocal) {
       resolveLocalSymbol(name)
+      // TODO: if not found try hardlinks in all scopes (cf. #38)
     } else {
       resolveGlobalSymbol(name).map(fixSymbol)
     }
