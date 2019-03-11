@@ -354,14 +354,17 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case Term.Name(_) => Some(t)
     case Term.ApplyType(fun, _) => findFunctionTerm(fun)
     case Term.Apply(fun, _) => findFunctionTerm(fun)
-    case Term.New(Init(_, name, _)) => Some(name)
-    case Term.NewAnonymous(Template(_, Init(_, name, _) :: _, _, _)) => Some(name)
+    case Term.New(init) => findFunctionTerm(init)
+    case Term.NewAnonymous(Template(_, init :: _, _, _)) => findFunctionTerm(init)
     case Term.ApplyUnary(op, _) => Some(op)
     case Term.ApplyInfix(_, op, _, _) => Some(op)
     case Term.Assign(lhs, _) => findFunctionTerm(lhs)
     case Term.Interpolate(prefix, _,  _) => Some(prefix)
     case Term.This(_) => Some(t)
-    case x => x.parent.flatMap(findFunctionTerm)
+    case Init(_, name, _) => Some(name)
+    case x: Lit if x.parent.isDefined => findFunctionTerm(x.parent.get)
+    case _ =>
+      None
   }
 
   private def findTerm(range: s.Range, ast: Source): Option[Term] = {
