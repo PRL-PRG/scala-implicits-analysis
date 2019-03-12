@@ -202,7 +202,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
                 } yield y
 
               val symbol = occurrences.headOption.map(_.symbol).getOrThrow {
-                val e = FunctionNotFoundException(term.syntax, range, db.uri)
+                val e = FunctionNotFoundException(term.structure, range, db.uri)
                 e
               }
 
@@ -248,7 +248,10 @@ class CallSiteExtractor(ctx: ExtractionContext) {
             case (false, None) =>
               Seq.empty
             case (true, None) =>
-              throw ImplicitArgumentNotFoundException(cs.code, cs.declarationId, cs.location.toString)
+              throw ImplicitArgumentNotFoundException(
+                cs.code,
+                cs.declarationId,
+                cs.location.toString)
           }
 
         cs.copy(implicitArgumentTypes = implicitArgumentsTypes)
@@ -283,10 +286,11 @@ class CallSiteExtractor(ctx: ExtractionContext) {
 
   def callSiteCount(ast: Source)(implicit db: s.TextDocument): Int = {
     implicit class XtensionTree(that: Tree) {
-      def countAsMethod: Int = Try(ctx.resolveSymbol(that.pos.toRange))
-        .filter(_.symbolInfo.isMethod)
-        .map(_ => 1)
-        .getOrElse(0)
+      def countAsMethod: Int =
+        Try(ctx.resolveSymbol(that.pos.toRange))
+          .filter(_.symbolInfo.isMethod)
+          .map(_ => 1)
+          .getOrElse(0)
     }
 
     def process(n: Int)(tree: Tree): Int =
@@ -377,7 +381,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     case Term.ApplyUnary(op, _) => Some(op)
     case Term.ApplyInfix(_, op, _, _) => Some(op)
     case Term.Assign(lhs, _) => findFunctionTerm(lhs)
-    case Term.Interpolate(prefix, _,  _) => Some(prefix)
+    case Term.Interpolate(prefix, _, _) => Some(prefix)
     case Term.This(_) => Some(t)
     case Init(_, name, _) => Some(name)
     case x: Lit if x.parent.isDefined => findFunctionTerm(x.parent.get)
@@ -400,7 +404,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
     def find(tree: Tree, lastTerm: Option[Tree]): Option[Tree] = {
       val lt = tree match {
         case x: Term => Some(x)
-        case Defn.Class(_,_,_,_,Template(_, init :: _, _, _)) => Some(init)
+        case Defn.Class(_, _, _, _, Template(_, init :: _, _, _)) => Some(init)
         case _ => lastTerm
       }
 
