@@ -201,6 +201,11 @@ package object model {
     // TODO: also any MethodSignature that extends FunctionX
     def isFunctionLike: Boolean = that.isMethod
 
+    // cf. https://www.scala-lang.org/files/archive/spec/2.12/04-basic-declarations-and-definitions.html#default-arguments
+    // cf. parameters in https://github.com/scalameta/scalameta/blob/master/semanticdb/semanticdb3/semanticdb3.md
+    def isDefaultArgument: Boolean =
+      that.isMethod && that.name.matches(".*\\$default\\$\\d+$")
+
     def typeParameters: Seq[TypeParameter] = that.signature.value match {
       case x: MethodSignature => x.typeParameters
       case x: TypeSignature => x.typeParameters

@@ -60,11 +60,14 @@ class CallSiteExtractor(ctx: ExtractionContext) {
               extractedCallSites
                 .updateValue(cs.callSiteId, _.copy(parentId = Some(callSite.callSiteId)))
               Some(CallSiteRef(cs.callSiteId))
+            case (true, None) =>
+              throw new Exception(
+                s"Invalid call site argument: $declaration is method, but no call sites extracted for the nested call from $synthetic")
             case (false, None) =>
               Some(ValueRef(declaration.declarationId))
-            case _ =>
+            case (false, Some(cs)) =>
               throw new Exception(
-                s"Invalid argument $declaration and argument call site ($extractedArgumentCallSite)")
+                s"Invalid call site argument: $declaration is not method, but a call site extracted $cs from $synthetic")
           }
 
         case s.MacroExpansionTree(beforeExpansion, _) =>
@@ -216,7 +219,7 @@ class CallSiteExtractor(ctx: ExtractionContext) {
         case s.IdTree(symbol) => {
           val declaration = ctx.resolveDeclaration(symbol)
           // TODO: this should be only for the case of implicit parameters
-          if (inCall || (declaration.isImplicit && declaration.isFunctionLike)) {
+          if (inCall || (declaration.isImplicit && declaration.isFunctionLike) || declaration.isDefaultArgument) {
             val code = declaration.name
 
             Some(createCallSite(declaration, code, syntheticLocation))
