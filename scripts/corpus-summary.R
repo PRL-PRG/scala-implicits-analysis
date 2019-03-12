@@ -291,7 +291,19 @@ projects <- local({
     by="project_id"
   )
 
-  w_github
+  w_dejavu <- left_join(
+      w_github,
+      select(
+        dejavu_project_duplication,
+        project_id,
+        dejavu_files=n_files,
+        dejavu_duplicated_files=n_duplicated_files,
+        dejavu_duplication=duplication
+      ),
+      by="project_id"
+  )
+
+  w_dejavu
 })
 
 write_csv(projects, CORPUS_CSV)
