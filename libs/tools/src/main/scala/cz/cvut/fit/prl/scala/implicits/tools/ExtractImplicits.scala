@@ -150,7 +150,7 @@ object ExtractImplicits extends App {
     }
 
     def process(projectId: String, result: Result): Stats = {
-      result.project.writeDelimitedTo(messageOutput)
+      result.project.writeTo(messageOutput)
       result.exceptions
         .map {
           case (moduleId, e) => ExtractionException(projectId, moduleId, e)

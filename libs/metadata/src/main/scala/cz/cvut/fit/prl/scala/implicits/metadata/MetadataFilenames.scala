@@ -5,6 +5,7 @@ object MetadataFilenames {
 
   val AnalysisDirname = "_analysis_"
   val ProjectsDirname = "projects"
+  val ProjectsFilename = "projects.txt"
 
   val DependenciesFilename = s"$Prefix-dependencies.csv"
   val ModulesFilename = s"$Prefix-modules.csv"

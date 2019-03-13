@@ -11,7 +11,7 @@ import cz.cvut.fit.prl.scala.implicits.tools.ExportImplicitDeclarations
 @main
 def main() = {
   val baseDir = File.currentWorkingDirectory
-  val index = Index(baseDir / ExtractedImplicitsFilename)
+  val index = Index.fromProjectsFile(baseDir)
 
   ExportImplicitCallSites.run(index)
   ExportImplicitDeclarations.run(index)

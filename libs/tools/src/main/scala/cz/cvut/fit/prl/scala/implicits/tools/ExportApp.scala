@@ -16,7 +16,7 @@ trait ExportApp {
   }
 
   def run(corpusPath: File): Unit = {
-    val index: Index = Index(corpusPath)
+    val index: Index = Index.fromProjectsFile(corpusPath)
     val outputFile = corpusPath / defaultOutputFilename
 
     run(index, outputFile)

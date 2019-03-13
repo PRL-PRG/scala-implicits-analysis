@@ -2,10 +2,12 @@ package cz.cvut.fit.prl.scala.implicits.model
 
 import better.files._
 import cats.Monoid
-import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames.ExtractedImplicitsFilename
+import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
 import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
 import com.typesafe.scalalogging.{LazyLogging, Logger}
 import org.slf4j.LoggerFactory
+
+import scala.util.Try
 
 /**
   * @param projects - a map from projects' ids to projects
@@ -46,33 +48,25 @@ object Index {
     override def empty: Index = Index(Map(), Map(), List(), List(), Map())
   }
 
-  def apply(path: String): Index = apply(File(path))
-
-  def apply(path: File): Index = {
-    val input = if (path.isDirectory) {
-      path / ExtractedImplicitsFilename
-    } else {
-      path
+  def fromProjectsFile(path: File): Index = {
+    if (!path.isDirectory) {
+      throw new IllegalArgumentException(s"$path must be a directory")
     }
 
     val index = timedTask("Building index", {
-      val projects = timedTask(s"Loading implicits from $input", {
-        input.inputStream.apply { x =>
-          Project
-            .streamFromDelimitedInput(x)
-            .map { p =>
-              logger.debug(s"Loaded ${p.projectId}")
-              p
-            }
-            .toList
-        }
-      })
+      val indexes =
+        for {
+          projectName <- (File.currentWorkingDirectory / ProjectsFilename).lineIterator
+          projectPath = path / ProjectsDirname / projectName
+          dataFile = projectPath / AnalysisDirname / ExtractedImplicitsFilename if dataFile.exists
+        } yield
+          fromDataFile(dataFile)
 
-      apply(projects)
+      Monoid[Index].combineAll(indexes)
     })
 
     logger.info(
-      s"Loaded index from: $input (" +
+      s"Loaded index from: $path (" +
         s"projects: ${index.projects.size}, " +
         s"modules: ${index.modules.size}, " +
         s"call sites: ${index.implicitCallSites.size}, " +
@@ -82,10 +76,20 @@ object Index {
     index
   }
 
-  def apply(projects: Iterable[Project]): Index = {
+  def fromDataFile(dataFile: File): Index = {
+    val project = timedTask(s"Loading implicits from $dataFile", {
+      dataFile.inputStream.apply(Project.parseFrom)
+    })
+
+    apply(project)
+  }
+
+  def apply(project: Project): Index = buildIndex(project)
+
+  def apply(projects: Traversable[Project]): Index = {
     timedTask(s"Indexing", {
       val projectStream = projects.toStream
-        .map(buildIndex)
+        .map(apply)
 
       Monoid[Index].combineAll(projectStream)
     })
