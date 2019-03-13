@@ -134,4 +134,7 @@ trait ModelDSL {
     val cs = CallSite(callSiteId, None, TestModuleId, declarationId, code, TestLocalLocation)
     cs.update(updates: _*)
   }
+
+  implicit val callSiteOrdering: Ordering[CallSite] = (x: CallSite, y: CallSite) =>
+    implicitly[Ordering[Int]].compare(x.callSiteId, y.callSiteId)
 }

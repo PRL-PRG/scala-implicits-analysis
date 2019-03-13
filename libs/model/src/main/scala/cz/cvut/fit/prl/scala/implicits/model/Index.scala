@@ -2,12 +2,10 @@ package cz.cvut.fit.prl.scala.implicits.model
 
 import better.files._
 import cats.Monoid
-import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
+import cats.syntax.monoid._
 import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
-import com.typesafe.scalalogging.{LazyLogging, Logger}
+import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
-
-import scala.util.Try
 
 /**
   * @param projects - a map from projects' ids to projects
@@ -29,7 +27,9 @@ case class Index(
 }
 
 object Index {
-  implicit val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+  type FailedProject = (String, Throwable)
+
+  implicit val logger: Logger = Logger(LoggerFactory.getLogger(getClass.getName))
   implicit val monoid: Monoid[Index] = new Monoid[Index] {
 
     override def combine(x: Index, y: Index): Index = {
@@ -48,37 +48,42 @@ object Index {
     override def empty: Index = Index(Map(), Map(), List(), List(), Map())
   }
 
-  def fromProjectsFile(path: File): Index = {
-    if (!path.isDirectory) {
-      throw new IllegalArgumentException(s"$path must be a directory")
+  def saveToProjectsFile(index: Index, filename: String): Unit =
+    saveToProjectsFile(index, File(filename))
+
+  def saveToProjectsFile(index: Index, file: File): Unit = {
+    file.outputStream.apply { output =>
+      index.projects.values.foreach(_.writeDelimitedTo(output))
     }
+  }
 
-    val index = timedTask("Building index", {
-      val indexes =
-        for {
-          projectName <- (File.currentWorkingDirectory / ProjectsFilename).lineIterator
-          projectPath = path / ProjectsDirname / projectName
-          dataFile = projectPath / AnalysisDirname / ExtractedImplicitsFilename if dataFile.exists
-        } yield
-          fromDataFile(dataFile)
+  def fromProjectsFile(filename: String): Index = fromProjectsFile(File(filename))
 
-      Monoid[Index].combineAll(indexes)
+  def fromProjectsFile(file: File): Index = {
+    val index = timedTask(s"Loading implicits from $file", {
+      file.inputStream.apply { input =>
+        Project
+          .streamFromDelimitedInput(input)
+          .map(apply)
+          .foldLeft(Monoid[Index].empty)(_ |+| _)
+      }
     })
 
     logger.info(
-      s"Loaded index from: $path (" +
+      s"Loaded index from: $file (" +
         s"projects: ${index.projects.size}, " +
         s"modules: ${index.modules.size}, " +
         s"call sites: ${index.implicitCallSites.size}, " +
         s"declarations: ${index.implicitDeclarations.size}" +
-        s")")
+        s")"
+    )
 
     index
   }
 
-  def fromDataFile(dataFile: File): Index = {
-    val project = timedTask(s"Loading implicits from $dataFile", {
-      dataFile.inputStream.apply(Project.parseFrom)
+  def fromProjectFile(file: File): Index = {
+    val project = timedTask(s"Loading implicits from $file", {
+      file.inputStream.apply(Project.parseFrom)
     })
 
     apply(project)
@@ -96,7 +101,7 @@ object Index {
   }
 
   private def buildIndex(project: Project): Index =
-    timedTask(s"Index for project ${project.projectId}", {
+    timedTask(s"Indexing project ${project.projectId}", {
       val moduleStream = project.modules.toStream
         .map(buildModuleIndex(project, _))
 
@@ -104,7 +109,7 @@ object Index {
     })
 
   private def buildModuleIndex(project: Project, module: Module): Index =
-    timedTask(s"Index for module ${module.moduleId}", {
+    timedTask(s"Indexing module ${module.moduleId}", {
       val implicitDeclarations =
         module.declarations.values.filter(x => x.isImplicit || x.hasImplicitParameters)
 

@@ -4,9 +4,6 @@ import cz.cvut.fit.prl.scala.implicits.model._
 
 class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplification with ModelDSL {
 
-  implicit val callSiteOrdering: Ordering[CallSite] = (x: CallSite, y: CallSite) =>
-    implicitly[Ordering[Int]].compare(x.callSiteId, y.callSiteId)
-
   callSites(
     "count infix calls",
     """
@@ -747,6 +744,7 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     res.callSitesCount shouldBe 3
   }
 
+  // essentially: implicit conversion in implicit parameters
   callSites(
     "implicit multi hop parameters",
     """
@@ -1671,6 +1669,55 @@ class CallSiteExtractorSuite extends ExtractionContextSuite with ModelSimplifica
     )
 
     checkElementsSorted(res.callSites, expected)
+    res.callSitesCount shouldBe 2
+  }
+
+  callSites("implicit conversion with implicit parameters",
+    """
+      | package p
+      | object o {
+      |   implicit val s = "A"
+      |   implicit def f(x: Int)(implicit y: String) = true
+      |
+      |   val b: Boolean = 1
+      | }
+    """.stripMargin) { res =>
+    val expected = callSite(
+      declarationId = "p/o.f().",
+      code = "f(1)",
+      implicitArgumentVal("p/o.s.")
+    )
+
+    checkElementsSorted(res.callSites, List(expected))
+
+    res.callSitesCount shouldBe 0
+  }
+
+  callSites("implicit conversion in a companion object",
+    """
+      |package p
+      |object o {
+      |
+      |  class URL
+      |
+      |  object URL {
+      |    implicit def apply(s: String): URL = new URL
+      |  }
+      |
+      |  def download(url: URL): Unit = {}
+      |
+      |  download("http://fit.cvut.cz")
+      |
+      |}
+    """.stripMargin) { res =>
+    // the `.apply().` indicates that it is from a companion object
+    val expected =
+      callSite(
+        declarationId = "p/o.URL.apply().",
+        code = "apply(\"http://fit.cvut.cz\")",
+      )
+
+    checkElementsSorted(res.callSites, List(expected))
     res.callSitesCount shouldBe 2
   }
 }
