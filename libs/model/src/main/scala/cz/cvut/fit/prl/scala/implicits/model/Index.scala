@@ -26,7 +26,7 @@ case class Index(
   }
 }
 
-object Index  {
+object Index {
   implicit val logger = Logger(LoggerFactory.getLogger(getClass.getName))
   implicit val monoid: Monoid[Index] = new Monoid[Index] {
 
@@ -37,9 +37,9 @@ object Index  {
         x.implicitDeclarations ++ y.implicitDeclarations,
         x.implicitCallSites ++ y.implicitCallSites,
         y.paths.foldLeft(x.paths) {
-      case (prev, (k, v)) =>
-        prev.updated(k, prev.get(k).map(_ ++ v).getOrElse(v))
-    }
+          case (prev, (k, v)) =>
+            prev.updated(k, prev.get(k).map(_ ++ v).getOrElse(v))
+        }
       )
     }
 
@@ -57,7 +57,15 @@ object Index  {
 
     val index = timedTask("Building index", {
       val projects = timedTask(s"Loading implicits from $input", {
-        input.inputStream.apply(Project.streamFromDelimitedInput(_).toList)
+        input.inputStream.apply { x =>
+          Project
+            .streamFromDelimitedInput(x)
+            .map { p =>
+              logger.debug(s"Loaded ${p.projectId}")
+              p
+            }
+            .toList
+        }
       })
 
       apply(projects)
@@ -93,7 +101,8 @@ object Index  {
 
   private def buildModuleIndex(project: Project, module: Module): Index =
     timedTask(s"Index for module ${module.moduleId}", {
-      val implicitDeclarations = module.declarations.values.filter(x => x.isImplicit || x.hasImplicitParameters)
+      val implicitDeclarations =
+        module.declarations.values.filter(x => x.isImplicit || x.hasImplicitParameters)
 
       Index(
         Map(project.projectId -> project),
