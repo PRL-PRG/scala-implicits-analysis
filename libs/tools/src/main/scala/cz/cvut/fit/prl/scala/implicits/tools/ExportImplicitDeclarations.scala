@@ -4,11 +4,11 @@ import better.files._
 import com.typesafe.scalalogging.Logger
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
-import cz.cvut.fit.prl.scala.implicits.utils.BuildInfo
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
 import org.slf4j.LoggerFactory
+import scala.util.{Failure, Success, Try}
 
 object ExportImplicitDeclarations extends ExportApp {
 
@@ -98,9 +98,13 @@ object ExportImplicitDeclarations extends ExportApp {
       out <- output.newOutputStream.autoClosed
       writer <- out.asCsvWriter[Output](rfc.withHeader(Output.Header: _*)).autoClosed
       declaration <- idx.implicitDeclarations
-      row = Output(declaration)(idx)
-    } {
-      writer.write(row)
+    } Try(Output(declaration)(idx)) match {
+      case Success(row) =>
+        writer.write(row)
+      case Failure(e) =>
+        println(s"Unable to convert $declaration")
+        e.printStackTrace()
+        println()
     }
   }
 

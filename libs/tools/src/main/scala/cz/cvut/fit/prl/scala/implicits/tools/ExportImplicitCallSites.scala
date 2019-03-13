@@ -1,16 +1,15 @@
 package cz.cvut.fit.prl.scala.implicits.tools
 
 import better.files._
-
 import com.typesafe.scalalogging.Logger
-
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
-
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
 import org.slf4j.LoggerFactory
+
+import scala.util.{Failure, Success, Try}
 
 object ExportImplicitCallSites extends ExportApp {
 
@@ -103,8 +102,14 @@ object ExportImplicitCallSites extends ExportApp {
       out <- outputFile.newOutputStream.autoClosed
       writer <- out.asCsvWriter[Output](rfc.withHeader(Output.Header: _*)).autoClosed
       callSite <- idx.implicitCallSites
-      row = Output(callSite)(idx)
-    } writer.write(row)
+    } Try(Output(callSite)(idx)) match {
+      case Success(row) =>
+        writer.write(row)
+      case Failure(e) =>
+        println(s"Unable to convert $callSite")
+        e.printStackTrace()
+        println()
+    }
   }
 
   def run(idx: Index, outputFile: File): Unit = {
