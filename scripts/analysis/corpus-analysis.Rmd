@@ -1,0 +1,220 @@
+---
+title: "Corpus analysis"
+output: html_document
+params:
+  base_dir: /home/rstudio/work/corpora/top100
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(fs)
+library(tidyverse)
+library(ggplot2)
+library(DT)
+
+theme_set(theme_minimal())
+source("inc/paths.R")
+source("inc/stats.R")
+```
+
+```{r load data}
+corpus <- read_csv(CORPUS)
+repo_build_system <- read_csv(REPO_BUILD_SYSTEM)
+all_projects_names <- readLines(ALL_PROJECTS)
+```
+
+## Projects
+
+```{r projects stats}
+n_sbt_projects <- nrow(filter(repo_build_system, build_system=="sbt"))
+n_duplicate_projects <- n_sbt_projects - nrow(corpus)
+
+make_stats(
+  add_num("Projects", length(all_projects_names)),
+  add_num("SBT projects", n_sbt_projects),
+  add_num("Duplicate projects", n_duplicate_projects),
+  add_num("Consdered projects", nrow(corpus)),
+  add_num("Scala SLOC in project", corpus$repo_scala_code),
+  add_num("Scala files in project", corpus$repo_scala_files),
+  add_num("Scala SLOC reported by SBT", corpus$metadata_scala_code),
+  add_num("Scala files reported by SBT", corpus$metadata_scala_files),
+  add_num("Github Stars", corpus$github_stars),
+  add_num("Libraries", sum(corpus$scaladex)),
+  add_num("Apps", sum(!corpus$scaladex)),
+  add_num("Extracted metadata", sum(corpus$metadata_exit_code==0)),
+  add_num("Compiled", sum(corpus$compile_exit_code==0)),
+  add_num("Extracted semanticdb", sum(corpus$sdb_exit_code==0)),
+  add_num("Extracted implicits", sum(corpus$implicits_exit_code==0)),
+  add_num("Dejavu cosidered files", corpus$dejavu_files),
+  add_num("Dejavu duplicated files", corpus$dejavu_duplicated_files),
+  add_num("Dejavu missed files", corpus$repo_scala_files - corpus$dejavu_duplicated_files),
+  add_num("Dejavu duplication", corpus$dejavu_duplication),
+  add_num("Implicit declarations", corpus$implicit_declarations),
+  add_num("Implicit call sites", corpus$implicit_callsites),
+  add_num("Call sites", corpus$callsites),
+  add_num("Errors in implicit extrcation", corpus$implicit_problems),
+  add_num("Failures in running implicit extractor", sum(!is.na(corpus$implicit_failure)))
+) %>%
+  datatable(options=list(paging=FALSE, searching=FALSE, info=FALSE))
+```
+
+## Pipeline
+
+```{r}
+pipeline_overview <-
+  corpus %>%
+  transmute(metadata=metadata_exit_code==0, compile=compile_exit_code==0, sdb=sdb_exit_code==0, implicits=implicits_exit_code==0, sloc=repo_scala_code, stars=github_stars)
+
+tribble(
+  ~phase,       ~projects,                        ~SLOC,                                          ~stars,
+  "Start",      nrow(corpus),                     sum(corpus$repo_scala_code),                    sum(corpus$github_stars), 
+  "Metadata",   sum(pipeline_overview$metadata),  sum(filter(pipeline_overview, metadata)$sloc),  sum(filter(pipeline_overview, metadata)$stars),
+  "Compile",    sum(pipeline_overview$compile),   sum(filter(pipeline_overview, compile)$sloc),   sum(filter(pipeline_overview, compile)$stars),
+  "Semanticdb", sum(pipeline_overview$sdb),       sum(filter(pipeline_overview, sdb)$sloc),       sum(filter(pipeline_overview, sdb)$stars),
+  "Implicits",  sum(pipeline_overview$implicits), sum(filter(pipeline_overview, implicits)$sloc), sum(filter(pipeline_overview, implicits)$stars)
+) %>%
+  mutate_at(vars(-phase), fmt) %>%
+  datatable(options=list(paging=FALSE, searching=FALSE, info=FALSE))
+```
+
+### Time
+
+```{r}
+make_stats(
+  add_num("Metadata", corpus$metadata_duration),
+  add_num("Compile", corpus$compile_duration),
+  add_num("Semanticdb", corpus$sdb_duration),
+  add_num("Implicits", corpus$implicits_duration)
+) %>%
+  datatable(options=list(paging=FALSE, searching=FALSE, info=FALSE))
+```
+
+## Dejavu
+
+```{r}
+corpus %>%
+  filter(implicits_exit_code==0, dejavu_duplication > 0) %>%
+  ggplot(aes(dejavu_duplication)) +
+  geom_histogram(bins=50) +
+  scale_x_continuous(labels=scales::percent) +
+  labs(title="Dejavu duplication", subtitle="Number of duplicated files / number of files", x="Duplication", y="Number of projects")
+```
+
+## Source code vs Github
+
+```{r}
+corpus %>%
+  filter(implicits_exit_code==0) %>%
+  mutate(
+    r=round(github_stars/repo_scala_code, 2),
+    outlier=is_outlier(r) | is_outlier(github_stars) | is_outlier(repo_scala_code),
+    label=if_else(outlier, str_glue("{project_id} ({r})"), as.character(NA))
+  ) %>%
+  ggplot(aes(repo_scala_code, github_stars, label=label)) +
+    geom_point(aes(color=factor(outlier))) +
+    geom_text(size=3, check_overlap = T, vjust=1.5, na.rm = TRUE) + 
+    scale_x_log10(labels = scales::comma) + 
+    scale_y_continuous(labels = scales::comma) + 
+    scale_colour_manual(values = c("TRUE"="red", "FALSE"="black"), labels=c("TRUE"="Yes", "FALSE"="No"), guide=FALSE) +
+    labs(title="Source code vs Github stars", x="SLOC (log)", y="GitHub stars", subtitle="outliers - ratio (stars/sloc), sloc, stars")
+```
+
+## Errors in extraction
+
+### Failures
+
+Unexpected exception
+
+```{r}
+filter(corpus, !is.na(implicit_failure)) %>%
+  select(project_id, repo_scala_code, github_stars) %>%
+  mutate_all(fmt)
+```
+### Errors
+
+```{r load implicit errors}
+exceptions <- read_csv(IMPLICITS_EXCEPTIONS, col_types="cccccccc")
+```
+
+```{r}
+classified_exceptions <- 
+  mutate(
+    exceptions,
+    class=case_when(
+      exception == "SymbolNotFoundException" & str_detect(message, "local\\d+") ~ "missing-local-symbol",
+      exception == "SymbolNotFoundException" & str_detect(message, "symbol: local\\d+") ~ "missing-local-symbol",
+      exception == "SymbolNotFoundException" & str_detect(message, "at Range\\(\\d+,\\d+,\\d+,\\d+\\)") ~ "missing-symbol-at-range",
+      exception == "SymbolNotFoundException" ~ "missing-symbol-other",
+      exception == "LoadingMetadataException" & str_detect(message, "No module found") & str_detect(message, "multi-jvm") ~ "missing-module-multijvm",
+      exception == "LoadingMetadataException" & str_detect(message, "No module found") ~ "missing-module",
+      exception == "LoadingMetadataException" ~ "metadata-loading",
+      exception == "NotImplementedError" ~ "not-implemented",
+      exception == "UnexpectedElementException" ~ "unexpected-element",
+      exception == "UnsupportedElementException" ~ "unsupported-element",
+      exception == "UnExtractableCallSiteException" & cause == "SymbolNotFoundException" ~ "unextractable-callsite-missing-term",
+      exception == "UnExtractableCallSiteException" & cause == "FunctionNotFoundException" ~ "unextractable-callsite-missing-function",
+      exception == "UnExtractableCallSiteException" ~ "unextractable-callsite-other",
+      exception == "ImplicitArgumentNotFoundException" ~ "missing-implicit-arguments",
+      exception == "Exception" & str_detect(message, "^Invalid argument") ~ "invalid-declaration",
+      TRUE ~ "unclassified"
+    )
+  )
+```
+
+#### Summary per project summary
+
+```{r}
+count(classified_exceptions, project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Summary per class summary
+
+```{r}
+count(classified_exceptions, class) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Summary per project and class summary
+
+```{r}
+count(classified_exceptions, project_id, class) %>% arrange(desc(n)) %>% datatable()
+```
+
+#### Missing symbols
+
+##### Local
+
+
+```{r}
+filter(classified_exceptions, class=="missing-local-symbol") %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+##### Range
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-at-range") %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+##### Other
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-other") %>% count(project_id) %>% arrange(desc(n)) %>% datatable()
+```
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-other") %>% 
+  transmute(project_id, symbol=str_replace_all(message, ".*symbol: (.*)$", "\\1")) %>%
+  count(project_id, symbol) %>% 
+  arrange(desc(n)) %>% 
+  datatable()
+```
+
+#### Unclassified
+
+```{r}
+filter(classified_exceptions, exception=="Exception") %>% 
+  datatable()
+```
+
