@@ -2,7 +2,7 @@
 title: "Corpus analysis"
 output: html_document
 params:
-  base_dir: /home/rstudio/work/corpora/top100
+  base_dir: ../../corpora/top100
 editor_options: 
   chunk_output_type: console
 ---
@@ -24,6 +24,52 @@ source("inc/stats.R")
 corpus <- read_csv(CORPUS)
 repo_metadata <- read_csv(REPO_METADATA)
 ```
+
+## Data description
+
+In `corpus.csv`:
+
+- `project_id`: the ID of the project as `<github-organization>--<github-repository-name>`
+- `origin`: project repote URL
+- `project_path`: project location in the corpus
+- `scaladex`: is project indexed as a library in scaladex
+- `metadata_exit_code`: exit code of the metadata extractor (0=success, other means error)
+- `metadata_duration`: execution time in seconds
+- `metadata_scala_files`: number of files that sbt knows about
+- `metadata_scala_code`:  SLOC of Scala files that sbt known about
+- `repo_scala_files`: all Scala files in the repository
+- `repo_scala_code`: all SLOC of Scala files in the reporsitory
+- `sbt_version`: sbt version
+- `modules`: number of modules in a project
+- `scala_version`: declared Scala version
+- `updated_scala_version`: used Scala version to extract semanticdb
+- `commit_count`: number of commits
+- `commit`: hash of the last commit
+- `first_commit_date`: unix timestamp of the first commit
+- `commit_date`: unix timestamp of the last commit
+- `size`: size of the project in bytes
+- `compile_exit_code`: exit code of the compiler (0=success, other means error)
+- `compile_duration`: execution time in seconds
+- `compile_classes`: number of generated classes
+- `sdb_exit_code`:  exit code of the compiler (0=success, other means error)
+- `sdb_duration`: execution time in seconds
+- `sdb_classes`: number of classes outputted
+- `sdb_files`: number of generated semanticdb files
+- `sdb_occurrences`: number of semanticdb occurrencies
+- `sdb_synthetics`: number of semanticdb synthertics
+- `sdb_symbols`: number of semanticdb symbols (defiend or referenced)
+- `implicits_exit_code`:  exit code of the compiler (0=success, -1=not ran other means error)
+- `implicits_duration`: execution time in seconds
+- `declarations`: number of declarations resolved (transitive closure over all dependencies needed to resolve implicit declaration or implicit call site)
+- `callsites`: estimate number of all call sites
+- `implicit_declarations`: declarations that are either marked as implicit or take implicit parameters
+- `implicit_callsites`: all call sites that involve any implicit declaration
+- `implicit_failure`: number of extraction failure when the tool could not do anything
+- `implicit_problems`: number of problems encountered when resolving declarations or call sites (typically, a symbol that could not be found in a classpath)
+- `github_stars`: number of stargazers
+- `dejavu_files`: number of files dejavu considered
+- `dejavu_duplicated_files`: number of files that are duplicates
+- `dejavu_duplication`: `dejavu_duplicated_files/dejavu_files`
 
 ## Projects
 

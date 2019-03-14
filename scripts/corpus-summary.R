@@ -21,10 +21,12 @@ GITHUB_INFO <- "projects-github-info.csv"
 SCALADEX <- "scaladex.txt"
 
 METADATA_STATUS <- "metadata-status.csv"
+METADATA_MODULES <- "metadata-modules.csv"
 METADATA_SOURCEPATHS <- "metadata-sourcepaths.csv"
 METADATA_LOG <- "metadata.log"
 
 REPO_METADATA <- "repo-metadata.csv"
+REPO_BUILD_SYSTEM <- "repo-build-system.csv"
 REPO_SLOC <- "repo-sloc.csv"
 
 COMPILE_STATUS <- "compile-status.csv"
@@ -86,6 +88,27 @@ metadata_status <- read_csv(METADATA_STATUS, col_types=cols(
   duration = col_integer()
 ))
 
+metadata_modules <- read_csv(METADATA_MODULES, col_types=cols(
+  project_id = col_character(),
+  module_id = col_character(),
+  group_id = col_character(),
+  artifact_id = col_character(),
+  version = col_character(),
+  platform = col_character(),
+  commit = col_character(),
+  scala_version = col_character(),
+  sbt_version = col_character(),
+  updated_scala_version = col_character(),
+  output_classpath = col_character(),
+  output_test_classpath = col_character()
+)) %>%
+  group_by(project_id) %>%
+  summarise(
+    modules=n(),
+    scala_version=scala_version[1],
+    updated_scala_version=updated_scala_version[1]
+  )
+
 metadata_sourcepaths <- read_csv(METADATA_SOURCEPATHS, col_types=cols(
   project_id = col_character(),
   module_id = col_character(),
@@ -106,6 +129,12 @@ repo_metadata <- read_csv(REPO_METADATA, col_types=cols(
   first_commit_date = col_integer(),
   commit_date = col_integer(),
   size = col_integer()
+))
+
+repo_build_system <- read_csv(REPO_BUILD_SYSTEM, col_types=cols(
+  project_id = col_character(),
+  build_system = col_character(),
+  sbt_version = col_character()
 ))
 
 repo_sloc <- read_csv(REPO_SLOC, col_types=cols(
@@ -240,14 +269,26 @@ projects <- local({
     by="project_id"
   )
 
-  w_other_sloc <- left_join(
-    w_repo_scala_sloc,
-    repo_other_sloc,
-    by="project_id"
+  w_sbt_version <- left_join(
+      w_repo_scala_sloc,
+      select(repo_build_system, project_id, sbt_version),
+      by="project_id"
+  )
+
+  w_modules <- left_join(
+      w_sbt_version,
+      metadata_modules,
+      by="project_id"
+  )
+
+  w_repo_metadata <- left_join(
+      w_modules,
+      repo_metadata,
+      by="project_id"
   )
 
   w_compile <- left_join(
-    w_other_sloc,
+    w_repo_metadata,
     rename_at(compile_status, vars(-project_id), add_prefix('compile')),
     by="project_id"
   )
