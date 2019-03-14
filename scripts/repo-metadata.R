@@ -1,0 +1,96 @@
+#!/usr/bin/env Rscript
+
+library(tibble)
+library(magrittr)
+library(stringr)
+library(readr)
+
+args <- commandArgs(trailingOnly=T)
+stopifnot(length(args) == 3)
+
+dir <- args[1]
+output <- args[2]
+output_sloc <- args[3]
+
+systems_def <- c(
+    "sbt"="build.sbt",
+    "sbt"="project/build.properties",
+    "maven"="pom.xml",
+    "mill"="build.sc",
+    "graddle"="build.gradle",
+    "cbt"="build/build.scala",
+    "maven-scala"="pom.scala",
+    "maven-groovy"="pom.groovy",
+    "maven-yml"="pom.yml",
+    "maven-clojure"="pom.clojure",
+    "maven-ruby"="pom.ruby",
+    "maven-java"="pom.java",
+    "make"="Makefile"
+)
+
+systems <- names(systems_def)
+system <- NA
+sbt_version <- NA
+
+size <- system2("du", c("-sb", "."), stdout = TRUE) %>% str_replace("(\\d+).*", "\\1") %>% as.integer()
+commit_count <- system2("git", c("rev-list", "--count HEAD"), stdout = TRUE) %>% as.integer()
+commit <- system2("git", c("log", "--pretty=format:'%H'", "-n 1"), stdout = TRUE)
+commit_dates <- system2("git", c("log", "--date=unix", "--pretty=format:'%cd'"), stdout = TRUE)
+commit_date <- as.integer(commit_dates[1])
+first_commit_date <- as.integer(commit_dates[length(commit_dates)])
+
+sloc <- tryCatch({
+    sloc_src <- system2("cloc", c("--follow-links", "--vcs=git", "-q", "--csv", "."), stdout = TRUE)[-1]
+    sloc_src[1] <- "files,language,blank,comment,code"
+    sloc <- read_csv(sloc_src, col_types="cciii")
+}, error=function(e) {
+    tibble(
+        files=character(0),
+        language=character(0),
+        blank=integer(0),
+        comment=integer(0),
+        code=integer(0)
+    )
+})
+
+for (i in seq_along(systems_def)) {
+    if (file.exists(file.path(dir, systems_def[i]))) {
+        system <- systems[i]
+        break
+    }
+}
+
+if (!is.na(system) && system == "sbt") {
+    if (file.exists(file.path(dir, "project", "build.properties"))) {
+        props <- read.table(
+            "project/build.properties",
+            header=FALSE,
+            sep="=",
+            row.names=1,
+            strip.white=TRUE,
+            na.strings="NA",
+            stringsAsFactors=FALSE
+        )
+        version <- props["sbt.version", 1]
+        if (!is.null(version)) {
+            sbt_version <- version
+        }
+    }
+}
+
+sloc_scala <- sloc[sloc$language=="Scala", ]
+
+df <- tibble(
+  build_system=system, 
+  sbt_version,
+  size,
+  commit_count,
+  commit,
+  commit_date,
+  first_commit_date,
+  scala_code=sloc_scala$code,
+  scala_files=sloc_scala$files
+)
+
+write_csv(df, output)
+write_csv(sloc, output_sloc)

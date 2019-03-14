@@ -58,7 +58,6 @@ REPO_BUILD_SYSTEM := $(ANALYSIS_DIR)/repo-build-system.csv
 REPO_METADATA := $(ANALYSIS_DIR)/repo-metadata.csv
 REPO_SLOC := $(ANALYSIS_DIR)/repo-sloc.csv
 
-GLOBAL_REPO_BUILD_SYSTEM := $(notdir $(REPO_BUILD_SYSTEM))
 GLOBAL_REPO_METADATA := $(notdir $(REPO_METADATA))
 GLOBAL_REPO_SLOC := $(notdir $(REPO_SLOC))
 

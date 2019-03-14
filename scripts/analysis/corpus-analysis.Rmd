@@ -22,14 +22,13 @@ source("inc/stats.R")
 
 ```{r load data}
 corpus <- read_csv(CORPUS)
-repo_build_system <- read_csv(REPO_BUILD_SYSTEM)
-all_projects_names <- readLines(ALL_PROJECTS)
+repo_metadata <- read_csv(REPO_METADATA)
 ```
 
 ## Projects
 
 ```{r projects stats}
-n_sbt_projects <- nrow(filter(repo_build_system, build_system=="sbt"))
+n_sbt_projects <- nrow(filter(repo_metadata, build_system=="sbt"))
 n_duplicate_projects <- n_sbt_projects - nrow(corpus)
 
 make_stats(

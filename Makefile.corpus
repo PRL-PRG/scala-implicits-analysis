@@ -38,9 +38,7 @@ bootstrap :=
 	clean-implicits \
 	clean-metadata \
 	clean-projects \
-	clean-repo-build-system \
 	clean-repo-metadata \
-	clean-repo-sloc \
 	clean-sbt \
 	clean-sbt-projects \
 	clean-semanticdb \
@@ -74,9 +72,7 @@ bootstrap :=
 	redo-implicits \
 	redo-metadata \
 	redo-semanticdb \
-	repo-build-system \
 	repo-metadata \
-	repo-sloc \
 	report \
 	reset \
 	reset-all \
@@ -98,16 +94,11 @@ $(PROJECTS_GITHUB_INFO): $(SBT_PROJECTS_FILE)
       cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned; \
     fi
 
-$(GLOBAL_REPO_BUILD_SYSTEM): $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
-	$(parallel) TASK=repo-build-system PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
-	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_BUILD_SYSTEM) "cc" $(GLOBAL_REPO_BUILD_SYSTEM)
-
 $(GLOBAL_REPO_METADATA): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
 	$(parallel) TASK=repo-metadata PROJECTS_FILE=$(SO_PROJECTS_FILE) PROJECTS_DIR=$(SO_PROJECTS_DIR)
-	$(SCRIPTS_DIR)/merge-csvs.R $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR) $(REPO_METADATA) "iciin" $(GLOBAL_REPO_METADATA)
+	$(SCRIPTS_DIR)/merge-csvs.R $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR) $(REPO_METADATA) "cciiciiii" $(GLOBAL_REPO_METADATA)
 
 $(GLOBAL_REPO_SLOC): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
-	$(parallel) TASK=repo-sloc PROJECTS_FILE=$(SO_PROJECTS_FILE) PROJECTS_DIR=$(SO_PROJECTS_DIR)
 	$(SCRIPTS_DIR)/merge-csvs.R $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR) $(REPO_SLOC) "iciii" $(GLOBAL_REPO_SLOC)
 
 $(DEJAVU_INPUT): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
@@ -141,8 +132,8 @@ $(ALL_PROJECTS_DIR): $(ALL_PROJECTS_FILE)
         parallel --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
 	$(MAKE) -f $(this_makefile) patch-downloaded-projects
 
-$(SBT_PROJECTS_FILE): $(GLOBAL_REPO_BUILD_SYSTEM)
-	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_BUILD_SYSTEM)"), startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
+$(SBT_PROJECTS_FILE): $(GLOBAL_REPO_METADATA)
+	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_METADATA)"), startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
 
 $(SBT_PROJECTS_DIR): $(SBT_PROJECTS_FILE)
 	rm -fr $(SBT_PROJECTS_DIR)
@@ -249,7 +240,6 @@ all:
 clean:
 	-$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -fr $(LOG_DIR_BASE) $(JOBSFILE)
-	-rm -f $(GLOBAL_REPO_BUILD_SYSTEM)
 	-rm -f $(PROJECTS_GITHUB_INFO)
 	-rm -f $(GLOBAL_REPO_METADATA)
 	-rm -f $(GLOBAL_REPO_SLOC)
@@ -284,14 +274,9 @@ clean-metadata:
 clean-projects:
 	-rm -fr $(PROJECTS_FILE) $(PROJECTS_DIR)
 
-clean-repo-build-system:
-	$(MAKE) -f $(this_makefile) parallel TASK=$@
-
 clean-repo-metadata:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
-
-clean-repo-sloc:
-	$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -f $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC)
 
 clean-sbt:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -398,11 +383,7 @@ redo-semanticdb: $(bootstrap)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
 	$(MAKE) -f $(this_makefile) semanticdb REDO=2
 
-repo-build-system: $(GLOBAL_REPO_BUILD_SYSTEM)
-
-repo-metadata: $(GLOBAL_REPO_METADATA)
-
-repo-sloc: $(GLOBAL_REPO_SLOC)
+repo-metadata: $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC)
 
 report: $(CORPUS_SUMMARY) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
 	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/implicits-analysis.Rmd", output_file=file.path("$(CURDIR)/implicits-analysis.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(CURDIR)"))'
