@@ -44,6 +44,7 @@ sloc <- tryCatch({
     sloc_src[1] <- "files,language,blank,comment,code"
     sloc <- read_csv(sloc_src, col_types="cciii")
 }, error=function(e) {
+    message("Unable to count SLOC: ", e$message)
     tibble(
         files=character(0),
         language=character(0),
@@ -61,21 +62,25 @@ for (i in seq_along(systems_def)) {
 }
 
 if (!is.na(system) && system == "sbt") {
-    if (file.exists(file.path(dir, "project", "build.properties"))) {
-        props <- read.table(
-            "project/build.properties",
-            header=FALSE,
-            sep="=",
-            row.names=1,
-            strip.white=TRUE,
-            na.strings="NA",
-            stringsAsFactors=FALSE
-        )
-        version <- props["sbt.version", 1]
-        if (!is.null(version)) {
-            sbt_version <- version
+    tryCatch({
+        if (file.exists(file.path(dir, "project", "build.properties"))) {
+            props <- read.table(
+                "project/build.properties",
+                header=FALSE,
+                sep="=",
+                row.names=1,
+                strip.white=TRUE,
+                na.strings="NA",
+                stringsAsFactors=FALSE
+            )
+            version <- props["sbt.version", 1]
+            if (!is.null(version)) {
+                sbt_version <- version
+            }
         }
-    }
+    }, error=function(e) {
+        message("Unable to guess SBT version: ", e$message)
+    })
 }
 
 sloc_scala <- sloc[sloc$language=="Scala", ]
