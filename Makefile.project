@@ -11,6 +11,7 @@ define SBT_BASE
 COURSIER_CACHE=$(COURSIER_DIR) \
   sbt \
     -ivy $(IVY_DIR) \
+    -sbt-dir $(SBT_DIR) \
     -sbt-boot $(SBT_BOOT_DIR) \
     -Dsbt.log.noformat=true \
     -Djline.terminal=jline.UnsupportedTerminal
@@ -36,7 +37,6 @@ REDO ?= 0
 	reset \
 	reset-all \
 	sbt \
-	sbt-structure \
 	semanticdb
 
 all: repo-metadata compile implicits
@@ -50,11 +50,18 @@ define BOOTSTRAP
       ln -sf $(GLOBAL_IVY_DIR)/local $(IVY_DIR); \
     fi
 
+	[ -d project ] || mkdir project
+	echo 'addSbtPlugin("cz.cvut.fit.prl.scala.implicits" % "sbt-plugins" % "1.0-SNAPSHOT")' > project/_sbt-implicits-plugins_.sbt
+
+	if [ ! -d $(SBT_DIR) ]; then \
+      mkdir -p $(SBT_DIR); \
+      ln -s $(SBT_REPOSITORIES_FILE) $(SBT_DIR)/repositories; \
+    fi
 	if [ ! -d $(SBT_BOOT_DIR) ]; then \
       mkdir -p $(SBT_BOOT_DIR); \
       ls -1 $(GLOBAL_SBT_BOOT_DIR) | \
         grep "^scala-" | \
-        parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)/${1}"; \
+        parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)"; \
     fi
 
 	[ -d $(COURSIER_DIR) ] || ln -s $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
@@ -108,14 +115,6 @@ $(REPO_METADATA):
 	$(BOOTSTRAP)
 	$(SCRIPTS_DIR)/repo-metadata.R . $(REPO_METADATA) $(REPO_SLOC)
 
-$(SBT_STRUCTURE_STATUS):
-	$(BOOTSTRAP)
-	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
-	$(SBT) '*/*:dumpStructureTo $(SBT_STRUCTURE)' > $(SBT_STRUCTURE_LOG) 2>&1; \
-    exit_code=$$?; \
-    echo "exit_code,duration" > $(SBT_STRUCTURE_STATUS); \
-    echo "$$exit_code,$$SECONDS" >> $(SBT_STRUCTURE_STATUS);
-
 # removes the artifacts created by running tasks from this Makefile
 clean:
 	rm -fr $(ANALYSIS_DIR)
@@ -151,44 +150,57 @@ clean-semanticdb:
 compile:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 0) -ne '0' ] && \
-    rm -f $(COMPILE_STATUS) || echo "No need to redo"
+      $(MAKE) -f $(this_makefile) clean-compile || \
+      echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm -f $(COMPILE_STATUS)
+	$(MAKE) -f $(this_makefile) clean-compile
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 1) -eq '0' ] && \
-    rm -f $(COMPILE_STATUS)
+    $(MAKE) -f $(this_makefile) clean-compile
 endif
+ifeq ($(REDO), 4)
+	$(SCRIPTS_DIR)/redoable-sbt-error.sh $(COMPILE_LOG) && $(MAKE) -f $(this_makefile) clean-compile
+endif
+
 	$(MAKE) -f $(this_makefile) $(COMPILE_STATUS)
 
 implicits:
 ifeq ($(REDO), 1)
-	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
-    [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
-    rm -f $(IMPLICITS_STATUS) || echo "No need to redo"
+	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(IMPLICITS_STATUS)' 0) -ne '0' ] && \
+	  [ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ] && \
+      [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 1) -eq '0' ] && \
+      $(MAKE) -f $(this_makefile) clean-implicits || \
+      echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm -f $(IMPLICITS_STATUS)
+	$(MAKE) -f $(this_makefile) clean-implicits
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(IMPLICITS_STATUS)' 1) -eq '0' ] && \
-    rm -f $(IMPLICITS_STATUS)
+      $(MAKE) -f $(this_makefile) clean-implicits
 endif
+
 	$(MAKE) -f $(this_makefile) $(IMPLICITS_STATUS)
 
 metadata:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -ne '0' ] && \
-    rm -f $(METADATA_STATUS) || echo "No need to redo"
+      $(MAKE) -f $(this_makefile) clean-metadata || \
+      echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm -f $(METADATA_STATUS)
+	$(MAKE) -f $(this_makefile) clean-metadata
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 1) -eq '0' ] && \
-    rm -f $(METADATA_STATUS)
+      $(MAKE) -f $(this_makefile) clean-metadata
 endif
+ifeq ($(REDO), 4)
+	$(SCRIPTS_DIR)/redoable-sbt-error.sh $(METADATA_LOG) && $(MAKE) -f $(this_makefile) clean-metadata
+endif
+
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
 repo-metadata: $(REPO_METADATA)
@@ -203,32 +215,22 @@ sbt:
 	$(BOOTSTRAP)
 	$(SBT_BASE)
 
-sbt-structure:
-ifeq ($(REDO), 1)
-	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SBT_STRUCTURE_STATUS)' 0) -ne '0' ] && \
-    rm -f $(SBT_STRUCTURE_STATUS) || echo "No need to redo"
-endif
-ifeq ($(REDO), 2)
-	rm -f $(SBT_STRUCTURE_STATUS)
-endif
-ifeq ($(REDO), 3)
-	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SBT_STRUCTURE_STATUS)' 1) -eq '0' ] && \
-    rm -f $(SBT_STRUCTURE_STATUS)
-endif
-	$(MAKE) -f $(this_makefile) $(SBT_STRUCTURE_STATUS)
-
 semanticdb:
 ifeq ($(REDO), 1)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 0) -ne '0' ] && \
-    [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
-    rm -f $(SEMANTICDB_STATUS) || echo "No need to redo"
+      [ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 0) -eq '0' ] && \
+      $(MAKE) -f $(this_makefile) clean-semanticdb || \
+      echo "No need to redo"
 endif
 ifeq ($(REDO), 2)
-	rm -f $(SEMANTICDB_STATUS)
+	$(MAKE) -f $(this_makefile) clean-semanticdb
 endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ] && \
-    rm -f $(SEMANTICDB_STATUS)
+      $(MAKE) -f $(this_makefile) clean-semanticdb
 endif
-	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
+ifeq ($(REDO), 4)
+	$(SCRIPTS_DIR)/redoable-sbt-error.sh $(SEMANTICDB_LOG) && $(MAKE) -f $(this_makefile) clean-semanticdb
+endif
 
+	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)

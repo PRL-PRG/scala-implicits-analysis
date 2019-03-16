@@ -31,7 +31,7 @@ parallel := $(MAKE) -f $(this_makefile) parallel
 bootstrap :=
 
 .PHONY: \
-  all \
+	parallel \
 	clean \
 	clean-compile \
 	clean-dejavu \
@@ -40,45 +40,25 @@ bootstrap :=
 	clean-projects \
 	clean-repo-metadata \
 	clean-sbt \
-	clean-sbt-projects \
 	clean-semanticdb \
-	clean-so-projects \
-	clean-classes \
-	compile \
-	corpus-summary \
-	dejavu \
-	download-projects \
-	export-implicits \
-	implicits \
-	fetch-github-info \
-	filter-sbt-projects \
-	filter-so-projects \
-	filter-duplicate-projects \
-	merge-compile-results \
-	merge-semanticdb-results \
-	merge-implicits-results \
-	metadata \
-	parallel \
-	patch-downloaded-projects \
-	redo-good-compile \
-	redo-good-implicits \
-	redo-good-metadata \
-	redo-good-semanticdb \
-	redo-failed-compile \
-	redo-failed-implicits \
-	redo-failed-metadata \
-	redo-failed-semanticdb \
-	redo-compile \
-	redo-implicits \
-	redo-metadata \
-	redo-semanticdb \
-	repo-metadata \
-	report \
 	reset \
 	reset-all \
-	sbt-structure \
+	download-projects \
+	patch-downloaded-projects \
+	repo-metadata \
+	filter-sbt-repos \
+	fetch-github-info \
 	scaladex \
-	semanticdb
+	filter-so-repos \
+	dejavu \
+	filter-final-repos \
+	compile \
+	metadata \
+	semanticdb \
+	implicits \
+	corpus-summary \
+	export-implicits \
+	report
 
 $(LOG_DIR):
 	@mkdir -p $(LOG_DIR)
@@ -86,156 +66,22 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-$(PROJECTS_GITHUB_INFO): $(SBT_PROJECTS_FILE)
-	if [ -f $(PROJECTS_GITHUB_INFO).pinned ]; then \
-      cp -f $(PROJECTS_GITHUB_INFO).pinned $(PROJECTS_GITHUB_INFO); \
-    else \
-      $(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO); \
-      cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned; \
-    fi
-
-$(GLOBAL_REPO_METADATA): $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
-	$(parallel) TASK=repo-metadata PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
-	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_METADATA) "cciiciiii" $(GLOBAL_REPO_METADATA)
-
-$(GLOBAL_REPO_SLOC): $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
-	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_SLOC) "iciii" $(GLOBAL_REPO_SLOC)
-
-$(DEJAVU_INPUT): $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
-	[ -d $(DEJAVU_HOME) ] || mkdir $(DEJAVU_HOME)
-	[ -d $(DEJAVU_DOWNLOAD) ] || mkdir $(DEJAVU_DOWNLOAD) && \
-	  parallel --bar -a $(SO_PROJECTS_FILE) ln -sf '$$(pwd)/$(SO_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
-
-	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SO_PROJECTS_FILE) $(DEJAVU_INPUT)
-	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
-
-dejavu/files.csv: $(DEJAVU_INPUT)
-	cd $(DEJAVU_HOME) && \
-      $(SCRIPTS_DIR)/tools/js-tokenizer/build/tokenizer Scala $(notdir $(DEJAVU_INPUT)) 1 0 .; \
-      echo "Done tokenizing";
-
-	mv $(DEJAVU_HOME)/files_0.csv $(DEJAVU_HOME)/files.csv
-	mv $(DEJAVU_HOME)/stats_0.csv $(DEJAVU_HOME)/stats.csv
-	mv $(DEJAVU_HOME)/summary_0.txt $(DEJAVU_HOME)/summary.txt
-	mv $(DEJAVU_HOME)/projects_0.csv $(DEJAVU_HOME)/projects.csv
-
-dejavu/files.csv.h2i: dejavu/files.csv
-	cd $(SCRIPTS_DIR)/tools/sccpreprocessor/src && \
-      java SccPreprocessor h2i $(CURDIR)/$(DEJAVU_HOME)
-
-$(DEJAVU_FILES_HASH): dejavu/files.csv.h2i
-	$(SCRIPTS_DIR)/merge-dejavu-files-hash.R $(DEJAVU_FILES_HASH)
-
-$(ALL_PROJECTS_DIR): $(ALL_PROJECTS_FILE)
-	-mkdir -p $(ALL_PROJECTS_DIR)
-	-cat $(ALL_PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
-        parallel --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
-	$(MAKE) -f $(this_makefile) patch-downloaded-projects
-
-$(SBT_PROJECTS_FILE): $(GLOBAL_REPO_METADATA)
-	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_METADATA)"), startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
-
-$(SBT_PROJECTS_DIR): $(SBT_PROJECTS_FILE)
-	rm -fr $(SBT_PROJECTS_DIR)
-	mkdir -p $(SBT_PROJECTS_DIR)
-	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(SBT_PROJECTS_DIR)/{1}'
-
-$(SO_PROJECTS_FILE): $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
-	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), dplyr::n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
-
-$(SO_PROJECTS_DIR): $(SO_PROJECTS_FILE)
-	rm -fr $(SO_PROJECTS_DIR)
-	mkdir -p $(SO_PROJECTS_DIR)
-	parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(SO_PROJECTS_DIR)/{1}'
-
-# TODO: filter out duplicate projects
-$(PROJECTS_FILE): $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC) $(DEJAVU_FILES_HASH)
-	cp $(SO_PROJECTS_FILE) $(PROJECTS_FILE)
-
-$(PROJECTS_DIR): $(PROJECTS_FILE)
-	mkdir -p $(PROJECTS_DIR)
-	parallel --bar -j1 -a $(PROJECTS_FILE) ln -sf '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)/{1}'
-
-$(GLOBAL_METADATA_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
-ifneq ($(REDO), -1)
-	$(parallel) TASK=metadata REDO=$(REDO)
-endif
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_STATUS) "ii" $(GLOBAL_METADATA_STATUS)
-
-$(GLOBAL_METADATA_MODULES): $(PROJECTS_FILE) $(PROJECTS_DIR) $(GLOBAL_METADATA_STATUS)
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_MODULES) "cccccccccccc" $(GLOBAL_METADATA_MODULES)
-
-$(GLOBAL_METADATA_SOURCEPATHS): $(PROJECTS_FILE) $(PROJECTS_DIR) $(GLOBAL_METADATA_STATUS)
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_SOURCEPATHS) "ccclciciii" $(GLOBAL_METADATA_SOURCEPATHS)
-
-$(GLOBAL_METADATA_DEPENDENCIES): $(PROJECTS_FILE) $(PROJECTS_DIR) $(GLOBAL_METADATA_STATUS)
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_DEPENDENCIES) "cccccccl" $(GLOBAL_METADATA_DEPENDENCIES)
-
-$(GLOBAL_COMPILE_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
-ifneq ($(REDO), -1)
-	$(parallel) TASK=compile REDO=$(REDO)
-endif
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(COMPILE_STATUS) "iii" $(GLOBAL_COMPILE_STATUS)
-
-$(GLOBAL_SEMANTICDB_STATUS): $(PROJECTS_FILE) $(PROJECTS_DIR)
-ifneq ($(REDO), -1)
-	$(parallel) TASK=semanticdb REDO=$(REDO)
-endif
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SEMANTICDB_STATUS) "iii" $(GLOBAL_SEMANTICDB_STATUS)
-
-$(GLOBAL_SEMANTICDB_MERGED_STATS_FILE): $(GLOBAL_SEMANTICDB_STATUS)
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SEMANTICDB_MERGED_STATS_FILE) "iiii" $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
-
-$(GLOBAL_IMPLICITS_STATUS):
-ifneq ($(REDO), -1)
-	$(parallel) TASK=implicits REDO=$(REDO)
-endif
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_STATUS) "ii" $(GLOBAL_IMPLICITS_STATUS)
-
-$(GLOBAL_IMPLICITS_STATS): $(GLOBAL_IMPLICITS_STATUS)
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_STATS) "cciiiii" $(GLOBAL_IMPLICITS_STATS)
-
-$(GLOBAL_IMPLICITS_EXCEPTIONS):
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_EXCEPTIONS) "cccccccc" $(GLOBAL_IMPLICITS_EXCEPTIONS)
-
-$(GLOBAL_IMPLICITS): $(GLOBAL_IMPLICITS_STATUS)
-	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
-
-$(GLOBAL_SBT_STRUCTURE_STATUS):
-ifneq ($(REDO), -1)
-	$(parallel) TASK=sbt-structure REDO=$(REDO)
-endif
-	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SBT_STRUCTURE_STATUS) "ii" $(GLOBAL_SBT_STRUCTURE_STATUS)
-
-$(SCALADEX):
-	if [ -f $(SCALADEX).pinned ]; then \
-      cp -f $(SCALADEX).pinned $(SCALADEX); \
-    else \
-      $(SCRIPTS_DIR)/scaladex.R $(SCALADEX).pinned; \
-      cp -f $(SCALADEX).pinned $(SCALADEX); \
-    fi
-
-$(CORPUS_SUMMARY): $(GLOBAL_COMPILE_STATUS) \
-  $(GLOBAL_METADATA_STATUS) \
-  $(GLOBAL_SEMANTICDB_STATUS) \
-  $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE) \
-  $(GLOBAL_IMPLICITS_STATUS) \
-  $(GLOBAL_IMPLICITS_STATS) \
-  $(GLOBAL_IMPLICITS_EXCEPTIONS) \
-  $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS) \
-  $(PROJECTS_GITHUB_INFO) \
-  $(GLOBAL_REPO_SLOC) \
-  $(GLOBAL_REPO_METADATA) \
-  $(SCALADEX)
-
-	$(SCRIPTS_DIR)/corpus-summary.R .
-
-all:
-	$(MAKE) -f $(this_makefile) sbt-structure
-	$(MAKE) -f $(this_makefile) metadata
-	$(MAKE) -f $(this_makefile) semanticdb
-	$(MAKE) -f $(this_makefile) implicits
-	$(MAKE) -f $(this_makefile) compile
+parallel:
+	-mkdir -p $(LOG_DIR)
+	@echo $(N_JOBS) > jobsfile.txt
+	@echo ">> Running parallel task $(TASK) (REDO=$(REDO)) with logs in $(LOG_DIR) using $(PROJECTS_FILE)..."
+	cp $(PROJECTS_FILE) $(LOG_DIR)/projects.txt
+	touch "$(LOG_DIR)/$(TASK)"
+	-parallel \
+      --jobs $(JOBS_FILE) \
+      -a "$(PROJECTS_FILE)" \
+      --files \
+      --bar \
+      --tagstring "$(TASK) - {}:" \
+      --result "$(PROJECTS_DIR)/{1}/$(ANALYSIS_DIR)/parallel/$(TASK)" \
+      --joblog "$(LOG_DIR)/$(TASK)-parallel.log" \
+      --timeout $(TIMEOUT) \
+      make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project $(TASK) REDO=$(REDO)
 
 clean:
 	-$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -243,18 +89,12 @@ clean:
 	-rm -f $(PROJECTS_GITHUB_INFO)
 	-rm -f $(GLOBAL_REPO_METADATA)
 	-rm -f $(GLOBAL_REPO_SLOC)
-	-$(MAKE) -f $(this_makefile) clean-dejavu
-	-$(MAKE) -f $(this_makefile) clean-sbt-projects
-	-$(MAKE) -f $(this_makefile) clean-so-projects
-	-$(MAKE) -f $(this_makefile) clean-projects
+	-rm -fr $(SBT_PROJECTS_FILE) $(SO_PROJECTS_FILE) $(PROJECTS_DIR) $(PROJECTS_FILE)
 	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
 	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
-	-rm -f report.html
-
-clean-classes:
-	$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-rm -f $(CORPUS_SUMMARY)
 
 clean-compile:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -281,113 +121,9 @@ clean-repo-metadata:
 clean-sbt:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
 
-clean-sbt-projects:
-	-rm -fr $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
-
 clean-semanticdb:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
-
-clean-so-projects:
-	-rm -fr $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
-
-compile: $(GLOBAL_COMPILE_STATUS)
-
-corpus-summary: $(CORPUS_SUMMARY)
-
-dejavu: $(DEJAVU_FILES_HASH)
-
-download-projects: $(ALL_PROJECTS_DIR)
-
-implicits: $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS)
-	$(SCRIPTS_DIR)/quick-summary.R
-
-export-implicits: $(GLOBAL_IMPLICITS)
-	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc
-
-fetch-github-info: $(PROJECTS_GITHUB_INFO)
-
-filter-sbt-projects: $(SBT_PROJECTS_FILE) $(SBT_PROJECTS_DIR)
-
-filter-so-projects: $(SO_PROJECTS_FILE) $(SO_PROJECTS_DIR)
-
-filter-duplicate-projects: $(PROJECTS_FILE) $(PROJECTS_DIR)
-
-metadata: $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
-
-parallel:
-	-mkdir -p $(LOG_DIR)
-	@echo $(N_JOBS) > jobsfile.txt
-	@echo ">> Running parallel task $(TASK) (REDO=$(REDO)) with logs in $(LOG_DIR) using $(PROJECTS_FILE)..."
-	cp $(PROJECTS_FILE) $(LOG_DIR)/projects.txt
-	touch "$(LOG_DIR)/$(TASK)"
-	-parallel \
-      --jobs $(JOBS_FILE) \
-      -a "$(PROJECTS_FILE)" \
-      --files \
-      --bar \
-      --tagstring "$(TASK) - {}:" \
-      --result "$(PROJECTS_DIR)/{1}/$(ANALYSIS_DIR)/parallel/$(TASK)" \
-      --joblog "$(LOG_DIR)/$(TASK)-parallel.log" \
-      --timeout $(TIMEOUT) \
-      make $(MFLAGS) -C "$(PROJECTS_DIR)/{1}" -f $(base_dir)/Makefile.project $(TASK) REDO=$(REDO)
-
-patch-downloaded-projects:
-	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
-
-redo-good-compile:
-	-rm -f $(GLOBAL_COMPILE_STATUS)
-	$(MAKE) -f $(this_makefile) compile REDO=3
-
-redo-good-implicits:
-	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS)
-	$(MAKE) -f $(this_makefile) implicits REDO=3
-
-redo-good-metadata:
-	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS)
-	$(MAKE) -f $(this_makefile) metadata REDO=3
-
-redo-good-semanticdb: $(bootstrap)
-	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
-	$(MAKE) -f $(this_makefile) semanticdb REDO=3
-
-redo-failed-compile:
-	-rm -f $(GLOBAL_COMPILE_STATUS)
-	$(MAKE) -f $(this_makefile) compile REDO=1
-
-redo-failed-implicits:
-	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS)
-	$(MAKE) -f $(this_makefile) implicits REDO=1
-
-redo-failed-metadata:
-	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
-	$(MAKE) -f $(this_makefile) metadata REDO=1
-
-redo-failed-semanticdb: $(bootstrap)
-	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
-	$(MAKE) -f $(this_makefile) semanticdb REDO=1
-
-redo-compile: $(bootstrap)
-	-rm -f $(GLOBAL_COMPILE_STATUS)
-	$(MAKE) -f $(this_makefile) compile REDO=2
-
-redo-implicits:
-	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS)
-	$(MAKE) -f $(this_makefile) implicits REDO=2
-
-redo-metadata:
-	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
-	$(MAKE) -f $(this_makefile) metadata REDO=2
-
-redo-semanticdb: $(bootstrap)
-	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
-	$(MAKE) -f $(this_makefile) semanticdb REDO=2
-
-repo-metadata: $(GLOBAL_REPO_METADATA) $(GLOBAL_REPO_SLOC)
-
-report: $(CORPUS_SUMMARY) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/implicits-analysis.Rmd", output_file=file.path("$(CURDIR)/implicits-analysis.html"), knit_root_dir="$(CURDIR)", params=list(base_dir="$(CURDIR)"))'
-	@echo ">> Report is in implicits-analysis.html"
 
 reset: $(bootstrap)
 	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
@@ -395,9 +131,125 @@ reset: $(bootstrap)
 reset-all: $(bootstrap)
 	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
 
-sbt-structure: $(GLOBAL_SBT_STRUCTURE_STATUS)
+dejavu: $(SO_PROJECTS_FILE)
+	[ -d $(DEJAVU_HOME) ] || mkdir $(DEJAVU_HOME)
+	[ -d $(DEJAVU_DOWNLOAD) ] || mkdir $(DEJAVU_DOWNLOAD) && \
+	  parallel --bar -a $(SO_PROJECTS_FILE) ln -sf '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
 
-scaladex: $(SCALADEX)
+	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SO_PROJECTS_FILE) $(DEJAVU_INPUT)
+	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
 
-semanticdb: $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
+	cd $(DEJAVU_HOME) && \
+      $(SCRIPTS_DIR)/tools/js-tokenizer/build/tokenizer Scala $(notdir $(DEJAVU_INPUT)) 1 0 .; \
+      echo "Done tokenizing";
+
+	mv $(DEJAVU_HOME)/files_0.csv $(DEJAVU_HOME)/files.csv
+	mv $(DEJAVU_HOME)/stats_0.csv $(DEJAVU_HOME)/stats.csv
+	mv $(DEJAVU_HOME)/summary_0.txt $(DEJAVU_HOME)/summary.txt
+	mv $(DEJAVU_HOME)/projects_0.csv $(DEJAVU_HOME)/projects.csv
+
+	cd $(SCRIPTS_DIR)/tools/sccpreprocessor/src && \
+      java SccPreprocessor h2i $(CURDIR)/$(DEJAVU_HOME)
+
+	$(SCRIPTS_DIR)/merge-dejavu-files-hash.R $(DEJAVU_FILES_HASH)
+
+download-projects: $(ALL_PROJECTS_FILE)
+	-mkdir -p $(ALL_PROJECTS_DIR)
+	-cat $(ALL_PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
+        parallel --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
+	$(MAKE) -f $(this_makefile) patch-downloaded-projects
+
+filter-sbt-repos: $(GLOBAL_REPO_METADATA)
+	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_METADATA)"), scala_code > 0,  startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
+
+filter-so-repos: $(SBT_PROJECTS_FILE)
+	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), dplyr::n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
+
+filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_FILES_HASH)
+	cp $(SO_PROJECTS_FILE) $(PROJECTS_FILE)
+	rm -fr $(PROJECTS_DIR)
+	mkdir -p $(PROJECTS_DIR)
+	parallel --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)'
+
+fetch-github-info: $(SBT_PROJECTS_FILE)
+	if [ -f $(PROJECTS_GITHUB_INFO).pinned ]; then \
+      cp -f $(PROJECTS_GITHUB_INFO).pinned $(PROJECTS_GITHUB_INFO); \
+    else \
+      $(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO); \
+      cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned; \
+    fi
+
+patch-downloaded-projects:
+	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
+
+repo-metadata: $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
+	$(parallel) TASK=repo-metadata PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
+	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_METADATA) "cciiciiii" $(GLOBAL_REPO_METADATA)
+	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_SLOC) "iciii" $(GLOBAL_REPO_SLOC)
+
+report: $(CORPUS_SUMMARY) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/corpus-analysis.Rmd", output_file=file.path("$(CURDIR)/corpus-analysis.html"), params=list(base_dir="$(CURDIR)"))'
+
+scaladex:
+	if [ -f $(SCALADEX).pinned ]; then \
+      cp -f $(SCALADEX).pinned $(SCALADEX); \
+    else \
+      $(SCRIPTS_DIR)/scaladex.R $(SCALADEX).pinned; \
+      cp -f $(SCALADEX).pinned $(SCALADEX); \
+    fi
+
+metadata: $(PROJECTS_DIR) $(PROJECTS_FILE)
+ifneq ($(REDO), -1)
+	$(parallel) TASK=metadata REDO=$(REDO)
+endif
+
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_STATUS) "ii" $(GLOBAL_METADATA_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_MODULES) "cccccccccccc" $(GLOBAL_METADATA_MODULES)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_SOURCEPATHS) "ccclciciii" $(GLOBAL_METADATA_SOURCEPATHS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(METADATA_DEPENDENCIES) "cccccccl" $(GLOBAL_METADATA_DEPENDENCIES)
+
+compile: $(PROJECTS_DIR) $(PROJECTS_FILE)
+ifneq ($(REDO), -1)
+	$(parallel) TASK=compile REDO=$(REDO)
+endif
+
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(COMPILE_STATUS) "iii" $(GLOBAL_COMPILE_STATUS)
+
+semanticdb: $(PROJECTS_FILE) $(PROJECTS_DIR)
+ifneq ($(REDO), -1)
+	$(parallel) TASK=semanticdb REDO=$(REDO)
+endif
+
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SEMANTICDB_STATUS) "iii" $(GLOBAL_SEMANTICDB_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(SEMANTICDB_MERGED_STATS_FILE) "iiii" $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
+
+implicits: $(PROJECTS_FILE) $(PROJECTS_DIR)
+ifneq ($(REDO), -1)
+	$(parallel) TASK=implicits REDO=$(REDO)
+endif
+
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_STATUS) "ii" $(GLOBAL_IMPLICITS_STATUS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_STATS) "cciiiii" $(GLOBAL_IMPLICITS_STATS)
+	$(SCRIPTS_DIR)/merge-csvs.R $(PROJECTS_FILE) $(PROJECTS_DIR) $(IMPLICITS_EXCEPTIONS) "cccccccc" $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc
+
+	$(SCRIPTS_DIR)/quick-summary.R
+
+corpus-summary: $(GLOBAL_COMPILE_STATUS) \
+  $(GLOBAL_METADATA_STATUS) \
+  $(GLOBAL_SEMANTICDB_STATUS) \
+  $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE) \
+  $(GLOBAL_IMPLICITS_STATUS) \
+  $(GLOBAL_IMPLICITS_STATS) \
+  $(GLOBAL_IMPLICITS_EXCEPTIONS) \
+  $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS) \
+  $(PROJECTS_GITHUB_INFO) \
+  $(GLOBAL_REPO_SLOC) \
+  $(GLOBAL_REPO_METADATA) \
+  $(SCALADEX)
+
+	$(SCRIPTS_DIR)/corpus-summary.R .
+
+export-implicits: $(GLOBAL_IMPLICITS)
+	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc
 

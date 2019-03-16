@@ -28,29 +28,28 @@ $(error N_JOBS is not set. Controls the number of parallel jobs)
 endif
 
 SBT_MEM ?= 16000
-TIMEOUT ?= 90m
+TIMEOUT ?= 30m
 MAX_MEM ?= 128000
 
-# the initial project list
-ALL_PROJECTS_FILE := all-projects.txt
+# the initial projects
 ALL_PROJECTS_DIR := all-projects
+ALL_PROJECTS_FILE := all-projects.txt
 ALL_PROJECTS_PATCH := all-projects-patch.csv
 
 SBT_PROJECTS_FILE := sbt-projects.txt
-SBT_PROJECTS_DIR := sbt-projects
-
 SO_PROJECTS_FILE := so-projects.txt
-SO_PROJECTS_DIR := so-projects
 
-# the final project list
+# the final projects
 PROJECTS_DIR := projects
 PROJECTS_FILE := projects.txt
 
-MAX_REPEAT := 2
 ANALYSIS_DIR := _analysis_
 SCRIPTS_DIR := $(base_dir)scripts
 IVY_DIR := _ivy_
 SBT_BOOT_DIR := _sbt-boot_
+SBT_DIR := _sbt_
+SBT_REPOSITORIES_FILE := $(base_dir)sbt-repositories@prl4
+SBT_PLUGIN_FILE := $(base_dir)sbt-plugins.sbt
 COURSIER_DIR := _coursier_
 SCALAMETA_VERSION := 4.1.4
 
@@ -109,12 +108,6 @@ GLOBAL_IMPLICITS := $(notdir $(IMPLICITS))
 CORPUS_SUMMARY := corpus.csv
 IMPLICIT_CALLSITES := implicit-callsites.csv
 IMPLICIT_DECLARATIONS := implicit-declarations.csv
-
-SBT_STRUCTURE := $(ANALYSIS_DIR)/sbt-stucture.xml
-SBT_STRUCTURE_STATUS := $(ANALYSIS_DIR)/sbt-stucture-status.csv
-SBT_STRUCTURE_LOG := $(ANALYSIS_DIR)/sbt-stucture.log
-
-GLOBAL_SBT_STRUCTURE_STATUS := $(notdir $(SBT_STRUCTURE_STATUS))
 
 SCALADEX := scaladex.txt
 
