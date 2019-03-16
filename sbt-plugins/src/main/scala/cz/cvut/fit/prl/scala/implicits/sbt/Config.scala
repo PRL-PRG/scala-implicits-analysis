@@ -15,7 +15,7 @@ object Config {
   )
 
   private[this] val supported211 = Seq(9, 10, 11, 12).map(x => s"2.11.$x")
-  private[this] val supported212 = Seq(3, 4, 5, 6, 7, 8).map(x => s"2.12.$x")
+  private[this] val supported212 = Seq(4, 5, 6, 7, 8).map(x => s"2.12.$x")
 
   private[this] val default210 = "2.11.12"
   private[this] val default211 = "2.11.12"
