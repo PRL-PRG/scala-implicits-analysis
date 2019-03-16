@@ -33,7 +33,7 @@ system <- NA
 sbt_version <- NA
 
 size <- system2("du", c("-sb", "."), stdout = TRUE) %>% str_replace("(\\d+).*", "\\1") %>% as.integer()
-commit_count <- system2("git", c("rev-list", "--count HEAD"), stdout = TRUE) %>% as.integer()
+commit_count <- system2("git", c("rev-list", "--count HEAD", "--"), stdout = TRUE) %>% as.integer()
 commit <- system2("git", c("log", "--pretty=format:'%H'", "-n 1"), stdout = TRUE)
 commit_dates <- system2("git", c("log", "--date=unix", "--pretty=format:'%cd'"), stdout = TRUE)
 commit_date <- as.integer(commit_dates[1])
@@ -84,6 +84,9 @@ if (!is.na(system) && system == "sbt") {
 }
 
 sloc_scala <- sloc[sloc$language=="Scala", ]
+if (nrow(sloc_scala) == 0) {
+    sloc_scala <- tibble(files=0, language="Scala", blank=0, comment=0, code=0)
+}
 
 df <- tibble(
   build_system=system, 
