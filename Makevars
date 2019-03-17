@@ -40,8 +40,8 @@ SBT_PROJECTS_FILE := sbt-projects.txt
 SO_PROJECTS_FILE := so-projects.txt
 
 # the final projects
-PROJECTS_DIR := projects
-PROJECTS_FILE := projects.txt
+PROJECTS_DIR ?= projects
+PROJECTS_FILE ?= projects.txt
 
 ANALYSIS_DIR := _analysis_
 SCRIPTS_DIR := $(base_dir)scripts
