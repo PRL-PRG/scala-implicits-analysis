@@ -12,6 +12,8 @@ package object model {
     def module(implicit idx: Index): Module = idx.modules(moduleId)
 
     def project(implicit idx: Index): Project = module.project
+
+    def projectId(implicit idx: Index): String = project.projectId
   }
 
   trait LocationOps {
@@ -61,7 +63,7 @@ package object model {
 
   implicit class XtensionProject(that: Project) {
     def declarations: Iterable[Declaration] = that.modules.flatMap(_.declarations.values)
-    def implicitDeclarations: Iterable[Declaration] = that.declarations.filter(_.isImplicit)
+    def implicitDeclarations: Iterable[Declaration] = that.declarations.filter(x => x.isImplicit || x.hasImplicitParameters)
     def implicitCallSites: Iterable[CallSite] = that.modules.flatMap(_.implicitCallSites)
     def githubUserName: String = that.projectId.split("--").apply(0)
     def githubRepoName: String = that.projectId.split("--").apply(1)

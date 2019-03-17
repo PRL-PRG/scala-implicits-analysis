@@ -1,13 +1,21 @@
 package cz.cvut.fit.prl.scala.implicits.tools
 
 import better.files._
+
 import com.typesafe.scalalogging.Logger
+
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.Util.timedTask
+
+import cats.Monoid
+import cats.implicits._
+
 import kantan.csv._
 import kantan.csv.ops._
 import kantan.csv.generic._
+
 import org.slf4j.LoggerFactory
+
 import scala.util.{Failure, Success, Try}
 
 object ExportImplicitDeclarations extends ExportApp {
@@ -93,26 +101,33 @@ object ExportImplicitDeclarations extends ExportApp {
     }
   }
 
-  private def export(idx: Index, output: File): Unit = {
-    for {
+  private def export(idx: Index, output: File): (Int, Int) = {
+    val pipe = for {
       out <- output.newOutputStream.autoClosed
       writer <- out.asCsvWriter[Output](rfc.withHeader(Output.Header: _*)).autoClosed
       declaration <- idx.implicitDeclarations
-    } Try(Output(declaration)(idx)) match {
-      case Success(row) =>
-        writer.write(row)
-      case Failure(e) =>
-        println(s"Unable to convert $declaration")
-        e.printStackTrace()
-        println()
-    }
+    } yield
+      Try(Output(declaration)(idx)) match {
+        case Success(row) =>
+          writer.write(row)
+          (1, 0)
+        case Failure(e) =>
+          reportException(
+            declaration.projectId(idx),
+            declaration.moduleId,
+            s"Unable to convert $declaration",
+            e)
+          (0, 1)
+      }
+
+    pipe.foldLeft(Monoid[(Int, Int)].empty)(_ |+| _)
   }
 
   def run(idx: Index, outputFile: File): Unit = {
-    timedTask(
-      s"Exporting ${idx.implicitDeclarations.size} declarations into $outputFile",
-      export(idx, outputFile)
-    )
+    timedTask(s"Exporting ${idx.implicitDeclarations.size} declarations into $outputFile") {
+      val (s, f) = export(idx, outputFile)
+      logger.info(s"Exported $s declarations, $f failed")
+    }
   }
 
   def defaultOutputFilename = "implicit-declarations.csv"

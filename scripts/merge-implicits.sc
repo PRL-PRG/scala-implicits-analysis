@@ -1,109 +1,116 @@
 import $ivy.`cz.cvut.fit.prl.scala.implicits::tools:1.0-SNAPSHOT`
 import $ivy.`cz.cvut.fit.prl.scala.implicits::metadata:1.0-SNAPSHOT`
-import $ivy.`org.typelevel::kittens:1.2.0`
 
 import better.files._
+import cz.cvut.fit.prl.scala.implicits.model.Project
+import cz.cvut.fit.prl.scala.implicits.model.Util._
+import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
+
+import java.io.OutputStream
 
 import cats.Monoid
-import cats.syntax.monoid._
 
-import scala.util.Try
-import scala.util.Success
-import scala.util.Failure
+import scala.util.{Try, Success, Failure}
 
-import kantan.csv._
-import kantan.csv.ops._
-import kantan.csv.generic._
-
-import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
-import cz.cvut.fit.prl.scala.implicits.model.Index
-
-case class FailedProject(
-                          projectId: String,
-                          exception: String,
-                          message: String,
-                          trace: String,
-                          cause: String,
-                          causeMessage: String,
-                          causeTrace: String
-                        )
-
-object FailedProject {
-  val Header = Seq(
-    "project_id",
-    "exception",
-    "message",
-    "trace",
-    "cause",
-    "cause_message",
-    "cause_trace"
-  )
-
-  def apply(projectId: String, e: Throwable): FailedProject = new FailedProject(
-    projectId,
-    e.getClass.getSimpleName,
-    Option(e.getMessage).getOrElse("NA"),
-    e.getStackTrace.head.toString,
-    Option(e.getCause).map(_.getClass.getSimpleName).getOrElse("NA"),
-    Option(e.getCause).flatMap(x => Option(x.getMessage)).getOrElse("NA"),
-    Option(e.getCause).map(_.getStackTrace.head.toString).getOrElse("NA"),
-  )
+case class Stats(
+      projects: Int,
+      bytes: Long,
+      missing: List[String],
+      failed: List[(String, Throwable)]) {
+  def prettyPrint(): Unit = {
+    println(s"Projects $projects ($bytes bytes)")
+    println(s"Missing projects: ${missing.size}")
+    if (failed.nonEmpty) {
+      println(s"Failed projects: ${failed.size}")
+      println(failed.map(x => x._1 + ": " + x._2.getMessage).mkString("\t", "\n\t", "\n"))
+    }
+  }
 }
 
-def build(path: File): (List[FailedProject], Index) = {
-  if (!path.isDirectory) {
-    throw new IllegalArgumentException(s"$path must be a directory")
+implicit val monoidStats: Monoid[Stats] = new Monoid[Stats] {
+    override def empty = Stats(0, 0, Nil, Nil)
+    override def combine(x: Stats, y: Stats) =
+      Stats(
+        x.projects + y.projects,
+        x.bytes + y.bytes,
+        x.missing ++ y.missing,
+        x.failed ++ y.failed
+      )
   }
 
-  val (failures, index) = {
-    val indexes =
-      for {
-        projectName <- (File.currentWorkingDirectory / ProjectsFilename).lineIterator
-        projectPath = path / ProjectsDirname / projectName
-        dataFile = projectPath / AnalysisDirname / ExtractedImplicitsFilename if dataFile.exists
-      } yield
-        Try(Index.fromProjectFile(dataFile)) match {
-          case Success(v) => Right(v)
-          case Failure(e) => Left(projectName -> e)
-        }
+def mergeOne(projectId: String, dataFile: File, output: OutputStream): Stats = {
+    if (dataFile.exists) {
+      Try {
+        val project = dataFile.inputStream.apply(Project.parseFrom)
+        val size = Project.write(project, output)
 
-    val empty = (List[FailedProject](), Monoid[Index].empty)
-
-    indexes.foldLeft(empty) {
-      case ((fs, idx), b) =>
-        b match {
-          case Right(v) => (fs, idx |+| v)
-          case Left((projectId, e)) => (FailedProject(projectId, e) :: fs, idx)
-        }
+        Stats(1, size, Nil, Nil)
+      } match {
+        case Success(stats) =>
+          println(s"Written ${stats.bytes} bytes for $projectId")
+          stats
+        case Failure(e) =>
+          println(s"Failed $dataFile")
+          Stats(0, 0, Nil, projectId -> e :: Nil)
+      }
+    } else {
+      println(s"Missing $dataFile")
+      Stats(0, 0, projectId :: Nil, Nil)
     }
   }
 
-  println(
-    s"Loaded index from: $path (" +
-      s"failures: ${failures.size}, " +
-      s"projects: ${index.projects.size}, " +
-      s"modules: ${index.modules.size}, " +
-      s"call sites: ${index.implicitCallSites.size}, " +
-      s"declarations: ${index.implicitDeclarations.size}" +
-      s")"
-  )
+def merge(projectDirs: Iterator[File]): Stats = {
+    val outputFile = File(ExtractedImplicitsFilename)
 
-  (failures, index)
-}
+    println(s"** MERGING into: $outputFile")
+
+    val pipe = for {
+      output <- outputFile.outputStream
+      (projectDir, idx) <- projectDirs.zipWithIndex
+    } yield {
+      val projectId = projectDir.name
+      val dataFile = projectDir / AnalysisDirname / ExtractedImplicitsFilename
+
+      println(s"Processing ($idx) $dataFile")
+
+      mergeOne(projectId, dataFile, output)
+    }
+
+    Monoid[Stats].combineAll(pipe)
+  }
+
+def reread(): Stats = {
+    val inputFile = File(ExtractedImplicitsFilename)
+
+    val pipe = for {
+      input <- inputFile.inputStream
+      (project, idx) <- Project.streamFrom(input).zipWithIndex
+    } yield {
+      println(s"Read ($idx) ${project.projectId}")
+      Stats(1, 0, Nil, Nil)
+    }
+
+    Monoid[Stats].combineAll(pipe)
+  }
 
 @main
-def main() = {
-  val baseDir = File.currentWorkingDirectory
+  def main(projectFile: String, projectDir: String): Unit = {
+    val projects = File(projectFile).lineIterator.map(x => projectDir / x)
+    val writeStats = Try(merge(projects))
+    val readStats = Try(reread())
 
-  val (failures, index) = build(baseDir)
+    for {
+      ws <- writeStats
+      rs <- readStats
+    } {
+      println("Write stats:")
+      ws.prettyPrint()
 
-  Index.saveToProjectsFile(index, baseDir / ExtractedImplicitsFilename)
+      println("Read stats:")
+      rs.prettyPrint()
 
-  val indexExceptionFile = baseDir / ExtractionIndexExceptionsFilename
-
-  for {
-    out <- indexExceptionFile.newOutputStream.autoClosed
-    writer <- out.asCsvWriter[FailedProject](rfc.withHeader(FailedProject.Header: _*)).autoClosed
-    failure <- failures
-  } writer.write(failure)
-}
+      if (rs.projects != ws.projects) {
+        println(s"*** CHECKSUM FAILED: missing ${ws.projects - rs.projects} !!! ***")
+      }
+    }
+  }
