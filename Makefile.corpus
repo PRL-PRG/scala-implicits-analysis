@@ -163,7 +163,7 @@ filter-sbt-repos: $(GLOBAL_REPO_METADATA)
 	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_METADATA)"), scala_code > 0,  startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
 
 filter-so-repos: $(SBT_PROJECTS_FILE)
-	Rscript -e 'writeLines(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), dplyr::n()==1, is.na(error))$$project_id, "$(SO_PROJECTS_FILE)")'
+	Rscript -e 'writeLines(intersect(dplyr::filter(dplyr::group_by(readr::read_csv("$(PROJECTS_GITHUB_INFO)"), name), dplyr::n()==1, is.na(error))$$project_id, readLines("$(SBT_PROJECTS_FILE)")), "$(SO_PROJECTS_FILE)")'
 
 filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_FILES_HASH)
 	cp $(SO_PROJECTS_FILE) $(PROJECTS_FILE)
