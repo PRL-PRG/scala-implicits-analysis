@@ -6,7 +6,7 @@ import cz.cvut.fit.prl.scala.implicits.tools.ExtractImplicits
 
 class ExampleProjectIndexSuite extends FunSuite with Matchers {
 
-  lazy implicit val idx: Index = {
+  lazy implicit val idx: FullIndex = {
     val result = ExtractImplicits.extractProject(ExampleProjectPath)
 
     if (result.exceptions.nonEmpty) {
@@ -17,7 +17,7 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
 
     result.exceptions shouldBe empty
 
-    Index(List(result.project))
+    FullIndex(List(result.project))
   }
 
   test("Issue #22 - implicit argument from macro") {

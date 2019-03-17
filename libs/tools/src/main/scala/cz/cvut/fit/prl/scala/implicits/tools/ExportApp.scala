@@ -3,6 +3,7 @@ package cz.cvut.fit.prl.scala.implicits.tools
 import better.files._
 
 import cz.cvut.fit.prl.scala.implicits.model.Index
+import cz.cvut.fit.prl.scala.implicits.model.StreamingIndex
 
 import kantan.csv._
 import kantan.csv.ops._
@@ -68,7 +69,7 @@ trait ExportApp {
   }
 
   def run(inputFile: File): Unit = {
-    val index = Index.fromFile(inputFile)
+    val index = new StreamingIndex(inputFile)
 
     try {
       run(index, outputFile)

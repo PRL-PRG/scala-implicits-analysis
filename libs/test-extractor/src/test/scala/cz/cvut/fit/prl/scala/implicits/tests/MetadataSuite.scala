@@ -4,7 +4,7 @@ import org.scalatest.{FunSuite, Matchers}
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.ProjectMetadata
 import cz.cvut.fit.prl.scala.implicits.extractor.{DeclarationExtractor, ExtractionContext}
-import cz.cvut.fit.prl.scala.implicits.model.{Index, ModelDSL}
+import cz.cvut.fit.prl.scala.implicits.model.{FullIndex, ModelDSL}
 import cz.cvut.fit.prl.scala.implicits.tools.ExtractImplicits
 import cz.cvut.fit.prl.scala.implicits.utils._
 

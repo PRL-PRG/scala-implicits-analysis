@@ -4,14 +4,14 @@ import $ivy.`org.typelevel::kittens:1.2.0`
 
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
-import cz.cvut.fit.prl.scala.implicits.model.Index
+import cz.cvut.fit.prl.scala.implicits.model.StreamingIndex
 import cz.cvut.fit.prl.scala.implicits.tools.ExportImplicitCallSites
 import cz.cvut.fit.prl.scala.implicits.tools.ExportImplicitDeclarations
 
 @main
 def main() = {
   val baseDir = File.currentWorkingDirectory
-  val index = Index.fromProjectsFile(baseDir / ExtractedImplicitsFilename)
+  val index = new StreamingIndex(baseDir / ExtractedImplicitsFilename)
 
   ExportImplicitCallSites.run(index)
   ExportImplicitDeclarations.run(index)
