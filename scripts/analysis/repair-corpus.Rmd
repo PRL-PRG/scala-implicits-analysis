@@ -1,0 +1,82 @@
+---
+title: "Repair corpus"
+output: html_document
+---
+
+This just constains snippets used to correct mistakes in running some tasks.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+
+library(fs)
+library(tidyverse)
+library(ggplot2)
+library(DT)
+
+theme_set(theme_minimal())
+source("inc/paths.R")
+source("inc/stats.R")
+```
+
+## Load
+
+```{r}
+all_projects_names <- readLines(ALL_PROJECTS_FILE)
+downloaded <- basename(dir_ls(ALL_PROJECTS_DIR, recursive = FALSE))
+repo_metadata <- read_csv(REPO_METADATA)
+```
+
+## Remove duplicates from all-projects.txt
+
+```{r}
+writeLines(unique(all_projects_names), ALL_PROJECTS_FILE)
+```
+
+## Sync pinned github info
+
+```{r}
+github_info <- read_csv(PROJECTS_GH_INFO_PINNED) %>% distinct(project_id, .keep_all = T)
+semi_join(github_info, repo_metadata_sbt_compatible, by="project_id") %>% write_csv(PROJECTS_GH_INFO_PINNED)
+```
+
+
+## Remove empty repo-metadata.csv / repo-sloc.csv
+
+```{r}
+missing <- setdiff(downloaded, repo_metadata$project_id)
+missing_df <- map_dfr(missing, ~tibble(project_id=., path=path(ALL_PROJECTS_DIR, .), files=if (dir_exists(path)) dir_ls(path, recursive = F) else character(0)))
+repo_metadata_files <- path(unique(missing_df$path), "_analysis_", "repo-metadata.csv")
+repo_sloc_files <- path(unique(missing_df$path), "_analysis_", "repo-sloc.csv")
+file_delete(repo_metadata_files[file_exists(repo_metadata_files)])
+file_delete(repo_sloc_files[file_exists(repo_sloc_files)])
+```
+
+```{r}
+to_remove <- count(missing_df, path) %>% filter(n != 4) %>% mutate(
+  repo_metadata_file=path(path, "_analysis_", "repo-metadata.csv"),
+  repo_sloc_file=path(path, "_analysis_", "repo-metadata.csv")
+)
+file_delete(to_remove$repo_metadata_file[file_exists(to_remove$repo_metadata_file)])
+file_delete(to_remove$repo_sloc_file[file_exists(to_remove$repo_sloc_file)])
+```
+
+## Remove repo-metadata when sbt_version is NA
+
+```{r}
+withr::with_dir("/var/lib/scala/corpora/github", {
+  repo_metadata <- read_csv("repo-metadata.csv")
+  repo_metadata %>% 
+    filter(build_system=="sbt", is.na(sbt_version)) %>%
+    transmute(path=path("all-projects", project_id, "_analysis_", "repo-metadata.csv")) %>%
+    filter(file_exists(path)) %>%
+    .$path %>% file_delete()
+})
+```
+
+## Remove status file in projects that can redo
+
+```{r}
+repeatable_projects <- filter(failed_projects, cause %in% c("out-of-memory", "unknown-metadata-command", "unknown", "java-error"))$project_id
+writeLines(repeatable_projects, path(params$base_dir, "redo.txt"))
+```
+
