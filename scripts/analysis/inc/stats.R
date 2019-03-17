@@ -71,3 +71,134 @@ is_outlier_max <- function(x) quantile(x, 0.75) + 1.5 * IQR(x)
 is_outlier <- function(x) {
   (x < is_outlier_min(x)) | (x > is_outlier_max(x))
 }
+
+simple_datatable <- function(...) {
+  datatable(..., options=list(paging=FALSE, searching=FALSE, info=FALSE))
+}
+
+phase_status <- function(phase, df) {
+  df %>%
+    count(exit_code) %>%
+    transmute(
+      phase=phase,
+      status=case_when(
+        exit_code ==  0 ~ "success",
+        exit_code == -1 ~ "not_run",
+        exit_code ==  1 ~ "failed",
+        exit_code > 130 ~ "timed_out"
+      ),
+      count=n
+    ) %>%
+    group_by(phase, status) %>%
+    summarise(count=sum(count)) %>%
+    ungroup() %>%
+    spread(status, count, fill=0) %>%
+    mutate(all = rowSums(.[-1])) %>%
+    select(phase, all, everything())
+}
+
+guess_failure_cause <- function(df, tail_lines=20) {
+  if (!file_exists(df$log_file)) {
+    return(tibble(project_id=df$project_id, log_file=df$log_file, cause="log-file-does-not-exist", detail=NA))
+  }
+  
+  str_subset_multiple <- function(string, patterns) {
+    for (p in patterns) {
+      m <- str_subset(string, p)
+      if (length(m)) return(list(pattern=p, matches=m))
+    }
+    
+    list(pattern=character(0), matches=character(0))
+  }
+  
+  causes <- list(
+    `sbt-class-not-found`=function(lines) {
+      pattern <- "\\[error\\] java.lang.ClassNotFoundException: \\$.*"
+      str_subset(lines, pattern)
+    },
+    `missing-dependencies`=function(lines) {
+      patterns <- c(
+        "\\[error\\] \\([^)]+\\) sbt.ResolveException: unresolved dependency: ([^:]+):.*",
+        "\\[error\\] \\([^)]+\\) sbt.librarymanagement.ResolveException: unresolved dependency: ([^:]+):.*"
+      )
+      r <- str_subset_multiple(lines, patterns)
+      if (length(r$matches) > 0) {
+        str_replace_all(r$matches, r$pattern, "\\1")
+      } else {
+        idx <-str_which(lines, fixed("coursier.ResolutionException"))
+        if (length(idx)) {
+          lines[idx+1] %>%
+            str_replace_all(fixed("[error]"), "") %>%
+            trimws("both")
+        }
+      }
+    },
+    `out-of-memory`=function(lines) {
+      patterns <- c("Error during sbt execution: java.lang.OutOfMemoryError", "java.lang.OutOfMemoryError")
+      str_subset_multiple(lines, patterns)$matches
+    },
+    `compilation-failed`=function(lines) {
+      pattern <- "\\[error\\] \\([^)]+\\) Compilation failed"
+      str_subset(lines, pattern)
+    },
+    `java-exception`=function(lines) {
+      pattern <- "\\[error\\] \\([^)]+\\) (.*Exception.*)"
+      matches <- str_subset(lines, pattern)
+      str_replace_all(matches, pattern, "\\1")
+    },
+    `java-error`=function(lines) {
+      pattern <- "\\[error\\] \\([^)]+\\) (.*Error.*)"
+      matches <- str_subset(lines, pattern)
+      str_replace_all(matches, pattern, "\\1")
+    },
+    `project-loading-failed`=function(lines) {
+      pattern <- "^Project loading failed:"
+      str_subset(lines, pattern)
+    },
+    `unknown-metadata-command`=function(lines) {
+      pattern <- "\\[error\\] Not a valid command: metadata"
+      str_subset(lines, pattern)
+    },
+    `unknown-semanticdb-command`=function(lines) {
+      pattern <- "\\[error\\] Not a valid command: semanticdb"
+      str_subset(lines, pattern)
+    }
+  )
+  
+  lines <- tail(read_lines(df$log_file), tail_lines)
+  
+  for (cause in names(causes)) {
+    cause_fun <- causes[[cause]]
+    res <- cause_fun(lines)
+    if (length(res) > 0) {
+      return(tibble(project_id=df$project_id, log_file=df$log_file, cause=cause, detail=res))
+    }
+  }
+  
+  last_error <- str_subset(lines, "\\[error\\]")
+  last_error <- if (length(last_error) > 0) {
+    str_c(last_error, collapse="\n")
+  } else {
+    NA
+  }
+  tibble(project_id=df$project_id, log_file=df$log_file, cause="unknown", detail=last_error)
+}
+
+phase_failure_cause <- function(df) {
+  df %>%
+  rowwise() %>%
+  do(guess_failure_cause(.)) %>%
+  ungroup()
+}
+
+phase_failure_cause_from_status <- function(status, log_filename) {
+  filter(status, exit_code==1) %>%
+    select(project_id) %>%
+    mutate(
+      log_file=path("projects", project_id, "_analysis_", log_filename)
+    ) %>%
+    rowwise() %>%
+    do(guess_failure_cause(.)) %>%
+    ungroup()
+}
+

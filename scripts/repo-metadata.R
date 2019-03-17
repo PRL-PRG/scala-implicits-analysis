@@ -63,19 +63,14 @@ for (i in seq_along(systems_def)) {
 
 if (!is.na(system) && system == "sbt") {
     tryCatch({
-        if (file.exists(file.path(dir, "project", "build.properties"))) {
-            props <- read.table(
-                "project/build.properties",
-                header=FALSE,
-                sep="=",
-                row.names=1,
-                strip.white=TRUE,
-                na.strings="NA",
-                stringsAsFactors=FALSE
-            )
-            version <- props["sbt.version", 1]
-            if (!is.null(version)) {
-                sbt_version <- version
+        build_properties <- file.path(dir, "project", "build.properties")
+
+        if (file.exists(build_properties)) {
+            lines <- readLines(build_properties)
+            pattern <- "sbt\\.version=(.*)"
+            matches <- str_subset(lines, pattern)
+            if (length(matches) > 0) {
+                sbt_version <- str_replace(matches[length(matches)], pattern, "\\1")
             }
         }
     }, error=function(e) {

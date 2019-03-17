@@ -26,7 +26,6 @@ METADATA_SOURCEPATHS <- "metadata-sourcepaths.csv"
 METADATA_LOG <- "metadata.log"
 
 REPO_METADATA <- "repo-metadata.csv"
-REPO_BUILD_SYSTEM <- "repo-build-system.csv"
 REPO_SLOC <- "repo-sloc.csv"
 
 COMPILE_STATUS <- "compile-status.csv"
@@ -78,7 +77,7 @@ scaladex_ids <- read_lines(SCALADEX)
 projects <- tibble(
     project_id=project_ids,
     origin=str_c("https://github.com/", str_replace(project_id, "--", "/")),
-    project_path=path(PROJECTS_DIR, project_id),
+    project_path=path(getwd(), PROJECTS_DIR, project_id),
     scaladex=project_id %in% scaladex_ids
 )
 
@@ -124,17 +123,15 @@ metadata_sourcepaths <- read_csv(METADATA_SOURCEPATHS, col_types=cols(
 
 repo_metadata <- read_csv(REPO_METADATA, col_types=cols(
   project_id = col_character(),
-  commit_count = col_integer(),
-  commit = col_character(),
-  first_commit_date = col_integer(),
-  commit_date = col_integer(),
-  size = col_integer()
-))
-
-repo_build_system <- read_csv(REPO_BUILD_SYSTEM, col_types=cols(
-  project_id = col_character(),
   build_system = col_character(),
-  sbt_version = col_character()
+  sbt_version = col_character(),
+  size = col_double(),
+  commit_count = col_double(),
+  commit = col_character(),
+  commit_date = col_double(),
+  first_commit_date = col_double(),
+  scala_code = col_double(),
+  scala_files = col_double()
 ))
 
 repo_sloc <- read_csv(REPO_SLOC, col_types=cols(
@@ -233,14 +230,6 @@ scala_sloc <-
   summarise_all(sum) %>%
   rename_at(vars(-project_id), add_prefix("metadata_scala"))
 
-repo_scala_sloc <-
-  repo_sloc %>%
-  filter(language == "Scala") %>%
-  select(project_id, files, code) %>%
-  group_by(project_id) %>%
-  summarise_all(sum) %>%
-  rename_at(vars(-project_id), add_prefix("repo_scala"))
-
 repo_other_sloc <-
   repo_sloc %>%
   filter(language != "Scala") %>%
@@ -250,69 +239,16 @@ repo_other_sloc <-
   rename_at(vars(-project_id), add_prefix("repo_other"))
 
 projects <- local({
-
-  w_metadata <- left_join(
+  joins <- list(
     projects,
     rename_at(metadata_status, vars(-project_id), add_prefix('metadata')),
-    by="project_id"
-  )
-
-  w_scala_sloc <- left_join(
-    w_metadata,
     scala_sloc,
-    by="project_id"
-  )
-
-  w_repo_scala_sloc <- left_join(
-    w_scala_sloc,
-    repo_scala_sloc,
-    by="project_id"
-  )
-
-  w_sbt_version <- left_join(
-      w_repo_scala_sloc,
-      select(repo_build_system, project_id, sbt_version),
-      by="project_id"
-  )
-
-  w_modules <- left_join(
-      w_sbt_version,
-      metadata_modules,
-      by="project_id"
-  )
-
-  w_repo_metadata <- left_join(
-      w_modules,
-      repo_metadata,
-      by="project_id"
-  )
-
-  w_compile <- left_join(
-    w_repo_metadata,
+    metadata_modules,
+    rename(repo_metadata, repo_scala_code=scala_code, repo_scala_files=scala_files),
     rename_at(compile_status, vars(-project_id), add_prefix('compile')),
-    by="project_id"
-  )
-
-  w_sdb <- left_join(
-    w_compile,
-    rename_at(sdb_status, vars(-project_id), add_prefix('sdb')),
-    by="project_id"
-  )
-
-  w_sdb_stats <- left_join(
-    w_sdb,
-    rename_at(sdb_stats, vars(-project_id), add_prefix('sdb')),
-    by="project_id"
-  )
-
-  w_implicits <- left_join(
-    w_sdb_stats,
+    rename_at(sdb_status, vars(-project_id), add_prefix('semanticdb')),
+    rename_at(sdb_stats, vars(-project_id), add_prefix('semanticdb')),
     rename_at(implicits_status, vars(-project_id), add_prefix('implicits')),
-    by="project_id"
-  )
-
-  w_implicits_stats <- left_join(
-    w_implicits,
     select(
       implicits_stats,
       project_id,
@@ -323,28 +259,21 @@ projects <- local({
       implicit_failure=failure,
       implicit_problems=failures
     ),
-    by="project_id"
-  )
-
-  w_github <- left_join(
-    w_implicits_stats,
     select(github_info, project_id, github_stars=stars),
-    by="project_id"
+    select(
+      dejavu_project_duplication,
+      project_id,
+      dejavu_files=n_files,
+      dejavu_duplicated_files=n_duplicated_files,
+      dejavu_duplication=duplication
+    )
   )
-
-  w_dejavu <- left_join(
-      w_github,
-      select(
-        dejavu_project_duplication,
-        project_id,
-        dejavu_files=n_files,
-        dejavu_duplicated_files=n_duplicated_files,
-        dejavu_duplication=duplication
-      ),
-      by="project_id"
-  )
-
-  w_dejavu
+  
+  df <- joins[[1]]
+  for (i in seq(2, length(joins))) {
+    df <- left_join(df, joins[[i]], by="project_id")
+  }
+  df
 })
 
 write_csv(projects, CORPUS_CSV)
