@@ -124,7 +124,7 @@ object ExportImplicitDeclarations extends ExportApp {
   }
 
   def run(idx: Index, outputFile: File): Unit = {
-    timedTask(s"Exporting ${idx.implicitDeclarations.size} declarations into $outputFile") {
+    timedTask(s"Exporting declarations into $outputFile") {
       val (s, f) = export(idx, outputFile)
       logger.info(s"Exported $s declarations, $f failed")
     }

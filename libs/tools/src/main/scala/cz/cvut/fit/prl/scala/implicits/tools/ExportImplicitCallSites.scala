@@ -127,7 +127,7 @@ object ExportImplicitCallSites extends ExportApp {
   }
 
   def run(idx: Index, outputFile: File): Unit = {
-    timedTask(s"Exporting ${idx.implicitCallSites.size} call sites into $outputFile") {
+    timedTask(s"Exporting call sites into $outputFile") {
       val (s, f) = export(idx, outputFile)
       logger.info(s"Exported $s call sites, $f failed")
     }
