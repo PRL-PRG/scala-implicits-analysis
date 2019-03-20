@@ -271,6 +271,10 @@ package object model {
     override protected def moduleId: String = that.moduleId
 
     override protected def location: Location = that.location
+
+    def isScalaUnit: Boolean = that.declarationId == "scala/Unit#"
+
+    def isScalaFunction1: Boolean = that.declarationId == "scala/Function1#"
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
