@@ -84,7 +84,7 @@ package object model {
   }
 
   implicit class XtensionParameterList(that: ParameterList) {
-    def isImplicit: Boolean = that.parameters.exists(_.isImplicit)
+    def isImplicit: Boolean = that.parameters.forall(_.isImplicit)
   }
 
   implicit class XtensionPathEntry(that: PathEntry) {
