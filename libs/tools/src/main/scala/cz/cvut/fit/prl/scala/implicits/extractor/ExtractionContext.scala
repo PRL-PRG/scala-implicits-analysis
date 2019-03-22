@@ -206,8 +206,7 @@ class ExtractionContext(
       properties = symbolInfo.properties,
       name = symbolInfo.displayName,
       location = location,
-      language = symbolInfo.language,
-      isImplicit = symbolInfo.isImplicit
+      language = symbolInfo.language
     )
   }
 

@@ -2,6 +2,7 @@ package cz.cvut.fit.prl.scala.implicits
 
 import scala.language.implicitConversions
 import scala.meta.internal.semanticdb.Scala._
+import scala.meta.internal.semanticdb.SymbolInformation.{Property => p}
 import scala.meta.internal.{semanticdb => s}
 
 package object model {
@@ -292,6 +293,10 @@ package object model {
     def isScalaFunction1: Boolean = that.declarationId == "scala/Function1#"
 
     def isProjectLocal: Boolean = that.location.relativeUri.endsWith(".scala")
+
+    def isImplicit: Boolean = (that.properties & p.IMPLICIT.value) != 0
+
+    def isLazy: Boolean = (that.properties & p.LAZY.value) != 0
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =

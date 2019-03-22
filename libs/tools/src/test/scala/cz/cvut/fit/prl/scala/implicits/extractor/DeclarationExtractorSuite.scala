@@ -208,7 +208,6 @@ class DeclarationExtractorSuite
       "x",
       TestLocalLocation,
       SCALA,
-      true,
       Seq.empty,
       MethodSignature(
         returnType = TypeRef("scala/Int#")
@@ -235,7 +234,6 @@ class DeclarationExtractorSuite
       "x",
       TestLocalLocation,
       SCALA,
-      true,
       Seq.empty,
       TypeSignature(
         parents = Vector(
@@ -307,7 +305,6 @@ class DeclarationExtractorSuite
         "XtensionJson",
         TestLocalLocation,
         SCALA,
-        true,
         Seq.empty,
         TypeSignature(List(TypeParameter("T")))
       ),
@@ -319,7 +316,6 @@ class DeclarationExtractorSuite
         "ev",
         TestLocalLocation,
         SCALA,
-        true,
         Seq.empty,
         MethodSignature(
           returnType = TypeRef(
@@ -341,7 +337,6 @@ class DeclarationExtractorSuite
         "XtensionJson",
         TestLocalLocation,
         SCALA,
-        true,
         Seq.empty,
         MethodSignature(
           List(TypeParameter("T")),
@@ -416,7 +411,6 @@ class DeclarationExtractorSuite
         "evidence$1",
         TestLocalLocation,
         SCALA,
-        true,
         Seq.empty,
         MethodSignature(
           returnType = TypeRef(
@@ -438,7 +432,6 @@ class DeclarationExtractorSuite
         "XtensionJson",
         TestLocalLocation,
         SCALA,
-        true,
         Seq.empty,
         TypeSignature(List(TypeParameter("T")))
       ),
@@ -450,7 +443,6 @@ class DeclarationExtractorSuite
         "XtensionJson",
         TestLocalLocation,
         SCALA,
-        true,
         Seq.empty,
         MethodSignature(
           List(TypeParameter("T")),

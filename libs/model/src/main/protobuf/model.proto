@@ -121,7 +121,6 @@ message Declaration {
     // where it was defined - this might be a completely different module
     required Location location = 6;
     required Language language = 7;
-    required bool isImplicit = 8;
     repeated Type annotations = 9;
 
     oneof signature {

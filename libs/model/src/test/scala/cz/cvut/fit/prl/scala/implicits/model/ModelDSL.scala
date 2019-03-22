@@ -7,6 +7,7 @@ import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
 import scalapb.lenses.{Lens, Mutation}
 
 import scala.meta.internal.semanticdb.Scala._
+import scala.meta.internal.semanticdb.SymbolInformation.{Property => p}
 
 object ModelDSL {
   val TestLocalLocation = Location("test-location", "", Some(Position(0, 0, 0, 0)))
@@ -32,7 +33,7 @@ trait ModelDSL {
   implicit val overloadHack2 = new OverloadHack2
 
   def isImplicit: Update[Declaration] =
-    _.isImplicit := true
+    _.properties.modify(_ | p.IMPLICIT.value)
 
   def parameters(v: Parameter*)(implicit ev: OverloadHack1): Update[Declaration] =
     _.method.parameterLists.modify(_ :+ ParameterList(v.toSeq))
@@ -116,7 +117,6 @@ trait ModelDSL {
         declarationId.desc.name.value,
         TestLocalLocation,
         SCALA,
-        isImplicit = false,
         annotations = Seq.empty,
         kind match {
           case DEF =>
