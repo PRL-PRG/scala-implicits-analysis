@@ -203,6 +203,7 @@ class ExtractionContext(
       declarationId = symbolInfo.symbol,
       moduleId = moduleId,
       kind = kind,
+      properties = symbolInfo.properties,
       name = symbolInfo.displayName,
       location = location,
       language = symbolInfo.language,

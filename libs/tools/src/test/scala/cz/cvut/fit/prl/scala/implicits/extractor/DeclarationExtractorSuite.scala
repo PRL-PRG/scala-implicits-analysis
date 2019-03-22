@@ -74,6 +74,7 @@ class DeclarationExtractorSuite
       res.declarationAt(4),
       methodDeclaration(
         declarationId = "p/o.g().",
+        properties(0),
         typeParameter("T"),
         parameters(
           parameter("x", tparamRef("p/o.g().", "T"))
@@ -90,6 +91,7 @@ class DeclarationExtractorSuite
       valueDeclaration(
         declarationId = "local",
         tpe = typeRef("scala/Int#"),
+        properties(1056),
         name("i1"),
         isImplicit
       )
@@ -99,6 +101,7 @@ class DeclarationExtractorSuite
       res.declarationAt(8),
       objectDeclaration(
         declarationId = "local",
+        properties(40),
         name("i2"),
         isImplicit,
         parent("p/o.T#")
@@ -109,6 +112,7 @@ class DeclarationExtractorSuite
       res.declarationAt(9),
       methodDeclaration(
         declarationId = "local",
+        properties(32),
         name("i3"),
         isImplicit,
         returnType("java/lang/String#")
@@ -120,6 +124,7 @@ class DeclarationExtractorSuite
       parameterDeclaration(
         declarationId = "local",
         tpe = typeRef("scala/Boolean#"),
+        properties(32),
         name("x"),
         isImplicit
       )
@@ -140,8 +145,6 @@ class DeclarationExtractorSuite
       |   new java.io.File("").x
       | }
     """.stripMargin) { implicit res =>
-    res.declarations.apply(1)
-
     val decl = res.declarations.find(_.isMethod).get
     val param = decl.parameterDeclaration("that")
 
@@ -159,6 +162,7 @@ class DeclarationExtractorSuite
     """.stripMargin) { implicit res =>
     val expected = methodDeclaration(
       declarationId = "p/o.x().",
+      properties(32),
       name("x"),
       isImplicit,
       returnType("java/util/List#", typeRef("scala/Predef.String#"))
@@ -179,6 +183,7 @@ class DeclarationExtractorSuite
     """.stripMargin) { implicit res =>
     val expected = methodDeclaration(
       declarationId = "p/o.C#x().",
+      properties(32),
       name("x"),
       isImplicit,
       returnType("p/o.C#")
@@ -199,6 +204,7 @@ class DeclarationExtractorSuite
       "p/o.x().",
       TestModuleId,
       VAR,
+      2080,
       "x",
       TestLocalLocation,
       SCALA,
@@ -225,6 +231,7 @@ class DeclarationExtractorSuite
       "p/o.x.",
       TestModuleId,
       OBJECT,
+      40,
       "x",
       TestLocalLocation,
       SCALA,
@@ -296,6 +303,7 @@ class DeclarationExtractorSuite
         "p/o.XtensionJson#",
         TestModuleId,
         CLASS,
+        32,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
@@ -307,6 +315,7 @@ class DeclarationExtractorSuite
         "p/o.XtensionJson#ev.",
         TestModuleId,
         VAL,
+        1056,
         "ev",
         TestLocalLocation,
         SCALA,
@@ -328,6 +337,7 @@ class DeclarationExtractorSuite
         "p/o.XtensionJson().",
         TestModuleId,
         DEF,
+        32,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
@@ -402,6 +412,7 @@ class DeclarationExtractorSuite
         "p/o.XtensionJson#evidence$1.",
         TestModuleId,
         VAL,
+        1056,
         "evidence$1",
         TestLocalLocation,
         SCALA,
@@ -423,6 +434,7 @@ class DeclarationExtractorSuite
         "p/o.XtensionJson#",
         TestModuleId,
         CLASS,
+        32,
         "XtensionJson",
         TestLocalLocation,
         SCALA,
@@ -434,6 +446,7 @@ class DeclarationExtractorSuite
         "p/o.XtensionJson().",
         TestModuleId,
         DEF,
+        32,
         "XtensionJson",
         TestLocalLocation,
         SCALA,

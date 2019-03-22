@@ -12,6 +12,11 @@ object ModelDSL {
   val TestLocalLocation = Location("test-location", "", Some(Position(0, 0, 0, 0)))
   val TestExternalLocation = Location("test-external-location", "", None)
   val TestModuleId = "test-module"
+  val TestProjectId = "test-project"
+  val TestGroupId = "test-group"
+  val TestArtifactId = "test-artifact"
+  val TestVersion = "1.0"
+
   val TestCallSiteId: Int = 1
 }
 
@@ -56,11 +61,14 @@ trait ModelDSL {
   def typeArgument(ref: String, typeArguments: TypeRef*): Update[CallSite] =
     _.typeArguments.modify(_ :+ typeRef(ref, typeArguments: _*))
 
-  def parentCallSite(id: Int): Update[CallSite] =
-    _.parentId := id
+  def parentCallSite(value: Int): Update[CallSite] =
+    _.parentId := value
 
-  def name(name: String): Update[Declaration] =
-    _.name := name
+  def name(value: String): Update[Declaration] =
+    _.name := value
+
+  def properties(value: Int): Update[Declaration] =
+    _.properties := value
 
   def parent(ref: String, typeArguments: TypeRef*): Update[Declaration] =
     _.`type`.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
@@ -103,7 +111,8 @@ trait ModelDSL {
       Declaration(
         declarationId = declarationId,
         moduleId = TestModuleId,
-        kind,
+        kind = kind,
+        properties = 0,
         declarationId.desc.name.value,
         TestLocalLocation,
         SCALA,
