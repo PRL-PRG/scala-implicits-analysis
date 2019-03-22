@@ -17,10 +17,11 @@ get_gh_repo <- function(reponame, content_extraction_fun) {
       cnt <- content(res)
       mutate(content_extraction_fun(cnt), error=NA)
     } else {
-      data_frame(error=str_c("Status ", res$status_code))
+      message("Error: ", res$status_code, " for ", reponame)
+      tibble(error=str_c("Status ", res$status_code))
     }
   }, error=function(e) {
-    data_frame(error=str_c("Status ", e$message))
+    tibble(error=str_c("Status ", e$message))
   })
   mutate(result, reponame=reponame)
 }
@@ -52,16 +53,27 @@ call_github <- function(projects, fun) {
 }
 
 main <- function(projects_file, output_file) {
-    projects <- data_frame(project_id=readLines(projects_file))
+    finished <- if (file_exists(output_file)) {
+        read_csv(output_file) %>% filter(is.na(error) | error == "Status 404")
+    } else {
+        tibble(project_i=character(0), name=character(0), stars=integer(0), error=character(0))
+    }
+
+    projects <- tibble(project_id=readLines(projects_file))
     projects <- mutate(projects, reponame=str_replace(project_id, "--", "/"))
 
-    gh_list <- call_github(projects$reponame, function(content) {
-        data_frame(name=content$full_name, stars=content$stargazers_count)
+    missing <- anti_join(projects, finished, by="project_id")
+
+    message("Requested: ", nrow(projects), ", done: ", nrow(finished), " missing: ", nrow(missing))
+
+    gh_list <- call_github(missing$reponame, function(content) {
+        tibble(name=content$full_name, stars=content$stargazers_count)
     })
     gh_df <- bind_rows(gh_list)
-    result <- left_join(projects, gh_df, by="reponame") %>% select(-reponame)
+    result <- left_join(missing, gh_df, by="reponame") %>% select(-reponame)
+    all <- bind_rows(finished, result)
 
-    write_csv(result, output_file)
+    write_csv(all, output_file)
 }
 
 client_id <- Sys.getenv("GH_CLIENT_ID")
