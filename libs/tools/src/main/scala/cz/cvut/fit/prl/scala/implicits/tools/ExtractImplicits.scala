@@ -22,12 +22,13 @@ import scala.util.{Failure, Success, Try}
 object ExtractImplicits extends App {
   case class Stats(
       declarations: Int,
-      callSites: Int,
       implicitDeclarations: Int,
+      localImplicitDeclarations: Int,
+      callSites: Int,
       implicitCallSites: Int,
       failures: Int) {
     override def toString: String =
-      s"$declarations, $callSites, $implicitDeclarations, $implicitCallSites, $failures"
+      s"$declarations, $implicitDeclarations, $localImplicitDeclarations, $callSites, $implicitCallSites, $failures"
   }
 
   object Stats {
@@ -41,14 +42,16 @@ object ExtractImplicits extends App {
   case class Result(project: Project, exceptions: Seq[(String, Throwable)]) {
     def stats = {
       val modules = project.modules.values
+      val implicitDeclarations = modules.flatMap(_.implicitDeclarations)
+
       Stats(
         modules.map(_.declarations.size).sum,
+        implicitDeclarations.size,
+        implicitDeclarations.count(_.isProjectLocal),
         modules.map(_.callSitesCount).sum,
-        modules
-          .map(_.declarations.values.count(x => x.isImplicit || x.hasImplicitParameters))
-          .sum,
         modules.map(_.implicitCallSites.size).sum,
-        exceptions.size)
+        exceptions.size
+      )
     }
   }
 
@@ -61,16 +64,19 @@ object ExtractImplicits extends App {
     }
 
     object Status {
-      implicit val statusEncoder = RowEncoder.encoder(0, 1, 2, 3, 4, 5, 6)(
+      implicit val statusEncoder = RowEncoder.encoder(0, 1, 2, 3, 4, 5, 6, 7)(
         (x: Status) =>
           (
             x.projectId,
             x.failure,
             x.stats.declarations,
-            x.stats.callSites,
             x.stats.implicitDeclarations,
+            x.stats.localImplicitDeclarations,
+            x.stats.callSites,
             x.stats.implicitCallSites,
-            x.stats.failures))
+            x.stats.failures
+          )
+      )
     }
 
     case class SuccessfulExtraction(projectId: String, stats: Stats) extends Status {
@@ -136,8 +142,9 @@ object ExtractImplicits extends App {
             "project_id",
             "failure",
             "declarations",
-            "callsites",
             "implicit_declarations",
+            "implicit_local_declarations",
+            "callsites",
             "implicit_callsites",
             "failures"))
 

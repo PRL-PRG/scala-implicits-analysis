@@ -67,7 +67,7 @@ package object model {
     def declarations: Iterable[Declaration] =
       that.modules.values.flatMap(_.declarations.values)
     def implicitDeclarations: Iterable[Declaration] =
-      that.declarations.filter(x => x.isImplicit || x.hasImplicitParameters)
+      that.modules.values.flatMap(_.implicitDeclarations)
     def implicitCallSites: Iterable[CallSite] =
       that.modules.values.flatMap(_.implicitCallSites)
     def githubUserName: String =
@@ -83,11 +83,18 @@ package object model {
   }
 
   implicit class XtensionModule(that: Module) {
-    def project(implicit resolver: ModuleResolver): Project = resolver.project(that.projectId)
-    def library: Library = Library(that.groupId, that.artifactId, that.version)
-    def githubURL(implicit resolver: ModuleResolver): String = project.githubURL
-    def compilePaths: Map[String, PathEntry] = that.paths.filter(_._2.scope == "compile")
-    def testPaths: Map[String, PathEntry] = that.paths.filter(_._2.scope == "test")
+    def project(implicit resolver: ModuleResolver): Project =
+      resolver.project(that.projectId)
+    def library: Library = Library(that.groupId,
+      that.artifactId, that.version)
+    def githubURL(implicit resolver: ModuleResolver): String =
+      project.githubURL
+    def compilePaths: Map[String, PathEntry] =
+      that.paths.filter(_._2.scope == "compile")
+    def testPaths: Map[String, PathEntry] =
+      that.paths.filter(_._2.scope == "test")
+    def implicitDeclarations: Iterable[Declaration] =
+      that.declarations.values.filter(x => x.isImplicit || x.hasImplicitParameters)
   }
 
   implicit class XtensionParameterList(that: ParameterList) {
@@ -283,6 +290,8 @@ package object model {
     def isScalaUnit: Boolean = that.declarationId == "scala/Unit#"
 
     def isScalaFunction1: Boolean = that.declarationId == "scala/Function1#"
+
+    def isProjectLocal: Boolean = that.location.relativeUri.endsWith(".scala")
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
