@@ -132,9 +132,13 @@ reset-all: $(bootstrap)
 	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
 
 dejavu: $(SO_PROJECTS_FILE)
-	[ -d $(DEJAVU_HOME) ] || mkdir $(DEJAVU_HOME)
-	[ -d $(DEJAVU_DOWNLOAD) ] || mkdir $(DEJAVU_DOWNLOAD) && \
-	  parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -s '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
+	-rm -fr $(DEJAVU_HOME)
+	mkdir -p $(DEJAVU_HOME)
+ 
+	-rm -fr $(DEJAVU_DOWNLOAD)
+	mkdir -p $(DEJAVU_DOWNLOAD)
+
+	parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -sfT '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
 
 	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SO_PROJECTS_FILE) $(DEJAVU_INPUT)
 	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
