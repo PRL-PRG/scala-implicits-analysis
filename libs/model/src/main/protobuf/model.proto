@@ -111,6 +111,17 @@ message Declaration {
         PARAMETER = 11;
     };
 
+    enum Access {
+        PRIVATE = 0;
+        PRIVATE_THIS = 1;
+        PRIVATE_WITHIN = 2;
+        PROTECTED = 3;
+        PROTECTED_THIS = 4;
+        PROTECTED_WITHIN = 5;
+        PUBLIC = 6;
+        NOT_SPECIFIED = 7;
+    };
+
     // a fully qualified named of the term (e.g. scala/Int#.) as reported by semanticdb
     required string declaration_id = 1;
     // an identifier of a module it was discovered from
@@ -118,9 +129,10 @@ message Declaration {
     required Kind kind = 3;
     required int32 properties = 4;
     required string name = 5;
+    required Access access = 6;
     // where it was defined - this might be a completely different module
-    required Location location = 6;
-    required Language language = 7;
+    required Location location = 7;
+    required Language language = 8;
     repeated Type annotations = 9;
 
     oneof signature {

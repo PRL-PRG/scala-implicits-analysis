@@ -1,5 +1,6 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Access.{NOT_SPECIFIED, PRIVATE_THIS, PUBLIC}
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.{JAVA, SCALA}
 import cz.cvut.fit.prl.scala.implicits.model._
@@ -92,6 +93,7 @@ class DeclarationExtractorSuite
         declarationId = "local",
         tpe = typeRef("scala/Int#"),
         properties(1056),
+        access(NOT_SPECIFIED),
         name("i1"),
         isImplicit
       )
@@ -126,6 +128,7 @@ class DeclarationExtractorSuite
         tpe = typeRef("scala/Boolean#"),
         properties(32),
         name("x"),
+        access(NOT_SPECIFIED),
         isImplicit
       )
     )
@@ -206,6 +209,7 @@ class DeclarationExtractorSuite
       VAR,
       2080,
       "x",
+      PUBLIC,
       TestLocalLocation,
       SCALA,
       Seq.empty,
@@ -232,6 +236,7 @@ class DeclarationExtractorSuite
       OBJECT,
       40,
       "x",
+      PUBLIC,
       TestLocalLocation,
       SCALA,
       Seq.empty,
@@ -303,6 +308,7 @@ class DeclarationExtractorSuite
         CLASS,
         32,
         "XtensionJson",
+        PUBLIC,
         TestLocalLocation,
         SCALA,
         Seq.empty,
@@ -314,6 +320,7 @@ class DeclarationExtractorSuite
         VAL,
         1056,
         "ev",
+        PRIVATE_THIS,
         TestLocalLocation,
         SCALA,
         Seq.empty,
@@ -335,6 +342,7 @@ class DeclarationExtractorSuite
         DEF,
         32,
         "XtensionJson",
+        PUBLIC,
         TestLocalLocation,
         SCALA,
         Seq.empty,
@@ -409,6 +417,7 @@ class DeclarationExtractorSuite
         VAL,
         1056,
         "evidence$1",
+        PRIVATE_THIS,
         TestLocalLocation,
         SCALA,
         Seq.empty,
@@ -430,6 +439,7 @@ class DeclarationExtractorSuite
         CLASS,
         32,
         "XtensionJson",
+        PUBLIC,
         TestLocalLocation,
         SCALA,
         Seq.empty,
@@ -441,6 +451,7 @@ class DeclarationExtractorSuite
         DEF,
         32,
         "XtensionJson",
+        PUBLIC,
         TestLocalLocation,
         SCALA,
         Seq.empty,

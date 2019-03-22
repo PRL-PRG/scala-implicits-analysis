@@ -199,6 +199,20 @@ class ExtractionContext(
       case x => throw new ElementNotSupportedException("declaration symbol kind", x.kind)
     }
 
+    import Declaration.Access._
+
+    val access = symbolInfo.access match {
+      case _: s.PrivateAccess => PRIVATE
+      case _: s.PrivateThisAccess => PRIVATE_THIS
+      case _: s.PrivateWithinAccess => PROTECTED_WITHIN
+      case _: s.ProtectedAccess => PROTECTED
+      case _: s.ProtectedThisAccess => PROTECTED_THIS
+      case _: s.ProtectedWithinAccess => PROTECTED_WITHIN
+      case _: s.PublicAccess => PUBLIC
+      case s.Access.Empty => NOT_SPECIFIED
+      case x => throw new ElementNotSupportedException("declaration symbol access", x)
+    }
+
     Declaration(
       declarationId = symbolInfo.symbol,
       moduleId = moduleId,
@@ -206,7 +220,8 @@ class ExtractionContext(
       properties = symbolInfo.properties,
       name = symbolInfo.displayName,
       location = location,
-      language = symbolInfo.language
+      language = symbolInfo.language,
+      access = access
     )
   }
 

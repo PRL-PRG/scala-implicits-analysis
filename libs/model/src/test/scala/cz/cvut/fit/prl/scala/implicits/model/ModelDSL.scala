@@ -71,6 +71,9 @@ trait ModelDSL {
   def properties(value: Int): Update[Declaration] =
     _.properties := value
 
+  def access(value: Declaration.Access): Update[Declaration] =
+    _.access := value
+
   def parent(ref: String, typeArguments: TypeRef*): Update[Declaration] =
     _.`type`.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
 
@@ -115,6 +118,7 @@ trait ModelDSL {
         kind = kind,
         properties = 0,
         declarationId.desc.name.value,
+        Declaration.Access.PUBLIC,
         TestLocalLocation,
         SCALA,
         annotations = Seq.empty,
