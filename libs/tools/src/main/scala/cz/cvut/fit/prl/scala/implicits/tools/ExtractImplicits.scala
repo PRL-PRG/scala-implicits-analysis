@@ -39,15 +39,17 @@ object ExtractImplicits extends App {
 
   // TODO: use types for ModuleId
   case class Result(project: Project, exceptions: Seq[(String, Throwable)]) {
-    def stats =
+    def stats = {
+      val modules = project.modules.values
       Stats(
-        project.modules.map(_.declarations.size).sum,
-        project.modules.map(_.callSitesCount).sum,
-        project.modules
+        modules.map(_.declarations.size).sum,
+        modules.map(_.callSitesCount).sum,
+        modules
           .map(_.declarations.values.count(x => x.isImplicit || x.hasImplicitParameters))
           .sum,
-        project.modules.map(_.implicitCallSites.size).sum,
+        modules.map(_.implicitCallSites.size).sum,
         exceptions.size)
+    }
   }
 
   class OutputWriter(messageFile: File, exceptionFile: File, statsFile: File) {
@@ -174,7 +176,9 @@ object ExtractImplicits extends App {
     val project = Project(
       metadata.projectId,
       metadata.sbtVersion,
-      modulesResult.map(_._1)
+      modulesResult.map {
+        case (module, _) => module.moduleId -> module
+      }.toMap
     )
 
     val modulesExceptions = modulesResult

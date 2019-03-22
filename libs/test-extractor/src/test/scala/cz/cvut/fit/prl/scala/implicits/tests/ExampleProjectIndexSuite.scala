@@ -6,7 +6,7 @@ import cz.cvut.fit.prl.scala.implicits.tools.ExtractImplicits
 
 class ExampleProjectIndexSuite extends FunSuite with Matchers {
 
-  lazy implicit val idx: FullIndex = {
+  lazy implicit val idx: Index = {
     val result = ExtractImplicits.extractProject(ExampleProjectPath)
 
     if (result.exceptions.nonEmpty) {
@@ -17,11 +17,12 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
 
     result.exceptions shouldBe empty
 
-    FullIndex(List(result.project))
+    ProjectIndex(result.project)
   }
 
   test("Issue #22 - implicit argument from macro") {
-    val css = idx.modules.values.find(_.artifactId == "module2").get.implicitCallSites
+    val module2 = idx.modules.find(_.artifactId == "module2").get
+    val css = module2.implicitCallSites
     val testCss = css.filter(_.location.relativeUri.contains("Issue22"))
 
     testCss should have size 2
@@ -36,7 +37,7 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
   }
 
   test("classpath scope") {
-    val module2 = idx.modules.filterKeys(_.contains("module2")).head._2
+    val module2 = idx.modules.find(_.artifactId == "module2").get
     val paths = module2.paths.values
 
     paths.exists(x => x.path.contains("semanticdb_2.12") && x.scope == "compile") should be(true)

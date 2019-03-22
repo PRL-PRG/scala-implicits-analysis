@@ -67,9 +67,9 @@ message Project {
     // a project identifier as <gh-organization>--<gh-repo-name>
     required string project_id = 1;
     // sbt version
-    required string sbt_version = 3;
+    required string sbt_version = 2;
     // a list of contained modules
-    repeated Module modules = 2;
+    map <string, Module> modules = 3;
 }
 
 message Module {

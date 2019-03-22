@@ -9,21 +9,22 @@ package object model {
   trait ModuleOps {
     protected def moduleId: String
 
-    def module(implicit idx: Index): Module = idx.modules(moduleId)
+    def module(implicit resolver: ModuleResolver): Module = resolver.module(moduleId)
 
-    def project(implicit idx: Index): Project = module.project
+    def project(implicit resolver: ModuleResolver): Project = module.project
 
-    def projectId(implicit idx: Index): String = project.projectId
+    def projectId(implicit resolver: ModuleResolver): String = project.projectId
   }
 
   trait LocationOps {
-    protected def module(implicit idx: Index): Module
+    protected def module(implicit resolver: ModuleResolver): Module
 
     protected def location: Location
 
-    def isModuleLocal(implicit idx: Index): Boolean = isLocal(module.paths)
+    def isModuleLocal(implicit resolver: ModuleResolver): Boolean = isLocal(module.paths)
 
-    def isProjectLocal(implicit idx: Index): Boolean = isLocal(module.project.paths)
+    def isProjectLocal(implicit resolver: ModuleResolver): Boolean =
+      module.project.modules.values.exists(x => isLocal(x.paths))
 
     private def isLocal(paths: Map[String, PathEntry]): Boolean = {
       paths
@@ -35,13 +36,13 @@ package object model {
         .getOrElse(false)
     }
 
-    def library(implicit idx: Index): Library = module.paths(location.path) match {
+    def library(implicit resolver: ModuleResolver): Library = module.paths(location.path) match {
       case _: SourcepathEntry => module.library
       case x: ClasspathEntry => x.library
       case PathEntry.Empty => throw new Exception(s"Calling Empty.library")
     }
 
-    def githubURL(implicit idx: Index): Option[String] = {
+    def githubURL(implicit resolver: ModuleResolver): Option[String] = {
       if (isProjectLocal) {
         Some(module.githubURL + "/" + location.relativeUri)
       } else {
@@ -49,12 +50,13 @@ package object model {
       }
     }
 
-    def locationScope(implicit idx: Index): Option[String] = module.paths.get(location.path) match {
-      case Some(SourcepathEntry(_, scope, _)) => Some(scope)
-      case Some(ClasspathEntry(_, _, _, _, scope, true, _, _)) => Some(scope)
-      case Some(ClasspathEntry(_, _, _, _, scope, false, _, _)) => Some(scope + "_dependency")
-      case _ => None
-    }
+    def locationScope(implicit resolver: ModuleResolver): Option[String] =
+      module.paths.get(location.path) match {
+        case Some(SourcepathEntry(_, scope, _)) => Some(scope)
+        case Some(ClasspathEntry(_, _, _, _, scope, true, _, _)) => Some(scope)
+        case Some(ClasspathEntry(_, _, _, _, scope, false, _, _)) => Some(scope + "_dependency")
+        case _ => None
+      }
   }
 
   implicit class IdentityHashCode(x: AnyRef) {
@@ -62,13 +64,18 @@ package object model {
   }
 
   implicit class XtensionProject(that: Project) {
-    def declarations: Iterable[Declaration] = that.modules.flatMap(_.declarations.values)
-    def implicitDeclarations: Iterable[Declaration] = that.declarations.filter(x => x.isImplicit || x.hasImplicitParameters)
-    def implicitCallSites: Iterable[CallSite] = that.modules.flatMap(_.implicitCallSites)
-    def githubUserName: String = that.projectId.split("--").apply(0)
-    def githubRepoName: String = that.projectId.split("--").apply(1)
-    def githubURL: String = s"https://github.com/${that.githubUserName}/${that.githubRepoName}"
-    def paths(implicit idx: Index): Map[String, PathEntry] = idx.paths(that.projectId)
+    def declarations: Iterable[Declaration] =
+      that.modules.values.flatMap(_.declarations.values)
+    def implicitDeclarations: Iterable[Declaration] =
+      that.declarations.filter(x => x.isImplicit || x.hasImplicitParameters)
+    def implicitCallSites: Iterable[CallSite] =
+      that.modules.values.flatMap(_.implicitCallSites)
+    def githubUserName: String =
+      that.projectId.split("--").apply(0)
+    def githubRepoName: String =
+      that.projectId.split("--").apply(1)
+    def githubURL: String =
+      s"https://github.com/${that.githubUserName}/${that.githubRepoName}"
   }
 
   implicit class XtensionClasspathEntry(that: ClasspathEntry) {
@@ -76,9 +83,9 @@ package object model {
   }
 
   implicit class XtensionModule(that: Module) {
-    def project(implicit idx: Index): Project = idx.projects(that.projectId)
+    def project(implicit resolver: ModuleResolver): Project = resolver.project(that.projectId)
     def library: Library = Library(that.groupId, that.artifactId, that.version)
-    def githubURL(implicit idx: Index): String = project.githubURL
+    def githubURL(implicit resolver: ModuleResolver): String = project.githubURL
     def compilePaths: Map[String, PathEntry] = that.paths.filter(_._2.scope == "compile")
     def testPaths: Map[String, PathEntry] = that.paths.filter(_._2.scope == "test")
   }
@@ -151,11 +158,12 @@ package object model {
     import Declaration.Kind._
 
     object declaration {
-      def unapply(tpe: Type)(implicit resolver: DeclarationResolver): Option[Declaration] = tpe match {
-        case TypeRef(declarationId, _) =>
-          Some(DeclarationRef(that.moduleId, declarationId).declaration)
-        case _ => None
-      }
+      def unapply(tpe: Type)(implicit resolver: DeclarationResolver): Option[Declaration] =
+        tpe match {
+          case TypeRef(declarationId, _) =>
+            Some(DeclarationRef(that.moduleId, declarationId).declaration)
+          case _ => None
+        }
     }
 
     def isMethod: Boolean = that.kind == DEF
