@@ -172,9 +172,6 @@ ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(COMPILE_STATUS)' 1) -eq '0' ] && \
     $(MAKE) -f $(this_makefile) clean-compile
 endif
-ifeq ($(REDO), 4)
-	$(SCRIPTS_DIR)/redoable-sbt-error.sh $(COMPILE_LOG) && $(MAKE) -f $(this_makefile) clean-compile
-endif
 
 	$(MAKE) -f $(this_makefile) $(COMPILE_STATUS)
 
@@ -209,9 +206,6 @@ ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(METADATA_STATUS)' 1) -eq '0' ] && \
       $(MAKE) -f $(this_makefile) clean-metadata
 endif
-ifeq ($(REDO), 4)
-	$(SCRIPTS_DIR)/redoable-sbt-error.sh $(METADATA_LOG) && $(MAKE) -f $(this_makefile) clean-metadata
-endif
 
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
@@ -240,9 +234,6 @@ endif
 ifeq ($(REDO), 3)
 	[ $$($(SCRIPTS_DIR)/get-task-status.R '$(SEMANTICDB_STATUS)' 1) -eq '0' ] && \
       $(MAKE) -f $(this_makefile) clean-semanticdb
-endif
-ifeq ($(REDO), 4)
-	$(SCRIPTS_DIR)/redoable-sbt-error.sh $(SEMANTICDB_LOG) && $(MAKE) -f $(this_makefile) clean-semanticdb
 endif
 
 	$(MAKE) -f $(this_makefile) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED_FILE)
