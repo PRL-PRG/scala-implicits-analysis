@@ -98,7 +98,7 @@ $(METADATA_STATUS):
 	echo "130,0" >> $(METADATA_STATUS)
 
     # we cannot tee the output since we want to keep the error code
-	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx8G -Xss1M" \
 	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
