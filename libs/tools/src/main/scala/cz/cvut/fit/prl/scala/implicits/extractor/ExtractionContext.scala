@@ -9,10 +9,6 @@ import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.util.{Failure, Success, Try}
 
-object ExtractionContext {
-  val LocalIdSep: String = "::"
-}
-
 /**
   * An extraction context that keeps track of declarations and call sites extracted in
   * a **single** module.
@@ -26,8 +22,6 @@ class ExtractionContext(
     resolver: SemanticdbSymbolResolver,
     val sourcePaths: List[String])
     extends SymbolResolver {
-
-  import ExtractionContext._
 
   private val declarationIndex: mutable.Map[String, Try[Declaration]] = mutable.Map()
   private var callSiteId: Int = 0
@@ -63,12 +57,12 @@ class ExtractionContext(
     * @return a resolved declaration or throws an exception
     */
   def resolveDeclaration(declarationId: String)(implicit db: s.TextDocument): Declaration = {
-    val id = if (declarationId.isLocal && !declarationId.contains(LocalIdSep)) {
+    val id = if (declarationId.isLocal && !declarationId.contains(BlockLocalIdSep)) {
       val key = (db.uri, declarationId)
 
       localDeclarationIndex.getOrElseUpdate(key, {
         val size = localDeclarationIndex.size + 1
-        declarationId + LocalIdSep + size
+        declarationId + BlockLocalIdSep + size
       })
     } else {
       declarationId

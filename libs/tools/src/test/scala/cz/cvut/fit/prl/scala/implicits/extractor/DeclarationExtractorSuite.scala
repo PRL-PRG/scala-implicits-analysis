@@ -1,6 +1,10 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.Declaration.Access.{NOT_SPECIFIED, PRIVATE_THIS, PUBLIC}
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Access.{
+  NOT_SPECIFIED,
+  PRIVATE_THIS,
+  PUBLIC
+}
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
 import cz.cvut.fit.prl.scala.implicits.model.Language.{JAVA, SCALA}
 import cz.cvut.fit.prl.scala.implicits.model._
@@ -251,6 +255,39 @@ class DeclarationExtractorSuite
         properties(4)
       )
     )
+  }
+
+  // per https://github.com/lampepfl/dotty/pull/2060#issuecomment-284859761
+  declarations("compilation unit - simulacrum case",
+    """
+      | package p
+      | trait Semigroup[A] {
+      |   def append(x: A, y: A): A
+      | }
+      |
+      | object Semigroup {
+      |   def apply[A](implicit instance: Semigroup[A]): Semigroup[A] = instance
+      |
+      |   trait Ops[A] {
+      |     def typeClassInstance: Semigroup[A]
+      |     def self: A
+      |     def |+|(y: A): A = typeClassInstance.append(self, y)
+      |   }
+      |
+      |   trait ToSemigroupOps {
+      |     implicit def toSemigroupOps[A](target: A)(implicit tc: Semigroup[A]): Ops[A] = new Ops[A] {
+      |       val self = target
+      |       val typeClassInstance = tc
+      |     }
+      |   }
+      | }
+    """.stripMargin) { implicit res =>
+    // the Ops and the implicit conversion toSemigroupOps are in the same compilation group
+    val toSemigroupOps = res.declaration("p/Semigroup.ToSemigroupOps#toSemigroupOps().").compilationUnit
+    val Ops = res.declaration("p/Semigroup.Ops#").compilationUnit
+
+    toSemigroupOps.get shouldBe "p/Semigroup."
+    Ops.get shouldBe "p/Semigroup."
   }
 
   declarations(

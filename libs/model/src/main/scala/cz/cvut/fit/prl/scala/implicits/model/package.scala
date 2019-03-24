@@ -4,8 +4,12 @@ import scala.language.implicitConversions
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.semanticdb.SymbolInformation.{Property => p}
 import scala.meta.internal.{semanticdb => s}
+import scala.util.matching.Regex
 
 package object model {
+
+  val BlockLocalIdSep: String = "::"
+  val BlockLocalIdPattern: Regex = s"^local\\d+$BlockLocalIdSep\\d+$$".r
 
   object declarationIds {
     val Unit = "scala/Unit#"
@@ -332,6 +336,26 @@ package object model {
     def isScalaUnit(implicit idx: Index): Boolean = is(declarationIds.Unit)
 
     def isScalaFunction1(implicit idx: Index): Boolean = is(declarationIds.Function1)
+
+    def isBlockLocal: Boolean = BlockLocalIdPattern.findFirstMatchIn(that.declarationId).isDefined
+
+    def compilationUnit: Option[String] = {
+      import s.Scala.ScalaSymbolOps
+
+      def isCompilationUnit(s: String) =
+        s.isType || (s.isTerm && !(s.endsWith(").") || s.endsWith("].")))
+
+      def find(d: String, last: Option[String]): Option[String] = {
+        if (d.isNone) {
+          last
+        } else {
+          val next = if (isCompilationUnit(d)) Some(d) else last
+          find(d.owner, next)
+        }
+      }
+
+      find(that.declarationId, None)
+    }
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
