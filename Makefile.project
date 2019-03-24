@@ -73,7 +73,7 @@ $(COMPILE_STATUS):
 
 	$(BOOTSTRAP)
 
-	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx2G -Xss1M" \
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx8G -Xss1M" \
     $(SBT) clean compileWithStats > $(COMPILE_LOG) 2>&1; \
     exit_code=$$?; \
     classes=$$(find . -name "*.class" | wc -l); \
@@ -99,7 +99,7 @@ $(METADATA_STATUS):
 
     # we cannot tee the output since we want to keep the error code
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx8G -Xss1M" \
-	$(SBT) metadata > $(METADATA_LOG) 2>&1; \
+    $(SBT) metadata > $(METADATA_LOG) 2>&1; \
     exit_code=$$?; \
     echo "exit_code,duration" > $(METADATA_STATUS); \
     echo "$$exit_code,$$SECONDS" >> $(METADATA_STATUS);
@@ -111,7 +111,7 @@ $(SEMANTICDB_STATUS):
 	echo "exit_code,duration,classes" > $(SEMANTICDB_STATUS)
 	echo "130,0,0" >> $(SEMANTICDB_STATUS)
 
-	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx4G -Xss1M" \
+	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx8G -Xss1M" \
     $(SBT) clean semanticdb >$(SEMANTICDB_LOG) 2>&1; \
     exit_code=$$?; \
     classes=$$(find . -name "*.class" | wc -l); \
