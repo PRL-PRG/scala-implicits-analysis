@@ -75,7 +75,7 @@ trait ModelDSL {
     _.access := value
 
   def parent(ref: String, typeArguments: TypeRef*): Update[Declaration] =
-    _.`type`.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
+    _.clazz.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
 
   def typeParameter(
       name: String,
@@ -84,12 +84,22 @@ trait ModelDSL {
     _.method.typeParameters
       .modify(_ :+ TypeParameter(name, upperBound = upperBound, lowerBound = lowerBound))
 
+  def lowerBound(ref: String, typeArguments: TypeRef*): Update[Declaration] =
+    _.`type`.lowerBound := typeRef(ref, typeArguments: _*)
+
+  def upperBound(ref: String, typeArguments: TypeRef*): Update[Declaration] =
+    _.`type`.upperBound := typeRef(ref, typeArguments: _*)
+
   def methodDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
     declaration(declarationId, DEF, updates: _*)
   }
 
   def classDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
     declaration(declarationId, CLASS, updates: _*)
+  }
+
+  def typeDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
+    declaration(declarationId, TYPE, updates: _*)
   }
 
   def objectDeclaration(declarationId: String, updates: Update[Declaration]*): Declaration = {
@@ -125,8 +135,10 @@ trait ModelDSL {
         kind match {
           case DEF =>
             Signature.Method(MethodSignature(returnType = typeRef("scala/Unit#")))
-          case CLASS | OBJECT =>
+          case TYPE =>
             Signature.Type(TypeSignature())
+          case CLASS | OBJECT =>
+            Signature.Clazz(ClassSignature())
           case VAL | VAR | PARAMETER =>
             Signature.Value(ValueSignature(tpe = typeRef("scala/Unit#")))
         }

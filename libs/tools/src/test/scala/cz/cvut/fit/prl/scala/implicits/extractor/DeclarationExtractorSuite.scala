@@ -152,7 +152,7 @@ class DeclarationExtractorSuite
     val param = decl.parameterDeclaration("that")
 
     param.language should be(JAVA)
-    decl.returnType.get.language should be(SCALA)
+    decl.returnDeclaration.get.language should be(SCALA)
   }
 
   declarations(
@@ -193,6 +193,79 @@ class DeclarationExtractorSuite
     )
 
     checkElements(res.declarations, List(expected))
+  }
+
+  declarations(
+    "type definition",
+    """
+      | package p
+      | object o {
+      |   trait T {
+      |     type X
+      |     implicit def f(x: X): Int = 1
+      |   }
+      |
+      |   class A
+      |   class B extends A
+      |
+      |   type T1 = A
+      |   type T2 >: B
+      |   type T3 <: A
+      |
+      |   implicit def f1(x: T1): Int = 1
+      |   implicit def f2(x: T2): Int = 1
+      |   implicit def f3(x: T3): Int = 1
+      | }
+    """.stripMargin) { implicit res =>
+    checkElement(
+      res.declaration("p/o.T1#").simplify(res.ctx),
+      typeDeclaration(
+        declarationId = "p/o.T1#",
+        upperBound("p/o.A#"),
+        lowerBound("p/o.A#")
+      )
+    )
+
+    checkElement(
+      res.declaration("p/o.T2#").simplify(res.ctx),
+      typeDeclaration(
+        declarationId = "p/o.T2#",
+        properties(4),
+        lowerBound("p/o.B#")
+      )
+    )
+
+    checkElement(
+      res.declaration("p/o.T3#").simplify(res.ctx),
+      typeDeclaration(
+        declarationId = "p/o.T3#",
+        properties(4),
+        upperBound("p/o.A#")
+      )
+    )
+
+    checkElement(
+      res.declaration("p/o.T#X#").simplify(res.ctx),
+      typeDeclaration(
+        declarationId = "p/o.T#X#",
+        properties(4)
+      )
+    )
+  }
+
+  declarations(
+    "type definition model returnDeclaration",
+    """
+      | package p
+      | object o {
+      |   type T1 = Int
+      |   type T2 = T1
+      |   type T3 = T2
+      |
+      |   implicit def f(x: T3): Int = 1
+      | }
+    """.stripMargin) { implicit res =>
+    res.declaration("p/o.f().").returnDeclaration.get.declarationId shouldBe "scala/Int#"
   }
 
   declarations(
@@ -240,7 +313,7 @@ class DeclarationExtractorSuite
       TestLocalLocation,
       SCALA,
       Seq.empty,
-      TypeSignature(
+      ClassSignature(
         parents = Vector(
           TypeRef("p/o.T#")
         )
@@ -268,7 +341,7 @@ class DeclarationExtractorSuite
         d.isImplicit shouldBe true
         d.location shouldBe TestLocalLocation
         d.language.isScala shouldBe true
-        d.returnType.get.name shouldBe "String"
+        d.returnDeclaration.get.name shouldBe "String"
 
         d.parameterLists should have size 1
         inside(d.parameterLists.head) {
@@ -312,7 +385,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         Seq.empty,
-        TypeSignature(List(TypeParameter("T")))
+        ClassSignature(List(TypeParameter("T")))
       ),
       Declaration(
         "p/o.XtensionJson#ev.",
@@ -443,7 +516,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         Seq.empty,
-        TypeSignature(List(TypeParameter("T")))
+        ClassSignature(List(TypeParameter("T")))
       ),
       Declaration(
         "p/o.XtensionJson().",

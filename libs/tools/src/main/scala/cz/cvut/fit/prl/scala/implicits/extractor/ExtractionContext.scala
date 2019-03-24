@@ -128,17 +128,25 @@ class ExtractionContext(
     val typeParameters =
       signature.typeParameters.symbols.map(createTypeParameter)
 
-    TypeSignature(typeParameters = typeParameters)
+    val upperBound = createType(signature.upperBound, includeTopBottom = false)
+    val lowerBound = createType(signature.lowerBound, includeTopBottom = false)
+
+    TypeSignature(
+      typeParameters = typeParameters,
+      upperBound = upperBound,
+      lowerBound = lowerBound
+    )
   }
 
-  private def createTypeSignature(signature: s.ClassSignature)(
-      implicit db: s.TextDocument): TypeSignature = {
+  private def createClassSignature(
+      signature: s.ClassSignature
+  )(implicit db: s.TextDocument): ClassSignature = {
     val typeParameters =
       signature.typeParameters.symbols.map(createTypeParameter)
     val parents =
       signature.parents.map(x => createType(x, includeTopBottom = false)).filterNot(_.isEmpty)
 
-    TypeSignature(typeParameters = typeParameters, parents = parents)
+    ClassSignature(typeParameters = typeParameters, parents = parents)
   }
 
   private def createMethodSignature(signature: s.MethodSignature)(
@@ -167,7 +175,7 @@ class ExtractionContext(
       case x: s.TypeSignature =>
         Declaration.Signature.Type(createTypeSignature(x))
       case x: s.ClassSignature =>
-        Declaration.Signature.Type(createTypeSignature(x))
+        Declaration.Signature.Clazz(createClassSignature(x))
       case x: s.MethodSignature =>
         Declaration.Signature.Method(createMethodSignature(x))
       case x: s.ValueSignature =>

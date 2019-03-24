@@ -1,12 +1,16 @@
 package cz.cvut.fit.prl.scala.implicits.extractor
 
-import cz.cvut.fit.prl.scala.implicits.model.{DeclarationRef, DeclarationResolver}
+import better.files._
+
+import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.ModelDSL._
 import cz.cvut.fit.prl.scala.implicits.{model => m}
 import cz.cvut.fit.prl.scala.implicits.utils._
+
 import org.scalatest.{Inside, Matchers, OptionValues}
 
 import scala.language.implicitConversions
+
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.{semanticdb => s}
 import scala.meta._
@@ -57,6 +61,15 @@ trait ModelSimplification {
   implicit class SimplifyTypeSignature(that: m.TypeSignature) {
 
     def simplify: m.TypeSignature = that.copy(
+      typeParameters = that.typeParameters.map(_.simplify),
+      upperBound = that.upperBound.simplify,
+      lowerBound = that.lowerBound.simplify
+    )
+  }
+
+  implicit class SimplifyClassSignature(that: m.ClassSignature) {
+
+    def simplify: m.ClassSignature = that.copy(
       parents = that.parents.map(_.simplify),
       typeParameters = that.typeParameters.map(_.simplify)
     )
@@ -233,6 +246,54 @@ abstract class ExtractionContextSuite
       checkNoFailures(csResult.failures)
 
       fn(declResult, csResult)
+    }
+  }
+
+  def index(
+      name: String,
+      code: String
+  )(fn: Index => Unit): Unit = {
+    extraction(name, code) { (ctx, db) =>
+      val declResult = DeclarationsResult(ctx, db)
+      checkNoFailures(declResult.failures)
+
+      val csResult = CallSitesResult(ctx, db)
+      checkNoFailures(csResult.failures)
+
+      val projectBaseDir = File(ctx.sourcePaths.head)
+
+      // source are in project root
+      val sourcePath = SourcepathEntry("", "compile", managed = false)
+
+      // the extractor will create the locations relatively to the projectBaseDir
+      // which for these tests is simply the source path - like having sources in
+      // project root
+      val classPath = (Libraries.ScalaModelClasspath ++ Libraries.JvmBootModelClasspath)
+        .map { x =>
+          val path = projectBaseDir.relativize(File(x.path)).toString
+          x.withPath(path)
+        }
+
+      val testModule = Module(
+        TestModuleId,
+        TestProjectId,
+        TestGroupId,
+        TestArtifactId,
+        TestVersion,
+        BuildInfo.scalaVersion,
+        (sourcePath +: classPath).map(x => x.path -> x).toMap,
+        ctx.declarations.map(x => x.declarationId -> x).toMap,
+        csResult.originalCallSites,
+        -1
+      )
+
+      val testProject = Project(
+        TestProjectId,
+        BuildInfo.sbtVersion,
+        Map(TestModuleId -> testModule)
+      )
+
+      fn(ProjectIndex(testProject))
     }
   }
 

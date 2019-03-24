@@ -137,8 +137,9 @@ message Declaration {
 
     oneof signature {
         TypeSignature type = 10;
-        MethodSignature method = 11;
-        ValueSignature value = 12;
+        ClassSignature clazz = 11;
+        MethodSignature method = 12;
+        ValueSignature value = 13;
     }
 }
 
@@ -149,8 +150,14 @@ message MethodSignature {
 }
 
 message TypeSignature {
-    repeated TypeParameter type_parameters = 3;
-    repeated Type parents = 4;
+    repeated TypeParameter type_parameters = 1;
+    optional Type upper_bound = 2;
+    optional Type lower_bound = 3;
+}
+
+message ClassSignature {
+    repeated TypeParameter type_parameters = 1;
+    repeated Type parents = 2;
 }
 
 message ValueSignature {

@@ -7,6 +7,11 @@ import scala.meta.internal.{semanticdb => s}
 
 package object model {
 
+  object declarationIds {
+    val Unit = "scala/Unit#"
+    val Function1 = "scala/Function1#"
+  }
+
   trait ModuleOps {
     protected def moduleId: String
 
@@ -86,8 +91,8 @@ package object model {
   implicit class XtensionModule(that: Module) {
     def project(implicit resolver: ModuleResolver): Project =
       resolver.project(that.projectId)
-    def library: Library = Library(that.groupId,
-      that.artifactId, that.version)
+    def library: Library =
+      Library(that.groupId, that.artifactId, that.version)
     def githubURL(implicit resolver: ModuleResolver): String =
       project.githubURL
     def compilePaths: Map[String, PathEntry] =
@@ -96,6 +101,8 @@ package object model {
       that.paths.filter(_._2.scope == "test")
     def implicitDeclarations: Iterable[Declaration] =
       that.declarations.values.filter(x => x.isImplicit || x.hasImplicitParameters)
+    def resolve(declarationId: String)(implicit idx: Index): Declaration =
+      idx.resolveDeclaration(that.moduleId, declarationId)
   }
 
   implicit class XtensionParameterList(that: ParameterList) {
@@ -207,8 +214,8 @@ package object model {
     def implicitClassCompanion(implicit resolver: DeclarationResolver): Option[Declaration] =
       if (that.isMethod) {
         that.signature.value match {
-          // a method that has one parameter and returns an implicit class
-          case MethodSignature(_, Seq(_), declaration(ret)) if ret.isImplicit && ret.isClass =>
+          case MethodSignature(_, ImplicitConversionParameters(_, _), declaration(ret))
+              if ret.isImplicit && ret.isClass =>
             Some(ret)
           case _ => None
         }
@@ -226,6 +233,7 @@ package object model {
 
     def typeParameters: Seq[TypeParameter] = that.signature.value match {
       case x: MethodSignature => x.typeParameters
+      case x: ClassSignature => x.typeParameters
       case x: TypeSignature => x.typeParameters
       case _: ValueSignature => Seq.empty
     }
@@ -242,9 +250,15 @@ package object model {
     def hasImplicitParameters: Boolean =
       that.implicitParameterList.isDefined
 
-    def returnType(implicit resolver: DeclarationResolver): Option[Declaration] =
+    def returnDeclaration(implicit resolver: DeclarationResolver): Option[Declaration] =
       that.signature.value match {
         case MethodSignature(_, _, declaration(rt)) => Some(rt)
+        case _ => None
+      }
+
+    def returnType: Option[Type] =
+      that.signature.value match {
+        case MethodSignature(_, _, rt) => Some(rt)
         case _ => None
       }
 
@@ -263,7 +277,7 @@ package object model {
 
     def parents: Seq[Type] =
       that.signature.value match {
-        case x: TypeSignature => x.parents
+        case x: ClassSignature => x.parents
         case _ =>
           throw new Exception(s"Trying to get parents on ${that.signature}")
       }
@@ -288,19 +302,43 @@ package object model {
 
     override protected def location: Location = that.location
 
-    def isScalaUnit: Boolean = that.declarationId == "scala/Unit#"
-
-    def isScalaFunction1: Boolean = that.declarationId == "scala/Function1#"
-
     def isProjectLocal: Boolean = that.location.relativeUri.endsWith(".scala")
 
     def isImplicit: Boolean = (that.properties & p.IMPLICIT.value) != 0
 
     def isLazy: Boolean = (that.properties & p.LAZY.value) != 0
+
+    def is(declarationId: String)(implicit idx: Index): Boolean = {
+      if (that.declarationId == declarationId) {
+        true
+      } else if (that.isType) {
+        val tpe = that.getType
+
+        (tpe.lowerBound, tpe.upperBound) match {
+          case (Type.Empty, x) =>
+            idx.resolveDeclaration(that.moduleId, x.declarationId).is(declarationId)
+          case (x, Type.Empty) =>
+            idx.resolveDeclaration(that.moduleId, x.declarationId).is(declarationId)
+          case (Type.Empty, Type.Empty) =>
+            false
+          case (x, y) if x == y =>
+            idx.resolveDeclaration(that.moduleId, x.declarationId).is(declarationId)
+        }
+      } else {
+        false
+      }
+    }
+
+    def isScalaUnit(implicit idx: Index): Boolean = is(declarationIds.Unit)
+
+    def isScalaFunction1(implicit idx: Index): Boolean = is(declarationIds.Function1)
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
     Declaration.Signature.Type(x)
+
+  implicit def classSignature2clazz(x: ClassSignature): Declaration.Signature.Clazz =
+    Declaration.Signature.Clazz(x)
 
   implicit def methodSignature2method(x: MethodSignature): Declaration.Signature.Method =
     Declaration.Signature.Method(x)
@@ -309,5 +347,19 @@ package object model {
     case s.Language.JAVA => Language.JAVA
     case s.Language.SCALA => Language.SCALA
     case _ => Language.UNKNOWN_LANGUAGE
+  }
+
+  object ImplicitConversionParameters {
+    def unapply(arg: Seq[ParameterList]): Option[(Parameter, Seq[Parameter])] = arg match {
+      case Seq(ParameterList(Seq(p @ Parameter(_, _, false)))) =>
+        // one parameter
+        Some((p, Seq.empty))
+      case Seq(ParameterList(Seq(p @ Parameter(_, _, false))), secondList)
+          if secondList.isImplicit =>
+        // or one parameter and any number of implicit parameters
+        Some((p, secondList.parameters))
+      case _ =>
+        None
+    }
   }
 }
