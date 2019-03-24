@@ -56,7 +56,18 @@ main <- function(projects_file, output_file) {
     finished <- if (file_exists(output_file)) {
         read_csv(output_file) %>% filter(is.na(error) | error == "Status 404")
     } else {
-        tibble(project_i=character(0), name=character(0), stars=integer(0), error=character(0))
+        tibble(
+            project_id=character(0),
+            name=character(0),
+            stars=integer(0),
+            watchers=integer(0),
+            created_at=as.POSIXct(character(0)),
+            updated_at=as.POSIXct(character(0)),
+            pushed_at=as.POSIXct(character(0)),
+            fork=logical(0),
+            archived=logical(0),
+            error=character(0)
+        )
     }
 
     projects <- tibble(project_id=readLines(projects_file))
@@ -67,7 +78,16 @@ main <- function(projects_file, output_file) {
     message("Requested: ", nrow(projects), ", done: ", nrow(finished), " missing: ", nrow(missing))
 
     gh_list <- call_github(missing$reponame, function(content) {
-        tibble(name=content$full_name, stars=content$stargazers_count)
+        tibble(
+            name=content$full_name,
+            stars=content$stargazers_count,
+            watchers=content$watchers,
+            created_at=parse_datetime(content$created_at),
+            updated_at=parse_datetime(content$updated_at),
+            pushed_at=parse_datetime(content$pushed_at),
+            fork=content$fork,
+            archived=content$archived
+        )
     })
     gh_df <- bind_rows(gh_list)
     result <- left_join(missing, gh_df, by="reponame") %>% select(-reponame)
