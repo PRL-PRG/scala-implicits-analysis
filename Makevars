@@ -65,6 +65,7 @@ DEJAVU_HOME := dejavu
 DEJAVU_DOWNLOAD := $(DEJAVU_HOME)/download
 DEJAVU_INPUT := $(DEJAVU_HOME)/dejavu-projects.csv
 DEJAVU_FILES_HASH := dejavu-files-hash-h2i.csv
+DEJAVU_DUPLICATION := dejavu-duplication.csv
 
 METADATA_STATUS := $(ANALYSIS_DIR)/metadata-status.csv
 METADATA_LOG := $(ANALYSIS_DIR)/metadata.log
@@ -114,3 +115,6 @@ SCALADEX := scaladex.txt
 #AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 
+CORPUS_ANALYSIS_HTML := corpus-analysis.html
+IMPLICIT_CALLSITES := implicit-callsites.csv
+IMPLICIT_DECLARATIONS := implicit-declarations.csv

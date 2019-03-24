@@ -66,6 +66,10 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
+stage1: repo-metadata filter-sbt-repos fetch-github-info filter-so-repos dejavu filter-final-repos scaladex
+stage2: compile metadata semanticdb
+stage3: implicits corpus-summary export-implicits report
+
 parallel:
 	-mkdir -p $(LOG_DIR)
 	@echo $(N_JOBS) > jobsfile.txt
@@ -93,15 +97,18 @@ clean:
 	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
-	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS)
+	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS)
 	-rm -f $(CORPUS_SUMMARY)
+	-rm -f $(SCALADEX)
+	-rm -f $(CORPUS_ANALYSIS_HTML) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
+	$(MAKE) -f $(this_makefile) clean-dejavu
 
 clean-compile:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 
 clean-dejavu:
-	-rm -fr $(DEJAVU_HOME) $(DEJAVU_FILES_HASH)
+	-rm -fr $(DEJAVU_HOME) $(DEJAVU_FILES_HASH) $(DEJAVU_DUPLICATION)
 
 clean-implicits:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -155,7 +162,7 @@ dejavu: $(SO_PROJECTS_FILE)
 	cd $(SCRIPTS_DIR)/tools/sccpreprocessor/src && \
       java SccPreprocessor h2i $(CURDIR)/$(DEJAVU_HOME)
 
-	$(SCRIPTS_DIR)/merge-dejavu-files-hash.R $(DEJAVU_FILES_HASH)
+	$(SCRIPTS_DIR)/merge-dejavu-files-hash.R $(DEJAVU_FILES_HASH) $(DEJAVU_DUPLICATION)
 
 download-projects: $(ALL_PROJECTS_FILE)
 	-mkdir -p $(ALL_PROJECTS_DIR)
@@ -164,24 +171,20 @@ download-projects: $(ALL_PROJECTS_FILE)
 	$(MAKE) -f $(this_makefile) patch-downloaded-projects
 
 filter-sbt-repos: $(GLOBAL_REPO_METADATA)
-	Rscript -e 'writeLines(dplyr::filter(readr::read_csv("$(GLOBAL_REPO_METADATA)"), scala_code > 0,  startsWith(sbt_version, "0.13") | startsWith(sbt_version, "1."))$$project_id, "$(SBT_PROJECTS_FILE)")'
+	$(SCRIPTS_DIR)/filter-sbt-projects.R
 
 filter-so-repos: $(SBT_PROJECTS_FILE)
 	$(SCRIPTS_DIR)/filter-so-projects.R
 
-filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_FILES_HASH)
-	cp $(SO_PROJECTS_FILE) $(PROJECTS_FILE)
+filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_DUPLICATION) $(REPO_METADATA) $(PROJECTS_GITHUB_INFO)
+	$(SCRIPTS_DIR)/filter-final-projects.R
 	rm -fr $(PROJECTS_DIR)
 	mkdir -p $(PROJECTS_DIR)
 	parallel --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)'
 
 fetch-github-info: $(SBT_PROJECTS_FILE)
-	if [ -f $(PROJECTS_GITHUB_INFO).pinned ]; then \
-      cp -f $(PROJECTS_GITHUB_INFO).pinned $(PROJECTS_GITHUB_INFO); \
-    else \
-      $(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO); \
-      cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned; \
-    fi
+	$(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
+	cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned
 
 patch-downloaded-projects:
 	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
@@ -192,7 +195,7 @@ repo-metadata: $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
 	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_SLOC) "iciii" $(GLOBAL_REPO_SLOC)
 
 report: $(CORPUS_SUMMARY) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/corpus-analysis.Rmd", output_file=file.path("$(CURDIR)/corpus-analysis.html"), params=list(base_dir="$(CURDIR)"))'
+	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/corpus-analysis.Rmd", output_file=file.path("$(CURDIR)/$(CORPUS_ANALYSIS_HTML)"), params=list(base_dir="$(CURDIR)"))'
 
 scaladex:
 	if [ -f $(SCALADEX).pinned ]; then \

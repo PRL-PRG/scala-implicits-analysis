@@ -8,9 +8,15 @@ info <- readr::read_csv(
     "projects-github-info.csv",
     col_types=cols(
         project_id = col_character(),
-        error = col_character(),
         name = col_character(),
-        stars = col_double()
+        stars = col_double(),
+        watchers = col_double(),
+        created_at = col_datetime(format = ""),
+        updated_at = col_datetime(format = ""),
+        pushed_at = col_datetime(format = ""),
+        fork = col_logical(),
+        archived = col_logical(),
+        error = col_character()
     )
 ) %>%
   filter(!is.na(name)) %>%
@@ -18,8 +24,12 @@ info <- readr::read_csv(
 
 message(glue("github-info: {nrow(info)}"))
 
-same_names <- filter(info, project_id==corpus_name)
+forks <- filter(info, fork)
+message(glue("forks: {nrow(forks)}\n"))
 
+info <- filter(info, !fork)
+
+same_names <- filter(info, project_id==corpus_name)
 message(glue("same names: {nrow(same_names)}\n"))
 
 others <- anti_join(info, same_names, by="name") %>% distinct(name, .keep_all = T)
