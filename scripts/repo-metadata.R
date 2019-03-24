@@ -67,7 +67,7 @@ if (!is.na(system) && system == "sbt") {
 
         if (file.exists(build_properties)) {
             lines <- readLines(build_properties)
-            pattern <- "sbt\\.version=(.*)"
+            pattern <- "^\\s*sbt\\.version\\s*=\\s*([^ ]+)"
             matches <- str_subset(lines, pattern)
             if (length(matches) > 0) {
                 sbt_version <- str_replace(matches[length(matches)], pattern, "\\1")
