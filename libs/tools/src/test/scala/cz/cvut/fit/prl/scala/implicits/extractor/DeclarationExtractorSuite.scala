@@ -16,6 +16,36 @@ class DeclarationExtractorSuite
     with ModelDSL {
 
   declarations(
+    "isKindOf/isTypeOf",
+    """
+      | package p
+      | object o {
+      |   implicit val x = List("A")
+      |   implicit val y = Map("A" -> true)
+      |   implicit val z1 = (a: Int) => "A"
+      |   implicit val z2 = "A"
+      | }
+    """.stripMargin) { implicit res =>
+    import declarationIds.Function1
+
+    val x = res.declaration("p/o.x.").returnDeclaration.get
+    x.isKindOf(Function1) shouldBe true
+    x.isTypeOf(Function1) shouldBe false
+
+    val y = res.declaration("p/o.y.").returnDeclaration.get
+    y.isKindOf(Function1) shouldBe true
+    y.isTypeOf(Function1) shouldBe false
+
+    val z1 = res.declaration("p/o.z1.").returnDeclaration.get
+    z1.isKindOf(Function1) shouldBe true
+    z1.isTypeOf(Function1) shouldBe true
+
+    val z2 = res.declaration("p/o.z2.").returnDeclaration.get
+    z2.isKindOf(Function1) shouldBe false
+    z2.isTypeOf(Function1) shouldBe false
+  }
+
+  declarations(
     "local type parameter",
     """
       | package p
@@ -27,14 +57,14 @@ class DeclarationExtractorSuite
       |   }
       | }
     """.stripMargin) { res =>
-    val defc = res.originalDeclarations.head
+    val c = res.originalDeclarations.head
 
-    defc.signature.method.get.returnType shouldBe typeRef(
+    c.signature.method.get.returnType shouldBe typeRef(
       "scala/package.Seq#",
-      tparamRef(defc.declarationId, "T")
+      tparamRef(c.declarationId, "T")
     )
 
-    defc.parameterLists.head.parameters.head.tpe shouldBe tparamRef(defc.declarationId, "T")
+    c.parameterLists.head.parameters.head.tpe shouldBe tparamRef(c.declarationId, "T")
   }
 
   declarations(

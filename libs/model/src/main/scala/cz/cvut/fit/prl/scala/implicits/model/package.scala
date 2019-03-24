@@ -312,30 +312,32 @@ package object model {
 
     def isLazy: Boolean = (that.properties & p.LAZY.value) != 0
 
-    def is(declarationId: String)(implicit idx: Index): Boolean = {
+    def isTypeOf(declarationId: String)(implicit resolver: DeclarationResolver): Boolean = {
       if (that.declarationId == declarationId) {
         true
       } else if (that.isType) {
-        val tpe = that.getType
-
-        (tpe.lowerBound, tpe.upperBound) match {
-          case (Type.Empty, x) =>
-            idx.resolveDeclaration(that.moduleId, x.declarationId).is(declarationId)
-          case (x, Type.Empty) =>
-            idx.resolveDeclaration(that.moduleId, x.declarationId).is(declarationId)
-          case (Type.Empty, Type.Empty) =>
-            false
-          case (x, y) if x == y =>
-            idx.resolveDeclaration(that.moduleId, x.declarationId).is(declarationId)
-        }
+        that.resolveTypeDeclaration.exists(_.isTypeOf(declarationId))
       } else {
         false
       }
     }
 
-    def isScalaUnit(implicit idx: Index): Boolean = is(declarationIds.Unit)
+    def isKindOf(declarationId: String)(implicit resolver: DeclarationResolver): Boolean = {
+      if (that.declarationId == declarationId) {
+        true
+      } else if (that.signature.isClazz) {
+        that.parentsDeclarations.exists(_.isKindOf(declarationId))
+      } else if (that.signature.isType) {
+        that.resolveTypeDeclaration.exists(_.isKindOf(declarationId))
+      } else {
+        false
+      }
+    }
 
-    def isScalaFunction1(implicit idx: Index): Boolean = is(declarationIds.Function1)
+    def isScalaUnit(implicit resolver: DeclarationResolver): Boolean = isTypeOf(declarationIds.Unit)
+
+    def isKindOfScalaFunction1(implicit resolver: DeclarationResolver): Boolean =
+      isKindOf(declarationIds.Function1)
 
     def isBlockLocal: Boolean = BlockLocalIdPattern.findFirstMatchIn(that.declarationId).isDefined
 
@@ -356,6 +358,48 @@ package object model {
 
       find(that.declarationId, None)
     }
+
+    def resolveTypeDeclaration(implicit resolver: DeclarationResolver): Option[Declaration] = {
+      def resolveToClass(d: Declaration): Option[Declaration] = d.signature.value match {
+        case _: ClassSignature =>
+          Some(d)
+        case tpe: TypeSignature =>
+          val nextId = (tpe.lowerBound, tpe.upperBound) match {
+            case (Type.Empty, x) => Some(x.declarationId)
+            case (x, Type.Empty) => Some(x.declarationId)
+            case (Type.Empty, Type.Empty) => None
+            case (x, y) if x == y => Some(x.declarationId)
+          }
+
+          nextId match {
+            case Some(v) => resolveToClass(resolver.resolveDeclaration(that.moduleId, v))
+            case None => None
+          }
+        case _ =>
+          None
+      }
+
+      resolveToClass(that)
+    }
+
+    def parentsDeclarations(implicit resolver: DeclarationResolver): Iterable[Declaration] =
+      that.signature.value match {
+        case clazz: ClassSignature =>
+          clazz.parents
+            .map(x => DeclarationRef(that.moduleId, x.declarationId))
+            .map(resolver.resolveDeclaration)
+        case _ =>
+          Iterable.empty
+      }
+
+    def allParents(implicit resolver: DeclarationResolver): Stream[Declaration] =
+      that.signature.value match {
+        case _: ClassSignature =>
+          val xs = that.parentsDeclarations.toStream
+          (xs #::: xs.flatMap(_.parentsDeclarations)).distinct
+        case _ =>
+          Stream.empty
+      }
   }
 
   implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
