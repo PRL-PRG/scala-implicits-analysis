@@ -209,7 +209,11 @@ endif
 
 	$(MAKE) -f $(this_makefile) $(METADATA_STATUS)
 
-repo-metadata: $(REPO_METADATA)
+repo-metadata:
+ifeq ($(REDO), 2)
+	$(MAKE) -f $(this_makefile) clean-repo-metadata
+endif
+	$(MAKE) -f $(this_makefile) $(REPO_METADATA)
 
 reset:
 	git clean -fdX
