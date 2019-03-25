@@ -176,7 +176,7 @@ filter-sbt-repos: $(GLOBAL_REPO_METADATA)
 filter-so-repos: $(SBT_PROJECTS_FILE)
 	$(SCRIPTS_DIR)/filter-so-projects.R
 
-filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_DUPLICATION) $(REPO_METADATA) $(PROJECTS_GITHUB_INFO)
+filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_DUPLICATION) $(GLOBAL_REPO_METADATA) $(PROJECTS_GITHUB_INFO)
 	$(SCRIPTS_DIR)/filter-final-projects.R
 	rm -fr $(PROJECTS_DIR)
 	mkdir -p $(PROJECTS_DIR)
