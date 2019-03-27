@@ -2,9 +2,8 @@ package cz.cvut.fit.prl.scala.implicits.model
 
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind._
-import cz.cvut.fit.prl.scala.implicits.model.Declaration.Signature
 import cz.cvut.fit.prl.scala.implicits.model.Language.SCALA
-import scalapb.lenses.{Lens, Mutation}
+import scalapb.lenses.{Lens, Mutation, ObjectLens}
 
 import scala.meta.internal.semanticdb.Scala._
 import scala.meta.internal.semanticdb.SymbolInformation.{Property => p}
@@ -31,6 +30,17 @@ trait ModelDSL {
 
   implicit val overloadHack1 = new OverloadHack1
   implicit val overloadHack2 = new OverloadHack2
+
+  implicit class DeclarationLens(that: Lens[Declaration, Declaration]) extends ObjectLens[Declaration, Declaration](that) {
+    def method: _root_.scalapb.lenses.Lens[Declaration, MethodSignature] =
+      field(_.methodSignature)((c_, f_) => c_.copy(signature = f_))
+    def `class`: _root_.scalapb.lenses.Lens[Declaration, ClassSignature] =
+      field(_.classSignature)((c_, f_) => c_.copy(signature = f_))
+    def `type`: _root_.scalapb.lenses.Lens[Declaration, TypeSignature] =
+      field(_.typeSignature)((c_, f_) => c_.copy(signature = f_))
+    def value: _root_.scalapb.lenses.Lens[Declaration, ValueSignature] =
+      field(_.valueSignature)((c_, f_) => c_.copy(signature = f_))
+  }
 
   def isImplicit: Update[Declaration] =
     _.properties.modify(_ | p.IMPLICIT.value)
@@ -75,7 +85,7 @@ trait ModelDSL {
     _.access := value
 
   def parent(ref: String, typeArguments: TypeRef*): Update[Declaration] =
-    _.clazz.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
+    _.`class`.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
 
   def typeParameter(
       name: String,
@@ -110,14 +120,14 @@ trait ModelDSL {
       declarationId: String,
       tpe: Type,
       updates: Update[Declaration]*): Declaration = {
-    declaration(declarationId, VAL, updates: _*).update(_._value.tpe := tpe)
+    declaration(declarationId, VAL, updates: _*).update(_.value.tpe := tpe)
   }
 
   def parameterDeclaration(
       declarationId: String,
       tpe: Type,
       updates: Update[Declaration]*): Declaration = {
-    declaration(declarationId, PARAMETER, updates: _*).update(_._value.tpe := tpe)
+    declaration(declarationId, PARAMETER, updates: _*).update(_.value.tpe := tpe)
   }
 
   def declaration(declarationId: String, kind: Kind, updates: Update[Declaration]*): Declaration = {
@@ -134,13 +144,13 @@ trait ModelDSL {
         annotations = Seq.empty,
         kind match {
           case DEF =>
-            Signature.Method(MethodSignature(returnType = typeRef("scala/Unit#")))
+            MethodSignature(returnType = typeRef("scala/Unit#"))
           case TYPE =>
-            Signature.Type(TypeSignature())
+            TypeSignature()
           case CLASS | OBJECT =>
-            Signature.Clazz(ClassSignature())
+            ClassSignature()
           case VAL | VAR | PARAMETER =>
-            Signature.Value(ValueSignature(tpe = typeRef("scala/Unit#")))
+            ValueSignature(tpe = typeRef("scala/Unit#"))
         }
       )
 

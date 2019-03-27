@@ -59,7 +59,7 @@ class DeclarationExtractorSuite
     """.stripMargin) { res =>
     val c = res.originalDeclarations.head
 
-    c.signature.method.get.returnType shouldBe typeRef(
+    c.methodSignature.returnType shouldBe typeRef(
       "scala/package.Seq#",
       tparamRef(c.declarationId, "T")
     )

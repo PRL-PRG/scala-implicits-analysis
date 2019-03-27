@@ -164,16 +164,12 @@ class ExtractionContext(
   }
 
   private def createSignature(signature: s.Signature)(
-      implicit db: s.TextDocument): Declaration.Signature =
+      implicit db: s.TextDocument): Signature =
     signature match {
-      case x: s.TypeSignature =>
-        Declaration.Signature.Type(createTypeSignature(x))
-      case x: s.ClassSignature =>
-        Declaration.Signature.Clazz(createClassSignature(x))
-      case x: s.MethodSignature =>
-        Declaration.Signature.Method(createMethodSignature(x))
-      case x: s.ValueSignature =>
-        Declaration.Signature.Value(createValueSignature(x))
+      case x: s.TypeSignature => createTypeSignature(x)
+      case x: s.ClassSignature => createClassSignature(x)
+      case x: s.MethodSignature => createMethodSignature(x)
+      case x: s.ValueSignature => createValueSignature(x)
       case _ =>
         throw new ElementNotSupportedException("signature", signature.getClass.getSimpleName)
     }
@@ -223,7 +219,8 @@ class ExtractionContext(
       name = symbolInfo.displayName,
       location = location,
       language = symbolInfo.language,
-      access = access
+      access = access,
+      signature = Signature.Empty
     )
   }
 

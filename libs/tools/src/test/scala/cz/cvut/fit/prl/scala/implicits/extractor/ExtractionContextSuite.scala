@@ -39,12 +39,11 @@ trait ModelSimplification {
         signature = that.signature.simplify
       )
   }
-  implicit class SimplifySignature(that: m.Declaration.Signature) {
+  implicit class SimplifySignature(that: m.Signature) {
 
-    def simplify: m.Declaration.Signature = that match {
-      case m.Declaration.Signature.Method(v) =>
-        m.Declaration.Signature.Method(v.simplify)
-      case m.Declaration.Signature.Type(v) => m.Declaration.Signature.Type(v.simplify)
+    def simplify: m.Signature = that match {
+      case v: m.MethodSignature => v.simplify
+      case v: m.TypeSignature => v.simplify
       case y => y
     }
   }

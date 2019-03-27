@@ -276,6 +276,12 @@ object ExtractImplicits extends App {
       callSitesCount = csCount
     )
 
+    module.declarations.foreach {
+      case (_, d) => if (d.signature.isEmpty) {
+        throw new Exception(s"Declaration $d has an empty signature")
+      }
+    }
+
     (module, exceptions)
   }
 

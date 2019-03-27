@@ -134,12 +134,15 @@ message Declaration {
     required Location location = 7;
     required Language language = 8;
     repeated Type annotations = 9;
+    required Signature signature = 10;
+}
 
-    oneof signature {
-        TypeSignature type = 10;
-        ClassSignature clazz = 11;
-        MethodSignature method = 12;
-        ValueSignature value = 13;
+message Signature {
+    oneof sealed_value {
+        TypeSignature type = 1;
+        ClassSignature clazz = 2;
+        MethodSignature method = 3;
+        ValueSignature value = 4;
     }
 }
 

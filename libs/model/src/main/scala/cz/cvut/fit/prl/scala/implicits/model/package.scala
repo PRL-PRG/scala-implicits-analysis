@@ -157,10 +157,8 @@ package object model {
 
   implicit class XtensionCallSite(that: CallSite) extends ModuleOps with LocationOps {
     def isImplicit(implicit resolver: DeclarationResolver): Boolean = {
-      val declaration = that.declaration
-      declaration.signature.isMethod && (
-        declaration.isImplicit || declaration.hasImplicitParameters
-      )
+      val d = that.declaration
+      d.hasMethodSignature && (d.isImplicit || d.hasImplicitParameters)
     }
 
     def declarationRef: DeclarationRef = DeclarationRef(that.moduleId, that.declarationId)
@@ -195,8 +193,38 @@ package object model {
     def isInterface: Boolean = that.kind == INTERFACE
     def isEnum: Boolean = that.kind == ENUM
     def isMacro: Boolean = that.kind == MACRO
-    def isMethodDeclaration: Boolean = that.signature.isMethod
-    def isTypeDeclaration: Boolean = that.signature.isType
+    def hasMethodSignature: Boolean = that.signature match {
+      case _: MethodSignature => true
+      case _ => false
+    }
+    def hasTypeSignature: Boolean = that.signature match {
+      case _: TypeSignature => true
+      case _ => false
+    }
+    def hasClassSignature: Boolean = that.signature match {
+      case _: ClassSignature => true
+      case _ => false
+    }
+
+    def methodSignature: MethodSignature = that.signature match {
+      case x: MethodSignature => x
+      case _ => throw new IllegalStateException(s"Calling `methodSignature` on $that")
+    }
+
+    def classSignature: ClassSignature = that.signature match {
+      case x: ClassSignature => x
+      case _ => throw new IllegalStateException(s"Calling `classSignature` on $that")
+    }
+
+    def typeSignature: TypeSignature = that.signature match {
+      case x: TypeSignature => x
+      case _ => throw new IllegalStateException(s"Calling `typeSignature` on $that")
+    }
+
+    def valueSignature: ValueSignature = that.signature match {
+      case x: ValueSignature => x
+      case _ => throw new IllegalStateException(s"Calling `valueSignature` on $that")
+    }
 
     /**
       * The following code will create two implicit definitions
@@ -217,7 +245,7 @@ package object model {
 
     def implicitClassCompanion(implicit resolver: DeclarationResolver): Option[Declaration] =
       if (that.isMethod) {
-        that.signature.value match {
+        that.signature match {
           case MethodSignature(_, ImplicitConversionParameters(_, _), declaration(ret))
               if ret.isImplicit && ret.isClass =>
             Some(ret)
@@ -235,15 +263,15 @@ package object model {
     def isDefaultArgument: Boolean =
       that.isMethod && that.name.matches(".*\\$default\\$\\d+$")
 
-    def typeParameters: Seq[TypeParameter] = that.signature.value match {
+    def typeParameters: Seq[TypeParameter] = that.signature match {
       case x: MethodSignature => x.typeParameters
       case x: ClassSignature => x.typeParameters
       case x: TypeSignature => x.typeParameters
-      case _: ValueSignature => Seq.empty
+      case _ => Seq.empty
     }
 
     def parameterLists: Seq[ParameterList] =
-      that.signature.value match {
+      that.signature match {
         case x: MethodSignature => x.parameterLists
         case _ => Seq.empty
       }
@@ -255,19 +283,19 @@ package object model {
       that.implicitParameterList.isDefined
 
     def returnDeclaration(implicit resolver: DeclarationResolver): Option[Declaration] =
-      that.signature.value match {
+      that.signature match {
         case MethodSignature(_, _, declaration(rt)) => Some(rt)
         case _ => None
       }
 
     def returnType: Option[Type] =
-      that.signature.value match {
+      that.signature match {
         case MethodSignature(_, _, rt) => Some(rt)
         case _ => None
       }
 
     def declaringTypeRef: DeclarationRef =
-      that.signature.value match {
+      that.signature match {
         case _: MethodSignature =>
           DeclarationRef(that.moduleId, that.declarationId.owner)
         case _: ValueSignature =>
@@ -280,7 +308,7 @@ package object model {
       declaringTypeRef.declaration
 
     def parents: Seq[Type] =
-      that.signature.value match {
+      that.signature match {
         case x: ClassSignature => x.parents
         case _ =>
           throw new Exception(s"Trying to get parents on ${that.signature}")
@@ -325,9 +353,9 @@ package object model {
     def isKindOf(declarationId: String)(implicit resolver: DeclarationResolver): Boolean = {
       if (that.declarationId == declarationId) {
         true
-      } else if (that.signature.isClazz) {
+      } else if (that.hasClassSignature) {
         that.parentsDeclarations.exists(_.isKindOf(declarationId))
-      } else if (that.signature.isType) {
+      } else if (that.hasTypeSignature) {
         that.resolveTypeDeclaration.exists(_.isKindOf(declarationId))
       } else {
         false
@@ -360,14 +388,14 @@ package object model {
     }
 
     def resolveTypeDeclaration(implicit resolver: DeclarationResolver): Option[Declaration] = {
-      def resolveToClass(d: Declaration): Option[Declaration] = d.signature.value match {
+      def resolveToClass(d: Declaration): Option[Declaration] = d.signature match {
         case _: ClassSignature =>
           Some(d)
         case tpe: TypeSignature =>
           val nextId = (tpe.lowerBound, tpe.upperBound) match {
+            case (Type.Empty, Type.Empty) => None
             case (Type.Empty, x) => Some(x.declarationId)
             case (x, Type.Empty) => Some(x.declarationId)
-            case (Type.Empty, Type.Empty) => None
             case (x, y) if x == y => Some(x.declarationId)
           }
 
@@ -383,7 +411,7 @@ package object model {
     }
 
     def parentsDeclarations(implicit resolver: DeclarationResolver): Iterable[Declaration] =
-      that.signature.value match {
+      that.signature match {
         case clazz: ClassSignature =>
           clazz.parents
             .map(x => DeclarationRef(that.moduleId, x.declarationId))
@@ -393,7 +421,7 @@ package object model {
       }
 
     def allParents(implicit resolver: DeclarationResolver): Stream[Declaration] =
-      that.signature.value match {
+      that.signature match {
         case _: ClassSignature =>
           val xs = that.parentsDeclarations.toStream
           (xs #::: xs.flatMap(_.parentsDeclarations)).distinct
@@ -401,15 +429,6 @@ package object model {
           Stream.empty
       }
   }
-
-  implicit def typeSignature2type(x: TypeSignature): Declaration.Signature.Type =
-    Declaration.Signature.Type(x)
-
-  implicit def classSignature2clazz(x: ClassSignature): Declaration.Signature.Clazz =
-    Declaration.Signature.Clazz(x)
-
-  implicit def methodSignature2method(x: MethodSignature): Declaration.Signature.Method =
-    Declaration.Signature.Method(x)
 
   implicit def scalaMetaLanguage2Language(x: s.Language): Language = x match {
     case s.Language.JAVA => Language.JAVA
