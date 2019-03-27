@@ -46,17 +46,18 @@ bootstrap :=
 	download-projects \
 	patch-downloaded-projects \
 	repo-metadata \
-	filter-sbt-repos \
+	filter-all-projects \
+	filter-sbt-projects \
+	filter-final-repos \
 	fetch-github-info \
 	scaladex \
-	filter-so-repos \
 	dejavu \
-	filter-final-repos \
 	compile \
 	metadata \
 	semanticdb \
 	implicits \
-	corpus-summary \
+	corpus-stage1 \
+	corpus-stage3 \
 	export-implicits \
 	report
 
@@ -66,9 +67,9 @@ $(LOG_DIR):
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-stage1: repo-metadata filter-sbt-repos fetch-github-info filter-so-repos dejavu filter-final-repos scaladex
+stage1: fetch-github-info filter-all-projects repo-metadata filter-sbt-projects dejavu scaladex corpus-stage1 filter-final-projects
 stage2: compile metadata semanticdb
-stage3: implicits corpus-summary export-implicits report
+stage3: implicits corpus-stage3 export-implicits report
 
 parallel:
 	-mkdir -p $(LOG_DIR)
@@ -90,16 +91,15 @@ parallel:
 clean:
 	-$(MAKE) -f $(this_makefile) parallel TASK=$@
 	-rm -fr $(LOG_DIR_BASE) $(JOBSFILE)
-	-rm -f $(PROJECTS_GITHUB_INFO)
 	-rm -f $(GLOBAL_REPO_METADATA)
 	-rm -f $(GLOBAL_REPO_SLOC)
-	-rm -fr $(SBT_PROJECTS_FILE) $(SO_PROJECTS_FILE) $(PROJECTS_DIR) $(PROJECTS_FILE)
+	-rm -fr $(SBT_PROJECTS_FILE) $(PROJECTS_DIR) $(PROJECTS_FILE)
 	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
 	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS)
-	-rm -f $(CORPUS_SUMMARY)
-	-rm -f $(SCALADEX)
+	-rm -f $(CORPUS_STAGE1)
+	-rm -f $(CORPUS_STAGE3)
 	-rm -f $(CORPUS_ANALYSIS_HTML) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
 	$(MAKE) -f $(this_makefile) clean-dejavu
 
@@ -138,16 +138,16 @@ reset: $(bootstrap)
 reset-all: $(bootstrap)
 	$(parallel) TASK=$@ PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
 
-dejavu: $(SO_PROJECTS_FILE)
+dejavu: $(SBT_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
 	-rm -fr $(DEJAVU_HOME)
 	mkdir -p $(DEJAVU_HOME)
- 
+
 	-rm -fr $(DEJAVU_DOWNLOAD)
 	mkdir -p $(DEJAVU_DOWNLOAD)
 
-	parallel --bar -j1 -a $(SO_PROJECTS_FILE) ln -sfT '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
+	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -sfT '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
 
-	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SO_PROJECTS_FILE) $(DEJAVU_INPUT)
+	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SBT_PROJECTS_FILE) $(DEJAVU_INPUT)
 	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
 
 	cd $(DEJAVU_HOME) && \
@@ -170,14 +170,13 @@ download-projects: $(ALL_PROJECTS_FILE)
         parallel --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
 	$(MAKE) -f $(this_makefile) patch-downloaded-projects
 
-filter-sbt-repos: $(GLOBAL_REPO_METADATA)
+filter-all-projects: $(ALL_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
+	$(SCRIPTS_DIR)/filter-all-projects.R
+
+filter-sbt-projects: $(GLOBAL_REPO_METADATA)
 	$(SCRIPTS_DIR)/filter-sbt-projects.R
 
-filter-so-repos: $(SBT_PROJECTS_FILE)
-	$(SCRIPTS_DIR)/filter-so-projects.R
-
-filter-final-repos: $(SO_PROJECTS_FILE) $(DEJAVU_DUPLICATION) $(GLOBAL_REPO_METADATA) $(PROJECTS_GITHUB_INFO)
-	$(SCRIPTS_DIR)/filter-final-projects.R
+filter-final-projects: $(PROJECTS_FILE)
 	rm -fr $(PROJECTS_DIR)
 	mkdir -p $(PROJECTS_DIR)
 	parallel --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)'
@@ -190,12 +189,11 @@ patch-downloaded-projects:
 	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
 
 repo-metadata: $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
+ifneq ($(REDO), -1)
 	$(parallel) TASK=repo-metadata PROJECTS_FILE=$(ALL_PROJECTS_FILE) PROJECTS_DIR=$(ALL_PROJECTS_DIR)
+endif
 	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_METADATA) "cciiciiii" $(GLOBAL_REPO_METADATA)
 	$(SCRIPTS_DIR)/merge-csvs.R $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR) $(REPO_SLOC) "iciii" $(GLOBAL_REPO_SLOC)
-
-report: $(CORPUS_SUMMARY) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
-	Rscript -e 'rmarkdown::render("$(SCRIPTS_DIR)/analysis/corpus-analysis.Rmd", output_file=file.path("$(CURDIR)/$(CORPUS_ANALYSIS_HTML)"), params=list(base_dir="$(CURDIR)"))'
 
 scaladex:
 	if [ -f $(SCALADEX).pinned ]; then \
@@ -241,7 +239,15 @@ endif
 	$(AMM) $(SCRIPTS_DIR)/merge-implicits.sc --projectFile $(PROJECTS_FILE) --projectDir $(PROJECTS_DIR)
 	$(SCRIPTS_DIR)/quick-summary.R
 
-corpus-summary: $(GLOBAL_COMPILE_STATUS) \
+corpus-stage1: $(GLOBAL_REPO_METADATA) \
+  $(GLOBAL_REPO_SLOC) \
+  $(SCALADEX) \
+  $(PROJECTS_GITHUB_INFO) \
+  $(DEJAVU_DUPLICATION)
+
+	$(SCRIPTS_DIR)/corpus-stage1.R
+
+corpus-stage3: $(GLOBAL_COMPILE_STATUS) \
   $(GLOBAL_METADATA_STATUS) \
   $(GLOBAL_SEMANTICDB_STATUS) \
   $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE) \
@@ -249,12 +255,9 @@ corpus-summary: $(GLOBAL_COMPILE_STATUS) \
   $(GLOBAL_IMPLICITS_STATS) \
   $(GLOBAL_IMPLICITS_EXCEPTIONS) \
   $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS) \
-  $(PROJECTS_GITHUB_INFO) \
-  $(GLOBAL_REPO_SLOC) \
-  $(GLOBAL_REPO_METADATA) \
-  $(SCALADEX)
+  $(CORPUS-STAGE1)
 
-	$(SCRIPTS_DIR)/corpus-summary.R .
+	$(SCRIPTS_DIR)/corpus-stage3.R
 
 export-implicits: $(GLOBAL_IMPLICITS)
 	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc

@@ -1,8 +1,55 @@
 library(dplyr)
 library(stringr)
 
-format_size <- function(x) {
-  if (is.na(x)) return(NA)
+is_compatible_sbt_version <- function(sbt_version) {
+  compatible <- function(version) {
+    all(version >= c(1,  0, 0)) | all(version >= c(0, 13, 5))
+  }
+  
+  sbt_version_parsed <- parse_sbt_version(sbt_version)
+  
+  map_lgl(sbt_version_parsed, ~compatible(.))
+}
+
+merge_project_csvs <- function(project_ids, files, col_types) {
+  stopifnot(length(project_ids) == length(files))
+  
+  existing_files <- file_exists(files)
+  
+  df <- map2_dfr(
+    project_ids[existing_files],
+    files[existing_files],
+    ~mutate(read_csv(.y, col_types=col_types), project_id=.x)
+  )
+  
+  if (nrow(df) == 0) {
+    tibble(project_id=character())
+  } else {
+    select(df, project_id, everything())
+  }
+}
+
+
+add_prefix <- function(prefix) {
+  function(x) str_c(prefix, '_', x)
+}
+
+parse_sbt_version <- Vectorize(function(version) {
+  if (is.na(version)) return(NA)
+  if (nchar(version) < 5) return(NA)
+  
+  version <- str_replace_all(version, "-.*", "")
+  
+  parsed <- suppressWarnings(as.integer(str_split(version, "\\.")[[1]]))
+  
+  if (any(is.na(parsed))) return(NA)
+  if (length(parsed) != 3) return(NA)
+  
+  return(parsed)
+}, USE.NAMES = FALSE)
+
+format_size <- Vectorize(function(x) {
+  if (is.na(x)) return(x)
   
   units <- c("B", "kB", "MB", "GB", "TB", "PB")
   
@@ -15,21 +62,36 @@ format_size <- function(x) {
     }
   }
   
-  sapply(x, fmt, USE.NAMES=FALSE)
+  fmt(x)
+})
+
+fmt <- function(x, prefix="", suffix="", ...) {
+  if (is.na(x)) {
+    NA
+  } else if (is.null(x)) {
+    NULL
+  } else {
+    v <- .fmt(x, ...)
+    str_c(prefix, v, suffix)
+  }
 }
 
-fmt <- function(x, prefix="", suffix="", floor=FALSE, ceiling=FALSE, digits=1) {
-  v <- switch(
-    typeof(x), 
-    integer=format(x, big.mark=",", small.mark="."),
-    double={
-      if (floor) x <- floor(x)
-      if (ceiling) x <- ceiling(x)
-      format(round(x, digits), big.mark=",")
-    },
-    character=x
-  )
-  str_c(prefix, v, suffix)
+.fmt <- function(x) {
+  UseMethod(".fmt", x)  
+}
+
+.fmt.default <- function(x) {
+  x
+}
+
+.fmt.integer <- function(x) {
+  format(x, big.mark=",", small.mark=".")
+}
+
+.fmt.double <- function(x, floor=FALSE, ceiling=FALSE, digits=1) {
+  if (floor) x <- floor(x)
+  if (ceiling) x <- ceiling(x)
+  format(round(x, digits), big.mark=",")
 }
 
 percent <- function(x, ...) my_format(x, s="%", ...)
@@ -43,6 +105,10 @@ my_stat_fmt <- function(x) {
   s <- sd(x, na.rm = T)
   m <- median(x, na.rm = T)
   str_c('(s=', fmt(s, floor=s > 1e3), ' m=', fmt(m, floor=m > 1e3), ')')
+}
+
+add_nrow <- function(key, df) {
+  add_num(key, nrow(df))
 }
 
 add_num <- function(key, v) {
@@ -63,7 +129,12 @@ add_num <- function(key, v) {
 
 make_stats <- function(...) {
   all <- list(...)
-  bind_rows(all)
+  df <- bind_rows(all)
+  if (all(df$n == 1)) {
+    select(df, key, value=sum)
+  } else {
+    df
+  }
 }
 
 is_outlier_min <- function(x) quantile(x, 0.25) - 1.5 * IQR(x)
@@ -72,8 +143,34 @@ is_outlier <- function(x) {
   (x < is_outlier_min(x)) | (x > is_outlier_max(x))
 }
 
-simple_datatable <- function(...) {
-  datatable(..., options=list(paging=FALSE, searching=FALSE, info=FALSE))
+make_corpus_link <- Vectorize(function(file, text=basename(file)) {
+  url <- if (startsWith(file, "/")) {
+    file
+  } else {
+    path(params$base_dir, "all-projects", file)
+  }
+  
+  rel <- path_rel(url, params$base_dir)
+  url <- str_c(params$base_url, "/", basename(params$base_dir), "/", rel)
+  
+  make_link(url, text)
+}, USE.NAMES = FALSE)
+
+make_link <- Vectorize(function(url, text) {
+  glue('<a href="{url}">{text}</a>')
+}, USE.NAMES = FALSE)
+
+my_table <- function(...) {
+  kable(...) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+}
+
+my_datatable <- function(df, page_size=20, ...) {
+  if (nrow(df) < page_size) {
+    datatable(df, options=list(paging=FALSE, searching=FALSE, info=FALSE), ...)
+  } else {
+    datatable(df, options=list(paging=TRUE, searching=TRUE, info=TRUE, pageLength=page_size), ...)
+  }
 }
 
 phase_status <- function(phase, df) {
@@ -97,18 +194,38 @@ phase_status <- function(phase, df) {
     select(phase, all, everything())
 }
 
-guess_failure_cause <- function(df, tail_lines=20) {
-  if (!file_exists(df$log_file)) {
-    return(tibble(project_id=df$project_id, log_file=df$log_file, cause="log-file-does-not-exist", detail=NA))
+str_subset_multiple <- function(string, patterns) {
+  for (p in patterns) {
+    m <- str_subset(string, p)
+    if (length(m)) return(list(pattern=p, matches=m))
   }
   
-  str_subset_multiple <- function(string, patterns) {
-    for (p in patterns) {
-      m <- str_subset(string, p)
-      if (length(m)) return(list(pattern=p, matches=m))
+  list(pattern=character(0), matches=character(0))
+}
+
+guess_failure_cause <- function(df, tail_lines=20) {
+  detect_missing_dependencies <- function(lines) {
+    patterns <- c(
+      "\\[error\\] \\([^)]+\\) sbt.ResolveException: unresolved dependency: ([^:]+):.*",
+      "\\[error\\] \\([^)]+\\) sbt.librarymanagement.ResolveException: unresolved dependency: ([^:]+):.*"
+    )
+    r <- str_subset_multiple(lines, patterns)
+    if (length(r$matches) > 0) {
+      str_replace_all(r$matches, r$pattern, "\\1")
+    } else {  
+      idx <- str_which(lines, fixed("coursier.ResolutionException"))
+      if (length(idx) > 0) {
+        lines[idx[1]+1] %>%
+          str_replace_all(fixed("[error]"), "") %>%
+          trimws("both")
+      } else {
+        character(0)
+      }
     }
-    
-    list(pattern=character(0), matches=character(0))
+  }
+  
+  if (!file_exists(df$log_file)) {
+    return(tibble(project_id=df$project_id, log_file=df$log_file, cause="log-file-does-not-exist", detail=NA))
   }
   
   causes <- list(
@@ -116,23 +233,7 @@ guess_failure_cause <- function(df, tail_lines=20) {
       pattern <- "\\[error\\] java.lang.ClassNotFoundException: \\$.*"
       str_subset(lines, pattern)
     },
-    `missing-dependencies`=function(lines) {
-      patterns <- c(
-        "\\[error\\] \\([^)]+\\) sbt.ResolveException: unresolved dependency: ([^:]+):.*",
-        "\\[error\\] \\([^)]+\\) sbt.librarymanagement.ResolveException: unresolved dependency: ([^:]+):.*"
-      )
-      r <- str_subset_multiple(lines, patterns)
-      if (length(r$matches) > 0) {
-        str_replace_all(r$matches, r$pattern, "\\1")
-      } else {
-        idx <-str_which(lines, fixed("coursier.ResolutionException"))
-        if (length(idx)) {
-          lines[idx+1] %>%
-            str_replace_all(fixed("[error]"), "") %>%
-            trimws("both")
-        }
-      }
-    },
+    `missing-dependencies`=detect_missing_dependencies,
     `out-of-memory`=function(lines) {
       patterns <- c("Error during sbt execution: java.lang.OutOfMemoryError", "java.lang.OutOfMemoryError")
       str_subset_multiple(lines, patterns)$matches
@@ -171,6 +272,7 @@ guess_failure_cause <- function(df, tail_lines=20) {
     cause_fun <- causes[[cause]]
     res <- cause_fun(lines)
     if (length(res) > 0) {
+      res <- res[1]
       return(tibble(project_id=df$project_id, log_file=df$log_file, cause=cause, detail=res))
     }
   }
@@ -181,14 +283,15 @@ guess_failure_cause <- function(df, tail_lines=20) {
   } else {
     NA
   }
+  
   tibble(project_id=df$project_id, log_file=df$log_file, cause="unknown", detail=last_error)
 }
 
 phase_failure_cause <- function(df) {
   df %>%
-  rowwise() %>%
-  do(guess_failure_cause(.)) %>%
-  ungroup()
+    rowwise() %>%
+    do(guess_failure_cause(.)) %>%
+    ungroup()
 }
 
 phase_failure_cause_from_status <- function(status, log_filename) {

@@ -37,7 +37,6 @@ ALL_PROJECTS_FILE := all-projects.txt
 ALL_PROJECTS_PATCH := all-projects-patch.csv
 
 SBT_PROJECTS_FILE := sbt-projects.txt
-SO_PROJECTS_FILE := so-projects.txt
 
 # the final projects
 PROJECTS_DIR ?= projects
@@ -106,7 +105,8 @@ GLOBAL_IMPLICITS_EXCEPTIONS := $(notdir $(IMPLICITS_EXCEPTIONS))
 GLOBAL_IMPLICITS_INDEX_EXCEPTIONS := implicits-index-exceptions.csv
 GLOBAL_IMPLICITS := $(notdir $(IMPLICITS))
 
-CORPUS_SUMMARY := corpus.csv
+CORPUS_STAGE1 := corpus-stage1.csv
+CORPUS_STAGE3 := corpus-stage3.csv
 IMPLICIT_CALLSITES := implicit-callsites.csv
 IMPLICIT_DECLARATIONS := implicit-declarations.csv
 
@@ -115,6 +115,5 @@ SCALADEX := scaladex.txt
 #AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5050" amm
 AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 
-CORPUS_ANALYSIS_HTML := corpus-analysis.html
 IMPLICIT_CALLSITES := implicit-callsites.csv
 IMPLICIT_DECLARATIONS := implicit-declarations.csv

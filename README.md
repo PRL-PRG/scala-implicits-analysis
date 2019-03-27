@@ -8,6 +8,7 @@
   - tidyverse
   - fs
   - DT
+  - lubridate
 - cloc >= 1.8
 
 ## Structure
@@ -55,7 +56,6 @@ make
 - `metadata-status.csv`  - result of metadata extraction
 - `projects-github-info.csv` - full project names and number of stars fetched from github
 - `projects.txt` - final list of projects on which the extraction will be attempted
-- `repo-build-system.csv` - guessed build system per project and in case of SBT its version
 - `repo-metadata.csv` - repository metadata
 - `report.html` - a status report
 - `repo-sloc.csv` - SLOC of each project

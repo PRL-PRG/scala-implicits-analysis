@@ -1,0 +1,450 @@
+---
+title: "Stage 3 analysis"
+output:
+  html_document:
+    toc: true
+    theme: united
+params:
+  base_dir: /var/lib/scala/corpora/github
+  base_url: http://prl1.ele.fit.cvut.cz:8149
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(fs)
+library(tidyverse)
+library(ggplot2)
+library(DT)
+library(lubridate)
+library(knitr)
+library(glue)
+library(pbapply)
+
+theme_set(theme_minimal())
+
+options(corpus_dir=params$base_dir)
+
+source("../inc/paths.R")
+source("../inc/functions.R")
+
+pboptions(type="txt")
+```
+
+## Corpus
+
+```{r loading corpus}
+corpus <- read_csv(CORPUS_STAGE3, col_types=cols(
+  project_id = col_character(),
+  status = col_integer(),
+  origin = col_character(),
+  build_system = col_character(),
+  sbt_version = col_character(),
+  size = col_integer(),
+  commit_count = col_integer(),
+  commit = col_character(),
+  commit_date = col_datetime(format = ""),
+  first_commit_date = col_datetime(format = ""),
+  scala_code = col_integer(),
+  scala_files = col_integer(),
+  dejavu_n_files = col_integer(),
+  dejavu_n_duplicated_files = col_integer(),
+  dejavu_duplication = col_double(),
+  gh_name = col_character(),
+  gh_stars = col_integer(),
+  gh_watchers = col_integer(),
+  gh_created_at = col_datetime(format = ""),
+  gh_updated_at = col_datetime(format = ""),
+  gh_pushed_at = col_datetime(format = ""),
+  gh_fork = col_logical(),
+  gh_archived = col_logical(),
+  gh_error = col_character(),
+  scaladex = col_logical(),
+  metadata_exit_code = col_integer(),
+  metadata_duration = col_integer(),
+  metadata_scala_files = col_integer(),
+  metadata_scala_code = col_integer(),
+  modules = col_integer(),
+  scala_version = col_character(),
+  updated_scala_version = col_character(),
+  compile_exit_code = col_integer(),
+  compile_duration = col_integer(),
+  compile_classes = col_integer(),
+  semanticdb_exit_code = col_integer(),
+  semanticdb_duration = col_integer(),
+  semanticdb_classes = col_integer(),
+  semanticdb_files = col_integer(),
+  semanticdb_occurrences = col_integer(),
+  semanticdb_synthetics = col_integer(),
+  semanticdb_symbols = col_integer(),
+  implicits_exit_code = col_integer(),
+  implicits_duration = col_integer(),
+  implicit_failure = col_character(),
+  declarations = col_integer(),
+  implicit_declarations = col_integer(),
+  implicit_local_declarations = col_integer(),
+  callsites = col_integer(),
+  implicit_callsites = col_integer(),
+  implicit_extraction_errors = col_integer(),
+  metadata_failure = col_character(),
+  metadata_failure_detail = col_character(),
+  compile_failure = col_character(),
+  compile_failure_detail = col_character(),
+  semanticdb_failure = col_character(),
+  semanticdb_failure_detail = col_character()
+))
+```
+
+The data in the `r CORPUS_STAGE3` has the following meaning:
+
+- `project_id` (chr): project name as `github-user-name--github-repository-name`
+- `status` (int):
+    - `0`: was part of the set to be cloned
+    - `1`: cloned (with all submodules)
+    - `2`: has some Scala code and uses compatible SBT (>= 0.13.5+ or >= 1.0.0)
+    - `3`: is not a fork or a renamed repository
+    - `4`: is not duplicate (we keep all projects, but 100% duplicates with over 100 lines of Scala code and at least two stars)
+- `origin` (chr): the URL to github 
+- `build_system` (chr): guessed build system
+- `sbt_version` (chr):  guessed sbt version
+- `size` (int): of the repository in bytes (in some projects it includes class files)
+- `commit_count` (int): number of commits
+- `commit` (chr): current checkout hash
+- `commit_date` (dttm): the date of the current commit
+- `first_commit_date` (dttm): the date of the first commit
+- `scala_code` (int): number of lines of Scala code excluding blanks and comments
+- `scala_files` (int): number of Scala files
+- `dejavu_n_files` (int): number of files processed by Dejavu (this shall be less than `scala_files` since it only consider non-token-empty ones with `.scala suffix`)
+- `dejavu_n_duplicated_files` (int):  number of duplicate files (files seen in other projects)
+- `dejavu_duplication` (dbl): `dejavu_n_duplicated_files/dejavu_n_files`
+- `gh_name` (chr): GitHub name
+- `gh_stars` (int): Number of stars 
+- `gh_watchers` (int): Number of watchers
+- `gh_created_at` (dttm): When was the project created at GitHub
+- `gh_updated_at` (dttm): When was the project last updated at GitHub
+- `gh_pushed_at` (dttm): When it has been last pushed to the project at GitHub
+- `gh_fork` (lgl): Is it a fork?
+- `gh_archived` (lgl): Has it been archived?
+- `gh_error` (chr): Error when getting `gh_*` info
+- `scaladex` (lgl): Has it been indexed by scaladex?
+- `metadata_exit_code` (int): exit code of running `sbt metadata`
+- `metadata_duration` (int): how long did it take (in seconds)
+- `metadata_scala_files` (int): number of lines of Scala code excluding blanks and comments reported by SBT (so excluding any SBT code itself)
+- `metadata_scala_code` (int): number of Scala files reported by SBT (so excluding any SBT code itself)
+- `modules` (int): number of subprojects
+- `scala_version` (chr): scala version `sbt show scalaVersion` 
+- `updated_scala_version` (chr): the scala version we used for semanticdb (some projects need to be updated since semanticdb only supports a subset of Scala versions) 
+- `compile_exit_code` (int): exit code of running `sbt compileWithStats`
+- `compile_duration` (int): how long did it take (in seconds)
+- `compile_classes` (int): number of generated `*.class` files 
+- `semanticdb_exit_code` (int): exit code of running `sbt semanticdb`
+- `semanticdb_duration` (int): how long did it take (in seconds) 
+- `semanticdb_classes` (int): number of generated `*.class` files
+- `semanticdb_files` (int): number of generated `*.semanticdb` files
+- `semanticdb_occurrences` (int): number of semanticdb occurrences (symbol occurrences)
+- `semanticdb_synthetics` (int): number of semanticdb synthetics (what Scala compiler injects - implicits / desuggaring)
+- `semanticdb_symbols` (int): number of semanticdb symbols
+- `implicits_exit_code` (int): exit code of running the implicit extractor
+- `implicits_duration` (int): how long did it take (in seconds)
+- `implicit_cause_failure` (chr): the error message given in case of implicit extraction failure
+- `declarations` (int): number of resolved declarations
+- `implicit_declarations` (int): number of resolved implicit declarations used in the project
+- `implicit_local_declarations` (int): number of implicit declarations defined in the project
+- `callsites` (int): estimated number of all call sites
+- `implicit_callsites` (int): number of call sites involving implicits (a conversion, implicit parameters, both) 
+- `implicit_extraction_errors` (int): number of problems encountered when running the extrcator (e.g. improssible to resolve a symbol given a source code location) 
+- `metadata_cause` (chr): the cause of metadata failure 
+- `metadata_cause_detail` (chr): detail of the cause 
+- `compile_cause` (chr): the cause of semanticdb failure 
+- `compile_cause_detail` (chr): detail of the cause  
+- `semanticdb_cause` (chr): the cause of semanticdb failure 
+- `semanticdb_cause_detail` (chr): detail of the cause 
+
+Exit code:
+- `0`: all good
+- `1`: failure
+- `-1`: not run because of failed dependencies
+- `>= 130`: timeouted
+
+Next to loading the corpus, we try to guess what are the causes of failures of the pipeline tasks (metadata gathering, compilation, semanticdb generation, implicits extraction).
+
+```{r projects stats}
+make_stats(
+  add_nrow("Processed projects", corpus),
+  add_num("Scala SLOC in project", corpus$scala_code),
+  add_num("Scala files in project", corpus$scala_files),
+  add_num("Scala SLOC reported by SBT", corpus$metadata_scala_code),
+  add_num("Scala files reported by SBT", corpus$metadata_scala_files),
+  add_num("Github Stars", corpus$gh_stars),
+  add_nrow("Libraries", filter(corpus, scaladex)),
+  add_nrow("Apps", filter(corpus, scaladex)),
+  add_nrow("Extracted metadata", filter(corpus, metadata_exit_code==0)),
+  add_nrow("Compiled", filter(corpus, compile_exit_code==0)),
+  add_nrow("Extracted semanticdb", filter(corpus, semanticdb_exit_code==0)),
+  add_nrow("Extracted implicits", filter(corpus, implicits_exit_code==0)),
+  add_num("Implicit declarations", corpus$implicit_declarations),
+  add_num("Local implicit declarations", corpus$implicit_local_declarations),
+  add_num("Implicit call sites", corpus$implicit_callsites),
+  add_num("Call sites", corpus$callsites),
+  add_num("Errors in implicit extraction", corpus$implicit_extraction_errors),
+  add_nrow("Failures in running implicit extractor", filter(corpus, !is.na(implicit_failure))),
+  add_num("Final set SBT SLOC", filter(corpus, implicits_exit_code==0)$metadata_scala_code),
+  add_num("Final set STARS", filter(corpus, implicits_exit_code==0)$gh_stars)
+) %>%
+  my_datatable()
+```
+
+TODO: what there is so much difference
+
+```{r}
+filter(corpus) %>%
+  mutate(X=scala_code-metadata_scala_code) %>% 
+  select(project_id, X) %>%
+  arrange(desc(X))
+```
+
+## Pipeline
+
+```{r}
+pipeline_overview <-
+  corpus %>%
+  transmute(metadata=metadata_exit_code==0, compile=compile_exit_code==0, sdb=semanticdb_exit_code==0, implicits=implicits_exit_code==0, sloc=repo_scala_code, stars=github_stars)
+
+tribble(
+  ~phase,       ~projects,                        ~SLOC,                                          ~stars,
+  "Start",      nrow(corpus),                     sum(corpus$repo_scala_code),                    sum(corpus$github_stars), 
+  "Metadata",   sum(pipeline_overview$metadata),  sum(filter(pipeline_overview, metadata)$sloc),  sum(filter(pipeline_overview, metadata)$stars),
+  "Compile",    sum(pipeline_overview$compile),   sum(filter(pipeline_overview, compile)$sloc),   sum(filter(pipeline_overview, compile)$stars),
+  "Semanticdb", sum(pipeline_overview$sdb),       sum(filter(pipeline_overview, sdb)$sloc),       sum(filter(pipeline_overview, sdb)$stars),
+  "Implicits",  sum(pipeline_overview$implicits), sum(filter(pipeline_overview, implicits)$sloc), sum(filter(pipeline_overview, implicits)$stars)
+) %>%
+  mutate_at(vars(-phase), fmt) %>%
+  my_datatable()
+```
+
+## Pipeline Errors
+
+```{r}
+phases <- c("metadata", "compile", "semanticdb", "implicits")
+phases_data <- list(
+  select(corpus, project_id, exit_code=metadata_exit_code),
+  select(corpus, project_id, exit_code=compile_exit_code),
+  select(corpus, project_id, exit_code=semanticdb_exit_code),
+  select(corpus, project_id, exit_code=implicits_exit_code)
+)
+status <- map2_dfr(phases, phases_data, ~phase_status(.x, .y)) %>% mutate_at(vars(-phase), function(x) coalesce(x, 0))
+status %>% my_datatable()
+```
+
+### Failed metadata, but has semanticdb
+
+```{r}
+sdb_no_metadata <- filter(corpus, metadata_exit_code != 0, semanticdb_exit_code == 0) %>%
+  select(project_id, metadata_exit_code, metadata_cause, metadata_cause_detail, metadata_duration, repo_scala_code, repo_scala_files, github_stars)
+```
+
+```{r}
+sdb_no_metadata %>%
+  count(metadata_cause) %>% 
+  my_datatable()
+```
+
+```{r}
+sdb_no_metadata %>% 
+  my_datatable()
+```
+
+### Metadata and semanticdb errors
+
+```{r}
+failed_projects <- filter(
+  corpus, 
+  metadata_exit_code == 1 | 
+    (metadata_exit_code == 0 & semanticdb_exit_code == 1)
+) %>%
+  mutate(
+    phase=case_when(
+      metadata_exit_code == 1 ~ "metadata",
+      semanticdb_exit_code == 1 ~ "semanticdb",
+      TRUE ~ as.character(NA)
+    ),
+    cause=if_else(metadata_exit_code == 1, metadata_cause, semanticdb_cause),
+    cause_detail=if_else(metadata_exit_code == 1, metadata_cause_detail, semanticdb_cause_detail),
+    duration=if_else(phase=="metadata", metadata_duration, semanticdb_duration)
+  ) %>%
+  select(project_id, phase, cause, cause_detail, repo_scala_code, repo_scala_files, github_stars)
+```
+
+```{r}
+count(failed_projects, cause) %>% arrange(desc(n)) %>% my_datatable()
+```
+
+#### Which dependencies
+
+It only considers the first dependency
+
+```{r}
+count(filter(failed_projects, cause=="missing-dependencies"), cause_detail) %>% arrange(desc(n)) %>% my_datatable(colnames=c("Dependency", "Count"))
+```
+
+#### List of unknown problems
+
+```{r}
+filter(failed_projects, cause=="unknown") %>%
+  mutate(
+    log=make_corpus_link(path(project_id, "_analysis_", str_c(phase, ".log")))
+  ) %>%
+  select(-phase, -cause) %>%
+  select(project_id, log, everything()) %>%
+  my_datatable(escape=FALSE)
+```
+
+### Time
+
+```{r}
+make_stats(
+  add_num("Metadata", corpus$metadata_duration),
+  add_num("Compile", corpus$compile_duration),
+  add_num("Semanticdb", corpus$semanticdb_duration),
+  add_num("Implicits", corpus$implicits_duration)
+) %>%
+  my_datatable()
+```
+
+## Semanticdb
+
+```{r}
+filter(corpus, semanticdb_exit_code==0, !(semanticdb_files > 0)) %>%
+  mutate(path=make_corpus_link(project_id)) %>%
+  select(project_id, path, metadata_exit_code, scala_version, commit_count, github_stars, repo_scala_code, metadata_scala_code) %>%
+  my_datatable(escape=FALSE)
+```
+
+
+### Semanticdb symbols, synthetics and occurences
+
+```{r}
+corpus %>%
+  filter(semanticdb_exit_code==0, !is.na(semanticdb_symbols)) %>%
+  mutate(
+    r=semanticdb_symbols/repo_scala_code,
+    outlier=is_outlier(r),
+    label=if_else(outlier, str_glue("{project_id}"), as.character(NA))
+  ) %>%
+  ggplot(aes(repo_scala_code, semanticdb_symbols, label=label)) +
+    geom_point(aes(color=factor(outlier))) +
+    geom_text(size=3, check_overlap = T, vjust=1.5, na.rm = TRUE) + 
+    scale_x_log10(labels = scales::comma) + 
+    scale_y_log10(labels = scales::comma) + 
+    scale_colour_manual(values = c("TRUE"="red", "FALSE"="black"), labels=c("TRUE"="Yes", "FALSE"="No"), guide=FALSE) +
+    labs(title="Source code vs Github stars", x="SLOC (log)", y="GitHub stars", subtitle="outliers - ratio (stars/sloc), sloc, stars")
+```
+
+## Errors in implicit extraction
+
+### Failures
+
+Unexpected exception
+
+```{r}
+filter(corpus, !is.na(implicit_failure)) %>%
+  select(project_id, repo_scala_code, github_stars) %>%
+  my_datatable()
+```
+
+### Errors
+
+```{r load implicit errors}
+exceptions <- read_csv(IMPLICITS_EXCEPTIONS, col_types="cccccccc")
+```
+
+```{r}
+classified_exceptions <- 
+  mutate(
+    exceptions,
+    class=case_when(
+      exception == "SymbolNotFoundException" & str_detect(message, "local\\d+") ~ "missing-local-symbol",
+      exception == "SymbolNotFoundException" & str_detect(message, "symbol: local\\d+") ~ "missing-local-symbol",
+      exception == "SymbolNotFoundException" & str_detect(message, "at Range\\(\\d+,\\d+,\\d+,\\d+\\)") ~ "missing-symbol-at-range",
+      exception == "SymbolNotFoundException" ~ "missing-symbol-other",
+      exception == "LoadingMetadataException" & str_detect(message, "No module found") & str_detect(message, "multi-jvm") ~ "missing-module-multijvm",
+      exception == "LoadingMetadataException" & str_detect(message, "No module found") ~ "missing-module",
+      exception == "LoadingMetadataException" ~ "metadata-loading",
+      exception == "NotImplementedError" ~ "not-implemented",
+      exception == "UnexpectedElementException" ~ "unexpected-element",
+      exception == "UnsupportedElementException" ~ "unsupported-element",
+      exception == "UnExtractableCallSiteException" & cause == "SymbolNotFoundException" ~ "unextractable-callsite-missing-term",
+      exception == "UnExtractableCallSiteException" & cause == "FunctionNotFoundException" ~ "unextractable-callsite-missing-function",
+      exception == "UnExtractableCallSiteException" ~ "unextractable-callsite-other",
+      exception == "ImplicitArgumentNotFoundException" ~ "missing-implicit-arguments",
+      exception == "Exception" & str_detect(message, "^Invalid call site argument") ~ "invalid-declaration",
+      TRUE ~ "unclassified"
+    )
+  )
+```
+
+#### Summary per project summary
+
+```{r}
+count(classified_exceptions, project_id) %>% arrange(desc(n)) %>% my_datatable()
+```
+
+#### Summary per class summary
+
+```{r}
+count(classified_exceptions, class) %>% arrange(desc(n)) %>% my_datatable()
+```
+
+#### Summary per project and class summary
+
+```{r}
+count(classified_exceptions, project_id, class) %>% arrange(desc(n)) %>% my_datatable()
+```
+
+#### Missing symbols
+
+##### Local
+
+
+```{r}
+filter(classified_exceptions, class=="missing-local-symbol") %>% 
+  count(project_id) %>% 
+  arrange(desc(n)) %>% 
+  my_datatable()
+```
+
+##### Range
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-at-range") %>% 
+  count(project_id) %>% 
+  arrange(desc(n)) %>% 
+  my_datatable()
+```
+
+##### Other
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-other") %>% 
+  count(project_id) %>% 
+  arrange(desc(n)) %>% 
+  my_datatable()
+```
+
+```{r}
+filter(classified_exceptions, class=="missing-symbol-other") %>% 
+  transmute(project_id, symbol=str_replace_all(message, ".*symbol: (.*)$", "\\1")) %>%
+  count(project_id, symbol) %>% 
+  arrange(desc(n)) %>% 
+  my_datatable()
+```
+
+#### Unclassified
+
+```{r}
+filter(classified_exceptions, class=="unclassified") %>%
+  select(project_id, module_id, class, everything()) %>%
+  my_datatable()
+```

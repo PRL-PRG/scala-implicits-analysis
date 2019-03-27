@@ -1,8 +1,11 @@
 ---
 title: "Implicit Analysis"
-output: html_document
+output:
+  html_document:
+    toc: true
+    theme: united
 params:
-  base_dir: ~/Research/Projects/scala-implicits-analysis/corpora/top100
+  base_dir: /home/rstudio/work/corpora/top100
 editor_options: 
   chunk_output_type: console
 ---
@@ -144,7 +147,7 @@ stats %>% datatable(options=list(paging=FALSE, searching=FALSE, info=FALSE))
 ## Problems with implicit extraction
 
 ```{r}
-exceptions <- read_csv(IMPLICITS_EXCEPTIONS, col_types="ccccc")
+exceptions <- read_csv(IMPLICITS_EXCEPTIONS, col_types="cccccccc")
 ```
 
 ```{r}
@@ -152,15 +155,21 @@ classified_exceptions <-
   mutate(
     exceptions,
     class=case_when(
-      cause == "MissingSymbolException" & str_detect(message, "symbol: local\\d+") ~ "missing-local-symbol",
-      cause == "MissingSymbolException" & str_detect(message, "at Range\\(\\d+,\\d+,\\d+,\\d+\\)") ~ "missing-symbol-at-range",
-      cause == "MissingSymbolException" ~ "missing-symbol-other",
-      cause == "LoadingMetadataException" & str_detect(message, "No module found") & str_detect(message, "multi-jvm") ~ "missing-module-multijvm",
-      cause == "LoadingMetadataException" & str_detect(message, "No module found") ~ "missing-module",
-      cause == "LoadingMetadataException" ~ "metadata-loading",
-      cause == "NotImplementedError" ~ "not-implemented",
-      cause == "UnexpectedElementException" ~ "unexpected-element",
-      cause == "UnsupportedElementException" ~ "unsupported-element",
+      exception == "SymbolNotFoundException" & str_detect(message, "local\\d+") ~ "missing-local-symbol",
+      exception == "SymbolNotFoundException" & str_detect(message, "symbol: local\\d+") ~ "missing-local-symbol",
+      exception == "SymbolNotFoundException" & str_detect(message, "at Range\\(\\d+,\\d+,\\d+,\\d+\\)") ~ "missing-symbol-at-range",
+      exception == "SymbolNotFoundException" ~ "missing-symbol-other",
+      exception == "LoadingMetadataException" & str_detect(message, "No module found") & str_detect(message, "multi-jvm") ~ "missing-module-multijvm",
+      exception == "LoadingMetadataException" & str_detect(message, "No module found") ~ "missing-module",
+      exception == "LoadingMetadataException" ~ "metadata-loading",
+      exception == "NotImplementedError" ~ "not-implemented",
+      exception == "UnexpectedElementException" ~ "unexpected-element",
+      exception == "UnsupportedElementException" ~ "unsupported-element",
+      exception == "UnExtractableCallSiteException" & cause == "SymbolNotFoundException" ~ "unextractable-callsite-missing-term",
+      exception == "UnExtractableCallSiteException" & cause == "FunctionNotFoundException" ~ "unextractable-callsite-missing-function",
+      exception == "UnExtractableCallSiteException" ~ "unextractable-callsite-other",
+      exception == "ImplicitArgumentNotFoundException" ~ "missing-implicit-arguments",
+      exception == "Exception" & str_detect(message, "^Invalid argument") ~ "invalid-declaration",
       TRUE ~ "unclassified"
     )
   )
@@ -176,7 +185,7 @@ count(classified_exceptions, project_id) %>% arrange(desc(n)) %>% datatable()
 ### Per exception summary
 
 ```{r}
-count(classified_exceptions, cause) %>% arrange(desc(n)) %>% datatable()
+count(classified_exceptions, exception) %>% arrange(desc(n)) %>% datatable()
 ```
 
 ### Per class summary
@@ -222,7 +231,8 @@ filter(classified_exceptions, class=="missing-symbol-other") %>%
 ### Unclassified
 
 ```{r}
-uncategorized_exceptions <- filter(classified_exceptions, class=="unclassified")
+filter(classified_exceptions, exception=="Exception") %>% 
+  datatable()
 ```
 
 
