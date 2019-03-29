@@ -151,15 +151,18 @@ object ProjectMetadata {
         }
       }
 
+      val JavaLibraryExtensions = Set(".jar", ".zip")
       val classpathMap: Map[ModuleId, Classpath] =
         classpathEntriesMap
           .map {
             case (name, entries) =>
               val baseDir = projectPath.path
-              val moduleClasspath =
-                entries.map(_.path).distinct.map(x => File(baseDir.resolve(x)))
+              val moduleClasspathCandidates =
+                entries.map(_.path)
+                  .distinct
+                  .map(x => File(baseDir.resolve(x)))
 
-              moduleClasspath
+              moduleClasspathCandidates
                 .foreach { x =>
                   if (x.isDirectory && x.list.isEmpty) {
                     warnings += LoadingMetadataException(s"Classpath entry is an empty directory: $x")
@@ -167,7 +170,14 @@ object ProjectMetadata {
                   if (!x.exists && (x.extension.contains("jar") || x.extension.contains("zip"))) {
                     warnings += LoadingMetadataException(s"Missing classpath file: $x")
                   }
+                  if (x.hasExtension && !JavaLibraryExtensions.contains(x.extension.get)) {
+                    warnings += LoadingMetadataException(s"Unsupported Java library extension in: $x")
+                  }
                 }
+
+              val moduleClasspath =
+                moduleClasspathCandidates
+                  .filter(x => x.isDirectory || x.extension.exists(JavaLibraryExtensions.contains))
 
               val moduleOutput = modulesMap(name).classpath
 
