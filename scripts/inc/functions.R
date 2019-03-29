@@ -29,7 +29,6 @@ merge_project_csvs <- function(project_ids, files, col_types) {
   }
 }
 
-
 add_prefix <- function(prefix) {
   function(x) str_c(prefix, '_', x)
 }
@@ -111,11 +110,53 @@ add_nrow <- function(key, df) {
   add_num(key, nrow(df))
 }
 
-add_num <- function(key, v) {
+tocamel <- function(x) {
+  capit <- function(x) paste0(toupper(substring(x, 1, 1)), substring(x, 2, nchar(x)))
+  sapply(strsplit(x, "\\."), function(x) paste(capit(x), collapse=""))
+}
+
+GLOBAL_TAGS <- list()
+
+insert_tags <- function(tags) {
+  GLOBAL_TAGS[length(GLOBAL_TAGS)+1] <<- list(tags)
+}
+
+string_to_latex_tag <- function(s) {
+  s <- str_replace(s, "([^(]+)[(]?.*", "\\1")
+  names <- lapply(str_split(s, " "), tocamel)
+  sapply(names, str_c, collapse="")
+}
+
+latex_tags <- function(tags=GLOBAL_TAGS, prefix="") {
+  tags <- bind_rows(tags)
+  tags <- tags %>%
+    mutate(
+      name=str_c(prefix, " ", name),
+      comment=str_c("% ", key, " of ", name, ": ", "'", value, "'"),
+      name=str_c(key, string_to_latex_tag(name)),
+      tag=str_c('\\newcommand{\\', name, '}{', value, '\\xspace}'),
+      latex=str_c(comment, tag, sep="\n")
+    )
+  
+  if (any(duplicated(tags$name))) {
+    warning("There are duplicated tags: ", str_c(tags$name[duplicated(tags$name)], collapse = ", "))
+  }
+  
+  tags$latex
+}
+
+write_latex_tags <- function(filename, tags=GLOBAL_TAGS, ...) {
+  write_lines(str_c(latex_tags(tags, ...), "\n"), filename)
+}
+
+add_num <- function(name, v) {
+  stopifnot(is.character(name))
+  stopifnot(length(name)==1)
+  
   stat <- function(fun) if (length(v) > 1) fun(v, na.rm=TRUE) else NA
   
-  tibble(
-    key, 
+  df <- tibble(
+    key=name, 
     sum=sum(v, na.rm = TRUE),
     n=length(v),
     mean=stat(mean), 
@@ -125,6 +166,20 @@ add_num <- function(key, v) {
     max=stat(max)
   ) %>%
     mutate_at(vars(-key), fmt)
+  
+  tags <- 
+    gather(df, "key", "value") %>% 
+    filter(!is.na(value)) %>%
+    mutate(name=name) %>% 
+    select(name, everything())
+  
+  if (length(v) == 1) {
+    tags <- filter(tags, key == "sum")
+  }
+  
+  insert_tags(tags)
+
+  df
 }
 
 make_stats <- function(...) {
@@ -182,7 +237,7 @@ phase_status <- function(phase, df) {
         exit_code ==  0 ~ "success",
         exit_code == -1 ~ "not_run",
         exit_code ==  1 ~ "failed",
-        exit_code > 130 ~ "timed_out"
+        exit_code >= 130 ~ "timed_out"
       ),
       count=n
     ) %>%

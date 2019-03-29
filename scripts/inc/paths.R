@@ -27,8 +27,8 @@ DEJAVU_DUPLICATION <- get_corpus_path("dejavu-duplication.csv")
 GITHUB_INFO <- get_corpus_path("projects-github-info.csv")
 SCALADEX <- get_corpus_path("scaladex.txt")
 
-IMPLICIT_DECLARATIONS <- "implicit-declarations.csv"
-IMPLICIT_CALLSITES <- "implicit-callsites.csv"
+IMPLICIT_DECLARATIONS <- get_corpus_path("implicit-declarations.csv")
+IMPLICIT_CALLSITES <- get_corpus_path("implicit-callsites.csv")
 
 # PER PROJECT
 ANALYSIS_DIR <- "_analysis_"

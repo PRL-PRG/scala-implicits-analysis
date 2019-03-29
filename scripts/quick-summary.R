@@ -4,6 +4,7 @@ suppressPackageStartupMessages(library(tidyverse))
 library(fs)
 library(knitr)
 
+# TODO: this should go into functions.R
 phase_status <- function(phase) {
   read_csv(str_c(phase, "-status.csv")) %>%
     count(exit_code) %>%
@@ -13,7 +14,7 @@ phase_status <- function(phase) {
         exit_code ==  0 ~ "success",
         exit_code == -1 ~ "not_run",
         exit_code ==  1 ~ "failed",
-        exit_code > 130 ~ "timed_out"
+        exit_code >= 130 ~ "timed_out"
       ),
       count=n
     ) %>%

@@ -112,4 +112,4 @@ message("- stars: ", threshold_gh_stars)
 
 message("Filtered projects: ", nrow(stage2_projects))
 
-write_lines(stage2_projects, PROJECTS_FILE)
+write_lines(stage2_projects$project_id, PROJECTS_FILE)

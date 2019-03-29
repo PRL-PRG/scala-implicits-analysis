@@ -20,10 +20,12 @@ source(path(SCRIPTS_DIR, "inc", "functions.R"))
 
 # load data
 
+final_projects <- tibble(project_id=read_lines(PROJECTS_FILE))
+
 projects <- 
   read_csv(CORPUS_STAGE1, col_types=cols(
     project_id = col_character(),
-    status = col_integer(),
+    compatible = col_logical(),
     origin = col_character(),
     build_system = col_character(),
     sbt_version = col_character(),
@@ -45,10 +47,11 @@ projects <-
     gh_pushed_at = col_datetime(format = ""),
     gh_fork = col_logical(),
     gh_archived = col_logical(),
-    gh_error = col_character(),
     scaladex = col_logical()
   )) %>%
-  filter(status>=4)
+  semi_join(final_projects, by="project_id")
+
+stopifnot(setequal(final_projects$project_id, projects$project_id))
 
 metadata_status <- read_csv(GLOBAL_METADATA_STATUS, col_types=cols(
   project_id = col_character(),
@@ -166,7 +169,8 @@ projects <- local({
     df <- left_join(df, joins[[i]], by="project_id")
   }
   df
-})
+}) %>%
+  select(-compatible)
 
 message("Loading phases errors")
 
