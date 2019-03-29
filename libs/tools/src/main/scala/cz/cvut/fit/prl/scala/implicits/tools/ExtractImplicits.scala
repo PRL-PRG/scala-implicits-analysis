@@ -12,6 +12,7 @@ import cz.cvut.fit.prl.scala.implicits.extractor.{
   ExtractionContext
 }
 import cz.cvut.fit.prl.scala.implicits.model._
+import cz.cvut.fit.prl.scala.implicits.model.Util._
 import cz.cvut.fit.prl.scala.implicits.utils._
 import kantan.csv._
 import kantan.csv.ops._
@@ -159,7 +160,7 @@ object ExtractImplicits extends App {
     }
 
     def process(projectId: String, result: Result): Stats = {
-      result.project.writeTo(messageOutput)
+      Project.write(result.project, messageOutput)
       result.exceptions
         .map {
           case (moduleId, e) => ExtractionException(projectId, moduleId, e)

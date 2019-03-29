@@ -41,16 +41,22 @@ implicit val monoidStats: Monoid[Stats] = new Monoid[Stats] {
 def mergeOne(projectId: String, dataFile: File, output: OutputStream): Stats = {
     if (dataFile.exists) {
       Try {
-        val project = dataFile.inputStream.apply(Project.parseFrom)
-        val size = Project.write(project, output)
-
-        Stats(1, size, Nil, Nil)
+        dataFile.inputStream.apply(Project.read).get
       } match {
-        case Success(stats) =>
-          println(s"Written ${stats.bytes} bytes for $projectId")
-          stats
+        case Success(project) =>
+          Try {
+            val size = Project.write(project, output)
+            Stats(1, size, Nil, Nil)
+          } match {
+            case Success(stats) =>
+              println(s"Written ${stats.bytes} bytes for $projectId")
+              stats
+            case Failure(e) =>
+              println(s"Failed to store project $projectId: ${e.getMessage}")
+              Stats(0, 0, Nil, projectId -> e :: Nil)
+          }
         case Failure(e) =>
-          println(s"Failed $dataFile")
+          println(s"Failed to read $dataFile: ${e.getMessage}")
           Stats(0, 0, Nil, projectId -> e :: Nil)
       }
     } else {
