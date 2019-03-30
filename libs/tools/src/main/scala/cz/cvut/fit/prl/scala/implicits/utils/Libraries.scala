@@ -31,23 +31,23 @@ object Libraries {
     )
   )
 
-  val ScalaModelClasspath: Seq[ClasspathEntry] = {
+  val ScalaModelClaspathEntry: ClasspathEntry = {
     val scalaLibraryJar = BuildInfo.test_externalDependencyClasspath
       .find(_.getPath.contains("scala-library"))
       .getOrThrow(
         new NoSuchElementException("Unable to find scala-library in the test dependency classpath"))
 
-    Seq(
-      ClasspathEntry(
-        scalaLibraryJar.getAbsolutePath,
-        "org.scala-lang",
-        "scala-library",
-        BuildInfo.scalaVersion,
-        "compile",
-        internal = false,
-        managed = true,
-        transitive = false
-      )
+    ClasspathEntry(
+      scalaLibraryJar.getAbsolutePath,
+      "org.scala-lang",
+      "scala-library",
+      BuildInfo.scalaVersion,
+      "compile",
+      internal = false,
+      managed = true,
+      transitive = false
     )
   }
+
+  val ScalaModelClasspath: Seq[ClasspathEntry] = Seq(ScalaModelClaspathEntry)
 }

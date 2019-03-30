@@ -4,13 +4,10 @@ import better.files._
 import cats.Monoid
 import cats.implicits._
 import cats.derived
+import cz.cvut.fit.prl.scala.implicits.extractor.GlobalSymbolTable.ScalaSyntheticsLocation
 import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
-import cz.cvut.fit.prl.scala.implicits.{ProjectMetadata, ModuleMetadata}
-import cz.cvut.fit.prl.scala.implicits.extractor.{
-  CallSiteExtractor,
-  DeclarationExtractor,
-  ExtractionContext
-}
+import cz.cvut.fit.prl.scala.implicits.{ModuleMetadata, ProjectMetadata}
+import cz.cvut.fit.prl.scala.implicits.extractor.{CallSiteExtractor, DeclarationExtractor, ExtractionContext, GlobalSymbolTable}
 import cz.cvut.fit.prl.scala.implicits.model._
 import cz.cvut.fit.prl.scala.implicits.model.Util._
 import cz.cvut.fit.prl.scala.implicits.utils._
@@ -248,7 +245,8 @@ object ExtractImplicits extends App {
       classpath.map(x => x.path -> x) ++
         metadata.sourcepathEntries.map(x => x.path -> x) ++
         metadata.outputPath.map(x => x -> classPathEntry(x, "compile")) ++
-        metadata.testOutputPath.map(x => x -> classPathEntry(x, "test"))
+        metadata.testOutputPath.map(x => x -> classPathEntry(x, "test")) ++
+        List(ScalaSyntheticsLocation.path -> Libraries.ScalaModelClaspathEntry.withPath(ScalaSyntheticsLocation.path))
 
     val paths =
       allPaths

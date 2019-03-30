@@ -25,8 +25,14 @@ trait SymbolTable {
   def resolve(symbol: String): Option[ResolvedSymbol]
 }
 
+object GlobalSymbolTable {
+  val ScalaSyntheticsLocation =
+    Location("_synthetics_", "_synthetics_", None)
+}
+
 // based on the scalameta semtab
 class GlobalSymbolTable(classpath: Classpath, projectBaseDir: Path) extends SymbolTable {
+  import GlobalSymbolTable._
 
   def this(classpath: Classpath) = this(classpath, File.currentWorkingDirectory.path)
 
@@ -35,13 +41,7 @@ class GlobalSymbolTable(classpath: Classpath, projectBaseDir: Path) extends Symb
   private val classpathIndex = ClasspathIndex(classpath)
   private val symbolCache = TrieMap.empty[String, ResolvedSymbol]
 
-  private val scalaLibraryLocation = {
-    Location("_synthetics_", "_synthetics_", None)
-  }
-
-  Scalalib.synthetics.foreach(
-    x => enter(x, scalaLibraryLocation)
-  )
+  Scalalib.synthetics.foreach(enter(_, ScalaSyntheticsLocation))
 
   override def resolve(symbol: String): Option[ResolvedSymbol] = {
     if (symbol.isNone) None
