@@ -34,6 +34,8 @@ class CSVExporter[T: HeaderEncoder](
     output = outputFile.newOutputStream
     writer = output.asCsvWriter[T](CsvConfiguration.rfc.withHeader)
     errorOutput = errorOutputFile.newOutputStream
+
+    import ExportError.implicits.encoder
     errorWriter = errorOutput.asCsvWriter[ExportError](CsvConfiguration.rfc.withHeader)
   }
 
@@ -44,7 +46,6 @@ class CSVExporter[T: HeaderEncoder](
       case Success(value) =>
         write(project.projectId, value)
       case Failure(e) =>
-        e.printStackTrace()
         errorWriter.write(
           ExportError(
             project.projectId,
