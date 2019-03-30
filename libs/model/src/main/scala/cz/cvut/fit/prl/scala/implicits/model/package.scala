@@ -193,13 +193,17 @@ package object model {
           x.target
             .map(resolveTypeArguments(_, knownArgs).resolveType)
             .getOrElse(that)
+        case x: ValueSignature =>
+          x.tpe
+        case x: MethodSignature =>
+          x.returnType
         case _ =>
           throw new Exception(s"Calling resolveType on $that")
       }
     }
 
     def parents(implicit resolver: LocalDeclarationResolver): Stream[TypeRef] = {
-      val declaration = resolver.resolveDeclaration(that.declarationId).resolveTypeDeclaration
+      val declaration = resolver.resolveDeclaration(that.declarationId).resolveType
       val knownArgs = declaration.typeParameters.zip(that.typeArguments).toMap
 
       declaration.parents match {
@@ -379,7 +383,12 @@ package object model {
         case x: ClassSignature =>
           x.parents
         case _: TypeSignature =>
-          resolveTypeDeclaration.parents
+          val resolved = that.resolveType
+          if (resolved == that) {
+            Seq()
+          } else {
+            resolveType.parents
+          }
         case _ =>
           throw new Exception(s"Trying to get parents on ${that.signature}")
       }
@@ -416,7 +425,12 @@ package object model {
       if (that.declarationId == declarationId) {
         true
       } else if (that.isType) {
-        that.resolveTypeDeclaration.isTypeOf(declarationId)
+        val resolved = that.resolveType
+        if (resolved == that) {
+          resolved.declarationId == declarationId
+        } else {
+          resolved.isTypeOf(declarationId)
+        }
       } else {
         false
       }
@@ -428,7 +442,12 @@ package object model {
       } else if (that.hasClassSignature) {
         that.parentsDeclarations.exists(_.isKindOf(declarationId))
       } else if (that.hasTypeSignature) {
-        that.resolveTypeDeclaration.isKindOf(declarationId)
+        val resolved = that.resolveType
+        if (resolved == that) {
+          resolved.declarationId == declarationId
+        } else {
+          resolved.isKindOf(declarationId)
+        }
       } else {
         false
       }
@@ -456,23 +475,23 @@ package object model {
       find(that.declarationId, None)
     }
 
-    def resolveTypeDeclaration(implicit resolver: DeclarationResolver): Declaration =
-      that.signature match {
-        case _: ClassSignature => that
+    def resolveType(implicit resolver: DeclarationResolver): Declaration = {
+      def resolve(d: Declaration, seenIds: Set[String]): Declaration = d.signature match {
+        case _: ClassSignature =>
+          that
         case x: TypeSignature =>
           x.target match {
-            case Some(tpe) =>
+            case Some(tpe) if !seenIds.contains(tpe.declarationId) =>
               val next = resolver.resolveDeclaration(that.moduleId, tpe.declarationId)
-              if (next.declarationId != that.declarationId) {
-                next.resolveTypeDeclaration
-              } else {
-                that
-              }
+              resolve(next, seenIds + d.declarationId)
             case _ => that
           }
         case _ =>
-          throw new Exception(s"Calling resolveTypeDeclarations on $that")
+          throw new Exception(s"Calling resolveType on $that")
       }
+
+      resolve(that, Set())
+    }
 
     def parentsDeclarations(implicit resolver: DeclarationResolver): Iterable[Declaration] =
       that.signature match {
