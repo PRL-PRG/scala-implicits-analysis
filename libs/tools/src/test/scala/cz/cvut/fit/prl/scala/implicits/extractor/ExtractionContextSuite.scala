@@ -61,8 +61,8 @@ trait ModelSimplification {
 
     def simplify: m.TypeSignature = that.copy(
       typeParameters = that.typeParameters.map(_.simplify),
-      upperBound = that.upperBound.simplify,
-      lowerBound = that.lowerBound.simplify
+      upperBound = that.upperBound.map(_.simplify),
+      lowerBound = that.lowerBound.map(_.simplify)
     )
   }
 
@@ -80,25 +80,6 @@ trait ModelSimplification {
 
   implicit class SimplifyParameter(that: m.Parameter) {
     def simplify: m.Parameter = that.copy(tpe = that.tpe.simplify)
-  }
-
-  implicit class SimplifyTypeParameter(that: m.TypeParameter) {
-
-    def simplify: m.TypeParameter =
-      that.copy(
-        typeParameters = that.typeParameters.map(_.simplify),
-        upperBound = that.upperBound.simplify,
-        lowerBound = that.lowerBound.simplify)
-  }
-
-  implicit class SimplifyType(that: m.Type) {
-
-    def simplify: m.Type = that match {
-      case y: m.TypeRef => y.simplify
-      case y: m.TypeParameterRef =>
-        y.copy(typeArguments = y.typeArguments.map(_.simplify))
-      case y => y
-    }
   }
 
   implicit class SimplifyTypeRef(that: m.TypeRef) {
@@ -248,10 +229,10 @@ abstract class ExtractionContextSuite
     }
   }
 
-  def index(
+  def project(
       name: String,
       code: String
-  )(fn: Index => Unit): Unit = {
+  )(fn: Project => Unit): Unit = {
     extraction(name, code) { (ctx, db) =>
       val declResult = DeclarationsResult(ctx, db)
       checkNoFailures(declResult.failures)
@@ -292,8 +273,15 @@ abstract class ExtractionContextSuite
         Map(TestModuleId -> testModule)
       )
 
-      fn(ProjectIndex(testProject))
+      fn(testProject)
     }
+  }
+
+  def index(
+      name: String,
+      code: String
+  )(fn: Index => Unit): Unit = {
+    project(name, code)(x => fn(ProjectIndex(x)))
   }
 
   def checkNoFailures(failures: Traversable[Throwable]): Unit = {

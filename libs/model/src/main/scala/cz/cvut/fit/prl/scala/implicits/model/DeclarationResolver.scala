@@ -6,6 +6,12 @@ trait DeclarationResolver {
     resolveDeclaration(DeclarationRef(moduleId, declarationId))
 }
 
+trait LocalDeclarationResolver extends DeclarationResolver {
+  def resolveDeclaration(declarationId: String): Declaration
+  override def resolveDeclaration(ref: DeclarationRef): Declaration =
+    resolveDeclaration(ref.declarationId)
+}
+
 trait ModuleResolver {
   def module(moduleId: String): Module
   def project(projectId: String): Project

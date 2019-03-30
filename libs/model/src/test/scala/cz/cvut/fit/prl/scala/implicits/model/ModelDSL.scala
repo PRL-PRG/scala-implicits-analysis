@@ -48,19 +48,16 @@ trait ModelDSL {
   def parameters(v: Parameter*)(implicit ev: OverloadHack1): Update[Declaration] =
     _.method.parameterLists.modify(_ :+ ParameterList(v.toSeq))
 
-  def parameter(name: String, tpe: Type, isImplicit: Boolean = false): Parameter =
+  def parameter(name: String, tpe: TypeRef, isImplicit: Boolean = false): Parameter =
     Parameter(name, tpe, isImplicit)
 
-  def typeRef(ref: String, typeArguments: Type*): TypeRef =
+  def typeRef(ref: String, typeArguments: TypeRef*): TypeRef =
     TypeRef(ref, typeArguments.toList)
-
-  def tparamRef(ref: String, name: String): TypeParameterRef =
-    TypeParameterRef(ref, name)
 
   def returnType(ref: String, typeArguments: TypeRef*): Update[Declaration] =
     _.method.returnType := typeRef(ref, typeArguments: _*)
 
-  def returnType(tpe: Type): Update[Declaration] =
+  def returnType(tpe: TypeRef): Update[Declaration] =
     _.method.returnType := tpe
 
   def implicitArgumentVal(ref: String): Update[CallSite] =
@@ -87,12 +84,9 @@ trait ModelDSL {
   def parent(ref: String, typeArguments: TypeRef*): Update[Declaration] =
     _.`class`.parents.modify(_ :+ typeRef(ref, typeArguments: _*))
 
-  def typeParameter(
-      name: String,
-      upperBound: Type = Type.Empty,
-      lowerBound: Type = Type.Empty): Update[Declaration] =
+  def typeParameter(ref: String): Update[Declaration] =
     _.method.typeParameters
-      .modify(_ :+ TypeParameter(name, upperBound = upperBound, lowerBound = lowerBound))
+      .modify(_ :+ TypeRef(ref))
 
   def lowerBound(ref: String, typeArguments: TypeRef*): Update[Declaration] =
     _.`type`.lowerBound := typeRef(ref, typeArguments: _*)
@@ -118,14 +112,14 @@ trait ModelDSL {
 
   def valueDeclaration(
       declarationId: String,
-      tpe: Type,
+      tpe: TypeRef,
       updates: Update[Declaration]*): Declaration = {
     declaration(declarationId, VAL, updates: _*).update(_.value.tpe := tpe)
   }
 
   def parameterDeclaration(
       declarationId: String,
-      tpe: Type,
+      tpe: TypeRef,
       updates: Update[Declaration]*): Declaration = {
     declaration(declarationId, PARAMETER, updates: _*).update(_.value.tpe := tpe)
   }
@@ -146,7 +140,7 @@ trait ModelDSL {
           case DEF =>
             MethodSignature(returnType = typeRef("scala/Unit#"))
           case TYPE =>
-            TypeSignature()
+            TypeSignature(upperBound=None, lowerBound=None)
           case CLASS | OBJECT =>
             ClassSignature()
           case VAL | VAR | PARAMETER =>

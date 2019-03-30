@@ -133,7 +133,7 @@ message Declaration {
     // where it was defined - this might be a completely different module
     required Location location = 7;
     required Language language = 8;
-    repeated Type annotations = 9;
+    repeated TypeRef annotations = 9;
     required Signature signature = 10;
 }
 
@@ -147,31 +147,24 @@ message Signature {
 }
 
 message MethodSignature {
-    repeated TypeParameter type_parameters = 3;
+    repeated TypeRef type_parameters = 3;
     repeated ParameterList parameter_lists = 4;
-    required Type return_type = 5;
+    required TypeRef return_type = 5;
 }
 
 message TypeSignature {
-    repeated TypeParameter type_parameters = 1;
-    optional Type upper_bound = 2;
-    optional Type lower_bound = 3;
+    repeated TypeRef type_parameters = 1;
+    optional TypeRef upper_bound = 2;
+    optional TypeRef lower_bound = 3;
 }
 
 message ClassSignature {
-    repeated TypeParameter type_parameters = 1;
-    repeated Type parents = 2;
+    repeated TypeRef type_parameters = 1;
+    repeated TypeRef parents = 2;
 }
 
 message ValueSignature {
-    required Type tpe = 1;
-}
-
-message TypeParameter {
-    required string name = 1;
-    repeated TypeParameter type_parameters = 2;
-    optional Type upper_bound = 3;
-    optional Type lower_bound = 4;
+    required TypeRef tpe = 1;
 }
 
 message ParameterList {
@@ -180,28 +173,13 @@ message ParameterList {
 
 message Parameter {
     required string name = 1;
-    required Type tpe = 2;
+    required TypeRef tpe = 2;
     required bool isImplicit = 3;
-}
-
-message Type {
-    oneof sealed_value {
-        // a type reference pointing to a declaration with optionally resolved type arguments
-        TypeRef type_ref = 1;
-        // a type parameter with optionally resolved type arguments in the case of a higher-kinder type
-        TypeParameterRef type_parameter_ref = 2;
-    }
 }
 
 message TypeRef {
     required string declaration_id = 1;
-    repeated Type type_arguments = 2;
-}
-
-message TypeParameterRef {
-    required string declaration_id = 1;
-    required string name = 2;
-    repeated Type type_arguments = 3;
+    repeated TypeRef type_arguments = 2;
 }
 
 message CallSite {
@@ -218,7 +196,7 @@ message CallSite {
     // location of the callsite
     required Location location = 6;
     // resolved type arguments
-    repeated Type type_arguments = 7;
+    repeated TypeRef type_arguments = 7;
     // types of implicit arguments (if any)
     // this is just an approximation
     // there are cases this will not work:

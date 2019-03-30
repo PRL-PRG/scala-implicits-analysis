@@ -58,13 +58,7 @@ class DeclarationExtractorSuite
       | }
     """.stripMargin) { res =>
     val c = res.originalDeclarations.head
-
-    c.methodSignature.returnType shouldBe typeRef(
-      "scala/package.Seq#",
-      tparamRef(c.declarationId, "T")
-    )
-
-    c.parameterLists.head.parameters.head.tpe shouldBe tparamRef(c.declarationId, "T")
+    c.methodSignature.returnType shouldBe typeRef("scala/package.Seq#", c.typeParameters.head)
   }
 
   declarations(
@@ -110,14 +104,14 @@ class DeclarationExtractorSuite
       methodDeclaration(
         declarationId = "p/o.g().",
         properties(0),
-        typeParameter("T"),
+        typeParameter("p/o.g().[T]"),
         parameters(
-          parameter("x", tparamRef("p/o.g().", "T"))
+          parameter("x", typeRef("p/o.g().[T]"))
         ),
         parameters(
-          parameter("y", tparamRef("p/o.g().", "T"), isImplicit = true)
+          parameter("y", typeRef("p/o.g().[T]"), isImplicit = true)
         ),
-        returnType(tparamRef("p/o.g().", "T"))
+        returnType(typeRef("p/o.g().[T]"))
       )
     )
 
@@ -452,7 +446,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         Seq.empty,
-        ClassSignature(List(TypeParameter("T")))
+        ClassSignature(List(TypeRef("p/o.XtensionJson#[T]")))
       ),
       Declaration(
         "p/o.XtensionJson#ev.",
@@ -468,9 +462,8 @@ class DeclarationExtractorSuite
           returnType = TypeRef(
             "p/o.Jsonable#",
             List(
-              TypeParameterRef(
-                "p/o.XtensionJson#",
-                "T"
+              TypeRef(
+                "p/o.XtensionJson#[T]"
               )
             )
           )
@@ -487,15 +480,14 @@ class DeclarationExtractorSuite
         SCALA,
         Seq.empty,
         MethodSignature(
-          List(TypeParameter("T")),
+          List(TypeRef("p/o.XtensionJson().[T]")),
           List(
             ParameterList(
               List(
                 Parameter(
                   "x",
-                  TypeParameterRef(
-                    "p/o.XtensionJson().",
-                    "T"
+                  TypeRef(
+                    "p/o.XtensionJson().[T]"
                   ),
                   false
                 )
@@ -508,9 +500,8 @@ class DeclarationExtractorSuite
                   TypeRef(
                     "p/o.Jsonable#",
                     List(
-                      TypeParameterRef(
-                        "p/o.XtensionJson().",
-                        "T"
+                      TypeRef(
+                        "p/o.XtensionJson().[T]"
                       )
                     )
                   ),
@@ -522,9 +513,8 @@ class DeclarationExtractorSuite
           TypeRef(
             "p/o.XtensionJson#",
             List(
-              TypeParameterRef(
-                "p/o.XtensionJson().",
-                "T"
+              TypeRef(
+                "p/o.XtensionJson().[T]"
               )
             )
           )
@@ -565,9 +555,8 @@ class DeclarationExtractorSuite
           returnType = TypeRef(
             "p/o.Jsonable#",
             List(
-              TypeParameterRef(
-                "p/o.XtensionJson#",
-                "T"
+              TypeRef(
+                "p/o.XtensionJson#[T]"
               )
             )
           )
@@ -583,7 +572,7 @@ class DeclarationExtractorSuite
         TestLocalLocation,
         SCALA,
         Seq.empty,
-        ClassSignature(List(TypeParameter("T")))
+        ClassSignature(List(TypeRef("p/o.XtensionJson#[T]")))
       ),
       Declaration(
         "p/o.XtensionJson().",
@@ -596,15 +585,14 @@ class DeclarationExtractorSuite
         SCALA,
         Seq.empty,
         MethodSignature(
-          List(TypeParameter("T")),
+          List(TypeRef("p/o.XtensionJson().[T]")),
           List(
             ParameterList(
               List(
                 Parameter(
                   "x",
-                  TypeParameterRef(
-                    "p/o.XtensionJson().",
-                    "T"
+                  TypeRef(
+                    "p/o.XtensionJson().[T]"
                   ),
                   false
                 )
@@ -617,9 +605,8 @@ class DeclarationExtractorSuite
                   TypeRef(
                     "p/o.Jsonable#",
                     List(
-                      TypeParameterRef(
-                        "p/o.XtensionJson().",
-                        "T"
+                      TypeRef(
+                        "p/o.XtensionJson().[T]"
                       )
                     )
                   ),
@@ -631,9 +618,8 @@ class DeclarationExtractorSuite
           TypeRef(
             "p/o.XtensionJson#",
             List(
-              TypeParameterRef(
-                "p/o.XtensionJson().",
-                "T"
+              TypeRef(
+                "p/o.XtensionJson().[T]"
               )
             )
           )
@@ -641,7 +627,7 @@ class DeclarationExtractorSuite
       )
     )
 
-    checkElements(expected, res.declarations)
+    checkElements(res.declarations, expected)
   }
 
 }
