@@ -267,6 +267,7 @@ object ExtractImplicits extends App {
       groupId = metadata.groupId,
       artifactId = metadata.artifactId,
       version = metadata.version,
+      commit = metadata.commit,
       scalaVersion = metadata.scalaVersion,
       paths = paths,
       declarations = ctx.declarations.map(x => x.declarationId -> x).toMap,

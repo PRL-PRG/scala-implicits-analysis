@@ -33,6 +33,7 @@ case class ImplicitDeclaration(declaration: Declaration)(implicit idx: Index) {
   def numParameterLists: Int = declaration.parameterLists.size
   def numParameters: Int = declaration.parameterLists.map(_.parameters.size).sum
   def numImplicitParameters: Option[Int] = declaration.implicitParameterList.map(_.parameters.size)
+  def githubUrl: Option[String] = declaration.githubURL
 }
 
 object ImplicitDeclaration {
@@ -63,7 +64,8 @@ object ImplicitDeclaration {
           "num_type_parameters",
           "num_parameter_lists",
           "num_parameters",
-          "num_implicit_parameters"
+          "num_implicit_parameters",
+          "github_url"
         )
       )
 
@@ -95,7 +97,8 @@ object ImplicitDeclaration {
             d.numTypeParameters,
             d.numParameterLists,
             d.numParameters,
-            d.numImplicitParameters
+            d.numImplicitParameters,
+            d.githubUrl
           ).map(_.str)
         }
     }

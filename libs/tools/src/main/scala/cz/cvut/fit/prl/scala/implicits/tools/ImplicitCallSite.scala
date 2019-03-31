@@ -42,8 +42,10 @@ case class ImplicitCallSite(callSite: CallSite)(implicit idx: Index) {
   def locationUri: String = callSite.location.relativeUri
   def locationPos: Option[Position] = callSite.location.position
   def locationScope: String = callSite.locationScope
+  def locationGithub: Option[String] = callSite.githubURL
   def numTypeArguments: Int = callSite.typeArguments.size
   def numImplicitArguments: Int = callSite.implicitArgumentTypes.size
+  def githubUrl: Option[String] = callSite.githubURL
 }
 
 object ImplicitCallSite {
@@ -68,7 +70,8 @@ object ImplicitCallSite {
           "location_pos",
           "location_scope",
           "num_type_arguments",
-          "num_implicit_arguments"
+          "num_implicit_arguments",
+          "github_url"
         )
       )
 
@@ -93,7 +96,8 @@ object ImplicitCallSite {
             cs.locationPos,
             cs.locationScope,
             cs.numTypeArguments,
-            cs.numImplicitArguments
+            cs.numImplicitArguments,
+            cs.githubUrl
           ).map(_.str)
         }
     }

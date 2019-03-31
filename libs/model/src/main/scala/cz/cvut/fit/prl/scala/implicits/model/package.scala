@@ -60,7 +60,8 @@ package object model {
 
     def githubURL(implicit resolver: ModuleResolver): Option[String] = {
       if (isProjectLocal) {
-        Some(module.githubURL + "/" + location.relativeUri)
+        val pos = location.position.map(x => "#L" + (x.startLine + 1)).getOrElse("")
+        Some(module.githubURL + "/" + location.path + "/" + location.relativeUri + pos)
       } else {
         None
       }
@@ -122,8 +123,9 @@ package object model {
       resolver.project(that.projectId)
     def library: Library =
       Library(that.groupId, that.artifactId, that.version)
+    // https://github.com/PRL-PRG/scala-implicits-analysis/tree/b4552db029b05b45ec55f7508fa7eb5ad738228a/sbt-plugins
     def githubURL(implicit resolver: ModuleResolver): String =
-      project.githubURL
+      project.githubURL + "/tree/" + that.commit + "/"
     def compilePaths: Map[String, PathEntry] =
       that.paths.filter(_._2.scope == "compile")
     def testPaths: Map[String, PathEntry] =

@@ -28,6 +28,7 @@ case class ModuleMetadata(
     groupId: String,
     artifactId: String,
     version: String,
+    commit: String,
     scalaVersion: String,
     classpathEntries: List[ClasspathEntry],
     sourcepathEntries: List[SourcepathEntry],
@@ -190,9 +191,9 @@ object ProjectMetadata {
           .withDefault(x => modulesMap(x).classpath ++ Libraries.JvmBootClasspath)
 
       for {
-        version <- modules
-        projectId = version.projectId
-        moduleId = version.moduleId
+        module <- modules
+        projectId = module.projectId
+        moduleId = module.moduleId
         semanticdbs = semanticdbMap(moduleId) if semanticdbs.nonEmpty
         classpathEntries = classpathEntriesMap(moduleId)
         sourcepathEntries = sourcepathEntriesMap(moduleId)
@@ -201,16 +202,17 @@ object ProjectMetadata {
         ModuleMetadata(
           projectPath.path,
           projectId + "::" + moduleId,
-          version.groupId,
-          version.artifactId,
-          version.version,
-          version.scalaVersion,
+          module.groupId,
+          module.artifactId,
+          module.version,
+          module.commit,
+          module.scalaVersion,
           classpathEntries,
           sourcepathEntries,
           classpath,
           semanticdbs,
-          version.outputClasspaths.toList,
-          version.outputTestClasspaths.toList
+          module.outputClasspaths.toList,
+          module.outputTestClasspaths.toList
         )
     }
 

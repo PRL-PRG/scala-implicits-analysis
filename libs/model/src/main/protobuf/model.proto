@@ -83,16 +83,18 @@ message Module {
     required string artifact_id = 4;
     // module's version
     required string version = 5;
+    // current commit
+    required string commit = 6;
     // scala version
-    required string scala_version = 6;
+    required string scala_version = 7;
     // configured paths (both source paths and class paths)
-    map<string, PathEntry> paths = 7;
+    map<string, PathEntry> paths = 8;
     // all discovered declarations (implicit with their dependencies)
-    map<string, Declaration> declarations = 8;
+    map<string, Declaration> declarations = 9;
     // all call sites involving implicits
-    repeated CallSite implicit_call_sites = 9;
+    repeated CallSite implicit_call_sites = 10;
     // number of all call sites
-    required int32 call_sites_count = 10;
+    required int32 call_sites_count = 11;
 }
 
 message Declaration {
