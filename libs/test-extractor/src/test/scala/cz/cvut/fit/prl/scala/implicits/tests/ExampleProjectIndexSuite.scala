@@ -53,10 +53,10 @@ class ExampleProjectIndexSuite extends FunSuite with Matchers {
 
     decls.exists(x => x.name == "testFun" && x.locationScope.contains("test")) should be(true)
 
-    decls.exists(x => x.name == "canBuildFrom" && x.locationScope.contains("compile,managed,dependency,transitive")) should be(
+    decls.exists(x => x.name == "canBuildFrom" && x.locationScope.contains("compile;managed;dependency;transitive")) should be(
       true)
 
-    decls.exists(x => x.name == "test" && x.locationScope.contains("test,managed,dependency,transitive")) should be(
+    decls.exists(x => x.name == "test" && x.locationScope.contains("test;managed;dependency;transitive")) should be(
       true)
 
     val css = idx.implicitCallSites

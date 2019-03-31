@@ -81,7 +81,7 @@ package object model {
           Seq()
       }
 
-      flags.filterNot(_.isEmpty).mkString(",")
+      flags.filterNot(_.isEmpty).mkString(";")
     }
   }
 
