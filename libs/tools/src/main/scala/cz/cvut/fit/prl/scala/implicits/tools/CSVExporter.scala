@@ -3,18 +3,61 @@ package cz.cvut.fit.prl.scala.implicits.tools
 import java.io.OutputStream
 
 import better.files._
-import cats.Monoid
-import cats.implicits._
-import com.typesafe.scalalogging.Logger
 import cz.cvut.fit.prl.scala.implicits.model._
-import cz.cvut.fit.prl.scala.implicits.model.Util._
 import kantan.csv._
 import kantan.csv.ops._
-import kantan.csv.generic._
-import org.slf4j.LoggerFactory
+import scalapb.GeneratedEnum
 
-import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
+
+object CSVExporter {
+
+  object encoders {
+    import scala.language.implicitConversions
+
+    case class Value(str: String)
+    val NA = Value("NA")
+
+    trait ValueEncoder[T] {
+      def value(x: T): Value
+    }
+
+    implicit def toValue[T: ValueEncoder](x: T) = implicitly[ValueEncoder[T]].value(x)
+
+    implicit val BooleanValueEncoder: ValueEncoder[Boolean] =
+      (x: Boolean) => if (x) Value("TRUE") else Value("FALSE")
+
+    implicit val StringEncoder: ValueEncoder[String] =
+      (x: String) => Value(x)
+
+    implicit val IntEncoder: ValueEncoder[Int] =
+      (x: Int) => x.toString
+
+    implicit val PositionEncoder: ValueEncoder[Position] =
+      (x: Position) => x.startLine + ":" + x.startCol
+
+    implicit def GeneratedEnumEncoder[T <: GeneratedEnum]: ValueEncoder[T] =
+      (x: T) => x.name
+
+    implicit def seqEncoder[T: ValueEncoder]: ValueEncoder[Seq[T]] =
+      (x: Seq[T]) =>
+        if (x.isEmpty) NA
+        else {
+          val enc = implicitly[ValueEncoder[T]]
+          x.map(v => enc.value(v).str).mkString(";")
+      }
+
+    implicit def OptionEncoder[T: ValueEncoder]: ValueEncoder[Option[T]] =
+      (x: Option[T]) => {
+        val enc = implicitly[ValueEncoder[T]]
+        x.map(v => enc.value(v)).getOrElse(NA)
+      }
+
+    implicit class ValueToAny[T: ValueEncoder](x: T) {
+      def toValue: Value = implicitly[ValueEncoder[T]].value(x)
+    }
+  }
+}
 
 class CSVExporter[T: HeaderEncoder](
     exporter: Exporter[T],

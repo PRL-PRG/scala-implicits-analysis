@@ -46,9 +46,6 @@ class ImplicitConversionSuite
       println()
   }
 
-
-
-
   index(
     "simple type parents",
     """
