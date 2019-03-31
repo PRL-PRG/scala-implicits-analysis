@@ -21,10 +21,14 @@ case class ImplicitDeclaration(
     locationUri: String,
     locationPos: String,
     locationScope: String,
+    compilationUnit: String,
     defGroupId: String,
     defArtifactId: String,
     defVersion: String,
+    isImplicit: Boolean,
     isCompanion: Boolean,
+    access: String,
+    annotations: String,
     numTypeParameters: Int,
     numParameterLists: Int,
     numParameters: Int,
@@ -48,10 +52,14 @@ object ImplicitDeclaration {
           "location_uri",
           "location_pos",
           "location_scope",
+          "compilation_unit",
           "def_group_id",
           "def_artifact_id",
           "def_version",
+          "is_implicit",
           "is_companion",
+          "access",
+          "annotations",
           "num_type_parameters",
           "num_parameter_lists",
           "num_parameters",
@@ -71,6 +79,12 @@ object ImplicitDeclarationExporter extends Exporter[ImplicitDeclaration] {
     val module = declaration.module
     val library = declaration.library
 
+    // TODO: these kind of things should be in the encoder
+    val annotations = {
+      val tmp = declaration.annotations.map(_.declarationId).mkString(";")
+      if (tmp.isEmpty) "NA" else tmp
+    }
+
     ImplicitDeclaration(
       projectId = project.projectId,
       moduleId = module.moduleId,
@@ -85,10 +99,14 @@ object ImplicitDeclarationExporter extends Exporter[ImplicitDeclaration] {
       locationPos =
         declaration.location.position.map(x => x.startLine + ":" + x.startCol).getOrElse("NA"),
       locationScope = declaration.locationScope,
+      compilationUnit = declaration.compilationUnit.getOrElse("NA"),
       defGroupId = library.groupId,
       defArtifactId = library.artifactId,
       defVersion = library.version,
+      isImplicit = declaration.isImplicit,
       isCompanion = declaration.isImplicitClassCompanionDef,
+      access = declaration.access.toString(),
+      annotations = annotations,
       numTypeParameters = declaration.typeParameters.size,
       numParameterLists = declaration.parameterLists.size,
       numParameters = declaration.parameterLists.map(_.parameters.size).sum,
