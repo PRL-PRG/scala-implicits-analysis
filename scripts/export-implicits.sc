@@ -1,18 +1,24 @@
 import $ivy.`cz.cvut.fit.prl.scala.implicits::tools:1.0-SNAPSHOT`
 import $ivy.`cz.cvut.fit.prl.scala.implicits::metadata:1.0-SNAPSHOT`
-import $ivy.`org.typelevel::kittens:1.2.0`
 
 import better.files._
-import cz.cvut.fit.prl.scala.implicits.metadata.MetadataFilenames._
-import cz.cvut.fit.prl.scala.implicits.model.StreamingIndex
-import cz.cvut.fit.prl.scala.implicits.tools.ExportImplicitCallSites
-import cz.cvut.fit.prl.scala.implicits.tools.ExportImplicitDeclarations
+import cz.cvut.fit.prl.scala.implicits.model._
+import cz.cvut.fit.prl.scala.implicits.model.Util._
+import cz.cvut.fit.prl.scala.implicits.tools._
 
 @main
-def main() = {
-  val baseDir = File.currentWorkingDirectory
-  val index = new StreamingIndex(baseDir / ExtractedImplicitsFilename)
+def main(implicitsPath: String) = {
+  val compositeExporter = new CompositeMultiProjectExporter(Seq(
+    ImplicitDeclarationExporterApp.csvExporter,
+    ImplicitCallSitesExporterApp.csvExporter,
+    ImplicitConversionExporterApp.csvExporter
+  ))
 
-  ExportImplicitCallSites.run(index)
-  ExportImplicitDeclarations.run(index)
+  for {
+    input <- File(implicitsPath).inputStream
+    exporter <- compositeExporter.autoClosed
+    project <- Project.streamFrom(input)
+  } {
+    exporter.export(project)
+  }
 }
