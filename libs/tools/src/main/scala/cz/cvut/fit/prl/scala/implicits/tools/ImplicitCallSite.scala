@@ -14,12 +14,14 @@ case class ImplicitCallSite(callSite: CallSite)(implicit idx: Index) {
   def groupId: String = module.groupId
   def artifactId: String = module.artifactId
   def version: String = module.version
-  def code: String =
-    if (callSite.code.length > 50) {
+  def code: String = {
+    val tmp = if (callSite.code.length > 50) {
       callSite.code.substring(0, 50) + "..."
     } else {
       callSite.code
     }
+    tmp.replaceAll("\n", " ")
+  }
   def callSiteId: Int = callSite.callSiteId
   def parentId: Option[Int] = callSite.parentId
   def nestedCalls: Seq[Int] = callSite.implicitArgumentTypes.collect {
