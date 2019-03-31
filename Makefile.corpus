@@ -260,5 +260,5 @@ corpus-stage3: $(GLOBAL_COMPILE_STATUS) \
 	$(SCRIPTS_DIR)/corpus-stage3.R
 
 export-implicits: $(GLOBAL_IMPLICITS)
-	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc
+	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc $(GLOBAL_IMPLICITS)
 
