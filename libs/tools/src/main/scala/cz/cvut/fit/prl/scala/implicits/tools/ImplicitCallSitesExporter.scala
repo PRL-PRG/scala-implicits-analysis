@@ -17,6 +17,10 @@ case class ImplicitCallSite(
     artifactId: String,
     version: String,
     code: String,
+    callSiteId: Int,
+    parentId: String,
+    nestedCalls: String,
+    arguments: String,
     declarationId: String,
     declarationKind: String,
     declarationGroupId: String,
@@ -42,6 +46,10 @@ object ImplicitCallSite {
           "artifact_id",
           "version",
           "code",
+          "callsite_id",
+          "parent_id",
+          "nested_calls",
+          "arguments",
           "declaration_id",
           "declaration_kind",
           "declaration_group_id",
@@ -78,7 +86,16 @@ object ImplicitCallSitesExporter extends Exporter[ImplicitCallSite] {
       } else {
         "NA"
       }
+    val callSiteId = callSite.callSiteId
+    val parentId = callSite.parentId.map(_.toString).getOrElse("NA")
+    val nestedCalls = callSite.implicitArgumentTypes.collect {
+      case CallSiteRef(id) => id
+    }.mkString(";")
+    val arguments = callSite.implicitArgumentTypes.collect {
+      case ValueRef(declarationId) => module.resolveDeclaration(declarationId).resolveType.declarationId
+    }.mkString(";")
 
+    // TODO -- the NA should be handled somewhere else
     ImplicitCallSite(
       projectId = project.projectId,
       moduleId = module.moduleId,
@@ -86,6 +103,10 @@ object ImplicitCallSitesExporter extends Exporter[ImplicitCallSite] {
       artifactId = module.artifactId,
       version = module.version,
       code = callSite.code,
+      callSiteId = callSiteId,
+      parentId = parentId,
+      nestedCalls = if (!nestedCalls.isEmpty) nestedCalls else "NA",
+      arguments = if (!arguments.isEmpty) arguments else "NA",
       declarationId = declaration.declarationId,
       declarationKind = declaration.kind.name,
       declarationGroupId = declarationLibrary.groupId,
