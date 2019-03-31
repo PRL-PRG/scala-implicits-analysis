@@ -479,6 +479,10 @@ package object model {
       def resolve(d: Declaration, seenIds: Set[String]): Declaration = d.signature match {
         case _: ClassSignature =>
           that
+        case _: ValueSignature =>
+          that
+        case _: MethodSignature =>
+          that
         case x: TypeSignature =>
           x.target match {
             case Some(tpe) if !seenIds.contains(tpe.declarationId) =>
