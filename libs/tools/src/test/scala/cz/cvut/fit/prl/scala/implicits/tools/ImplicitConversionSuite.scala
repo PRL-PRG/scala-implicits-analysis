@@ -180,7 +180,7 @@ class ImplicitConversionSuite
       | }
     """.stripMargin) { project =>
     val exported = export(project).toList.collect { case Success(v) => v }
-    val names = exported.map(_.name)
+    val names = exported.map(_.declaration.name)
 
     names should contain only ("deck", "intToCard")
   }
@@ -268,7 +268,7 @@ class ImplicitConversionSuite
 
     // n1 has unit return type
     // n2,n3,n4 have more than one parameter
-    exported.map(_.name) should contain only ("g1", "g2", "g3")
+    exported.map(_.declaration.name) should contain only ("g1", "g2", "g3")
   }
 
   project(
@@ -310,7 +310,7 @@ class ImplicitConversionSuite
 
     // n1 have too many parameters
     // n2 has return type scala.Unit
-    exported.map(_.name) should contain only "g1"
+    exported.map(_.declaration.name) should contain only "g1"
   }
 
   project(
@@ -332,7 +332,7 @@ class ImplicitConversionSuite
     }.toList
 
     // n returns C which is Unit
-    exported.map(_.name) should contain only "g"
+    exported.map(_.declaration.name) should contain only "g"
   }
 
   index(

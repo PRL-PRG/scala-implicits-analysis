@@ -186,7 +186,7 @@ package object model {
     }
 
     def resolveType(implicit resolver: LocalDeclarationResolver): TypeRef = {
-      val declaration = resolver.resolveDeclaration(that.declarationId)
+      val declaration = that.declaration
       val knownArgs = declaration.typeParameters.zip(that.typeArguments).toMap
 
       declaration.signature match {
@@ -205,7 +205,7 @@ package object model {
     }
 
     def parents(implicit resolver: LocalDeclarationResolver): Stream[TypeRef] = {
-      val declaration = resolver.resolveDeclaration(that.declarationId).resolveType
+      val declaration = that.declaration.resolveType
       val knownArgs = declaration.typeParameters.zip(that.typeArguments).toMap
 
       declaration.parents match {
@@ -480,20 +480,20 @@ package object model {
     def resolveType(implicit resolver: DeclarationResolver): Declaration = {
       def resolve(d: Declaration, seenIds: Set[String]): Declaration = d.signature match {
         case _: ClassSignature =>
-          that
+          d
         case _: ValueSignature =>
-          that
+          d
         case _: MethodSignature =>
-          that
+          d
         case x: TypeSignature =>
           x.target match {
             case Some(tpe) if !seenIds.contains(tpe.declarationId) =>
               val next = resolver.resolveDeclaration(that.moduleId, tpe.declarationId)
-              resolve(next, seenIds + d.declarationId)
-            case _ => that
+              resolve(next, seenIds + tpe.declarationId)
+            case _ => d
           }
         case _ =>
-          throw new Exception(s"Calling resolveType on $that")
+          throw new Exception(s"Calling resolveType on $d")
       }
 
       resolve(that, Set())

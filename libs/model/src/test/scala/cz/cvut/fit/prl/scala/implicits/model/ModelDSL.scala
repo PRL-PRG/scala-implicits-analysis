@@ -16,6 +16,7 @@ object ModelDSL {
   val TestGroupId = "test-group"
   val TestArtifactId = "test-artifact"
   val TestVersion = "1.0"
+  val TestCommit = "1"
 
   val TestCallSiteId: Int = 1
 }

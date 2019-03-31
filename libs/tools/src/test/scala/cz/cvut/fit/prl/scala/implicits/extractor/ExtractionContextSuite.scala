@@ -245,14 +245,7 @@ abstract class ExtractionContextSuite
       // source are in project root
       val sourcePath = SourcepathEntry("", "compile", managed = false)
 
-      // the extractor will create the locations relatively to the projectBaseDir
-      // which for these tests is simply the source path - like having sources in
-      // project root
-      val classPath = (Libraries.ScalaModelClasspath ++ Libraries.JvmBootModelClasspath)
-        .map { x =>
-          val path = projectBaseDir.relativize(File(x.path)).toString
-          x.withPath(path)
-        }
+      val classPath = Libraries.ScalaModelClasspath ++ Libraries.JvmBootModelClasspath
 
       val testModule = Module(
         TestModuleId,
@@ -260,6 +253,7 @@ abstract class ExtractionContextSuite
         TestGroupId,
         TestArtifactId,
         TestVersion,
+        TestCommit,
         BuildInfo.scalaVersion,
         (sourcePath +: classPath).map(x => x.path -> x).toMap,
         ctx.declarations.map(x => x.declarationId -> x).toMap,
