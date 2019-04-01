@@ -28,9 +28,19 @@ object ImplicitConversionExporter extends Exporter[ImplicitConversion] {
             case _ =>
               None
           }
+        case OBJECT if d.hasClassSignature =>
+          val f1 = d.typeRef.allParents.dropWhile(x => !x.isTypeOf(declarationIds.Function1)).map(_.resolveType)
+          f1 match {
+            case TypeRef(_, Seq(from, to)) #:: _ if !to.isKindOf(declarationIds.Unit) =>
+              // type is of scala.Function1[A,B] where B is not scala.Unit
+              Some((from, to))
+            case _ =>
+              None
+          }
+
         case VAL | VAR | OBJECT if d.hasMethodSignature =>
           val rt = d.returnType.get
-          val f1 = (rt #:: rt.allParents).dropWhile(x => !x.isTypeOf(declarationIds.Function1))
+          val f1 = (rt #:: rt.allParents).dropWhile(x => !x.isTypeOf(declarationIds.Function1)).map(_.resolveType)
           f1 match {
             case TypeRef(_, Seq(from, to)) #:: _ if !to.isKindOf(declarationIds.Unit) =>
               // type is of scala.Function1[A,B] where B is not scala.Unit

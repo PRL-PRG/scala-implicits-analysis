@@ -14,7 +14,8 @@ class ImplicitConversionSuite
   import ModelDSL._
   import ImplicitConversionExporter.export
 
-  project("conversion export of json example",
+  project(
+    "conversion export of json example",
     """
       | package p
       | object o {
@@ -39,11 +40,11 @@ class ImplicitConversionSuite
       |   Seq(1,2,3).toJson
       | }
     """.stripMargin) { implicit project =>
-      val conversion = export(project)
-      val declarations = project.implicitDeclarations.toList
-      val callSites = project.implicitCallSites.toList
+    val conversion = export(project)
+    val declarations = project.implicitDeclarations.toList
+    val callSites = project.implicitCallSites.toList
 
-      println()
+    println()
   }
 
   index(
@@ -238,9 +239,9 @@ class ImplicitConversionSuite
     """.stripMargin) { idx =>
     implicit val m = idx.modules.head
 
-    val p2makeFoo = m.resolveDeclaration( "p2/Cake.makeFoo().")
-    val p3makeFoo = m.resolveDeclaration( "p3/Cake.makeFoo().")
-    val p4makeFoo = m.resolveDeclaration( "p4/FooImplicits#makeFoo().")
+    val p2makeFoo = m.resolveDeclaration("p2/Cake.makeFoo().")
+    val p3makeFoo = m.resolveDeclaration("p3/Cake.makeFoo().")
+    val p4makeFoo = m.resolveDeclaration("p4/FooImplicits#makeFoo().")
 
     p2makeFoo.compilationUnit should not be p2makeFoo.returnType.get.declaration.compilationUnit
     p3makeFoo.compilationUnit shouldBe p3makeFoo.returnType.get.declaration.compilationUnit
@@ -300,6 +301,10 @@ class ImplicitConversionSuite
       |object o {
       |  implicit val g1 = (x: Int) => x.toString
       |
+      |  implicit val g2 = new (Int => String) {
+      |    override def apply(v1: Int): String = "A"
+      |  }
+      |
       |  implicit val n1 = (x: Int, y: Int) => x.toString
       |  implicit val n2 = (x: Int) => ()
       |}
@@ -310,7 +315,16 @@ class ImplicitConversionSuite
 
     // n1 have too many parameters
     // n2 has return type scala.Unit
+    // g1 is also good, but it is a structural type which we do not support yet (cf. #)
     exported.map(_.declaration.name) should contain only "g1"
+  }
+
+  object o {
+    implicit val g2 = new (Int => String) {
+      override def apply(v1: Int): String = "A"
+    }
+
+    val x: String = 1
   }
 
   project(
@@ -333,6 +347,49 @@ class ImplicitConversionSuite
 
     // n returns C which is Unit
     exported.map(_.declaration.name) should contain only "g"
+  }
+
+  project(
+    "conversions using object",
+    """
+      |package p
+      |object o {
+      |  type A[F, T] = (F=>T)
+      |  type B[F] = A[F, String]
+      |  type C[F] = B[F]
+      |
+      |  type I = Int
+      |
+      |  type Y[T1] = collection.AbstractSeq[T1]
+      |  type Z[T] = Y[T]
+      |
+      |  implicit object g1 extends (Int=>String) {
+      |    override def apply(v1: Int): String = "A"
+      |  }
+      |
+      |  implicit object g2 extends C[I] {
+      |    override def apply(v1: Int): String = "A"
+      |  }
+      |
+      |  implicit object g3 extends collection.AbstractSeq[String] {
+      |    override def length: Int = 0
+      |    override def apply(idx: Int): String = "A"
+      |    override def iterator: Iterator[String] = Iterator.empty
+      |  }
+      |
+      |  implicit object g4 extends Z[String] {
+      |    override def length: Int = 0
+      |    override def apply(idx: Int): String = "A"
+      |    override def iterator: Iterator[String] = Iterator.empty
+      |  }
+      |}
+    """.stripMargin) { project =>
+    val exported = export(project).collect {
+      case Success(x) => x
+    }.toList
+
+    // n returns C which is Unit
+    exported.map(_.declaration.name) should contain only ("g1", "g2", "g3", "g4")
   }
 
   index(
@@ -374,6 +431,7 @@ class ImplicitConversionSuite
 //      |  1.x
 //      |}
 //    """.stripMargin) { (ds, cs) =>
+//    // TODO: should these be considered?
 //    }
 //
 //  declarations("implicit conversion as def",
@@ -384,6 +442,7 @@ class ImplicitConversionSuite
 //      |  val s: String = 1
 //      |}
 //    """.stripMargin) { implicit res =>
+//    // TODO: should these be considered?
 // println()
 //  }
 //
@@ -395,6 +454,7 @@ class ImplicitConversionSuite
 //      |  val s: String = 1
 //      |}
 //    """.stripMargin) { implicit res =>
+//    // TODO: should these be considered?
 // println()
 //  }
 
@@ -439,6 +499,7 @@ class ImplicitConversionSuite
 //      |
 //      |}
 //    """.stripMargin) { implicit res =>
+//    // TODO: should these be considered?
 //    res.callSites.apply(1)
 //  }
 
@@ -462,6 +523,7 @@ class ImplicitConversionSuite
 //      |}
 //    """.stripMargin) { implicit res =>
 //    res.callSites.apply(1)
+//    // TODO: should these be considered?
 //  }
 
 //  callSites(
