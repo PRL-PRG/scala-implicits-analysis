@@ -261,4 +261,5 @@ corpus-stage3: $(GLOBAL_COMPILE_STATUS) \
 
 export-implicits: $(GLOBAL_IMPLICITS)
 	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc $(GLOBAL_IMPLICITS)
+	parallel --bar $(SCRIPTS_DIR)/csv-to-feather.R ::: $(EXPORTED_IMPLICIT_FILES)
 
