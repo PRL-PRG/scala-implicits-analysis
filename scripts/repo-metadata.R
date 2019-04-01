@@ -12,6 +12,12 @@ dir <- args[1]
 output <- args[2]
 output_sloc <- args[3]
 
+compute_size <- function() {
+    files <- system2("git", c("ls-tree", "--full-tree", "-r", "--name-only", "HEAD"), stdout=TRUE)
+    files <- files[file.exists(files)]
+    sum(file.size(files), na.rm=TRUE)
+}
+
 systems_def <- c(
     "sbt"="build.sbt",
     "sbt"="project/build.properties",
@@ -32,7 +38,9 @@ systems <- names(systems_def)
 system <- NA
 sbt_version <- NA
 
-size <- system2("du", c("-sb", "."), stdout = TRUE) %>% str_replace("(\\d+).*", "\\1") %>% as.integer()
+size_repo <- compute_size()
+
+size <- system2("du", c("-sb", "."), stdout = TRUE) %>% str_replace("(\\d+).*", "\\1") %>% as.double()
 commit_count <- system2("git", c("rev-list", "--count HEAD", "--"), stdout = TRUE) %>% as.integer()
 commit <- system2("git", c("log", "--pretty=format:'%H'", "-n 1"), stdout = TRUE)
 commit_dates <- system2("git", c("log", "--date=unix", "--pretty=format:'%cd'"), stdout = TRUE)
@@ -84,8 +92,9 @@ if (nrow(sloc_scala) == 0) {
 }
 
 df <- tibble(
-  build_system=system, 
+  build_system=system,
   sbt_version,
+  size_repo,
   size,
   commit_count,
   commit,

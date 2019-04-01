@@ -22,14 +22,15 @@ source(path(SCRIPTS_DIR, "inc", "functions.R"))
 
 final_projects <- tibble(project_id=read_lines(PROJECTS_FILE))
 
-projects <- 
+projects <-
   read_csv(CORPUS_STAGE1, col_types=cols(
     project_id = col_character(),
     compatible = col_logical(),
     origin = col_character(),
     build_system = col_character(),
     sbt_version = col_character(),
-    size = col_integer(),
+    size_repo = col_double(),
+    size = col_double(),
     commit_count = col_integer(),
     commit = col_character(),
     commit_date = col_datetime(format = ""),

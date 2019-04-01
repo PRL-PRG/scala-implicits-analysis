@@ -60,6 +60,7 @@ repo_metadata <- read_csv(REPO_METADATA, col_types=cols(
   project_id = col_character(),
   build_system = col_character(),
   sbt_version = col_character(),
+  size_repo = col_double(),
   size = col_double(),
   commit_count = col_double(),
   commit = col_character(),
