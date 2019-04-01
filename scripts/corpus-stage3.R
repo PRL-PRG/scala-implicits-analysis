@@ -136,13 +136,23 @@ implicits_stats <- read_csv(GLOBAL_IMPLICITS_STATS, col_types=cols(
 scala_sloc <-
   metadata_sourcepaths %>%
   filter(language=="Scala") %>%
-  select(project_id, path, files, code) %>%
-  group_by(project_id) %>%
+  select(project_id, path, scope, code, managed) %>%
+  replace_na(list(code=0)) %>%
+  mutate(managed=if_else(managed, "managed", "unmanaged")) %>%
+  group_by(project_id, scope, managed) %>%
   distinct(path, .keep_all=TRUE) %>%
-  select(-path) %>%
-  summarise_all(sum)
-  
-modules <-  
+  summarise(code=sum(code)) %>%
+  unite(temp, scope, managed) %>%
+  spread(temp, code) %>%
+  transmute(
+      code_test_managed=replace_na(test_managed, 0),
+      code_test=code_test_managed + replace_na(test_unmanaged, 0),
+      code_compile_managed=replace_na(compile_managed, 0),
+      code_compile=code_compile_managed + replace_na(compile_unmanaged, 0),
+      code=code_test + code_compile
+  )
+
+modules <-
   metadata_modules %>%
   group_by(project_id) %>%
   select(-commit) %>%
@@ -164,7 +174,7 @@ projects <- local({
     rename_at(implicits_status, vars(-project_id), add_prefix('implicits')),
     implicits_stats
   )
-  
+
   df <- joins[[1]]
   for (i in seq(2, length(joins))) {
     df <- left_join(df, joins[[i]], by="project_id")
@@ -177,8 +187,8 @@ message("Loading phases errors")
 
 for (phase in c("metadata", "compile", "semanticdb")) {
   message("Phase: ", phase)
-  phase_problems <- 
-    filter(projects, (!!sym(str_c(phase, "_exit_code")))==1) %>% 
+  phase_problems <-
+    filter(projects, (!!sym(str_c(phase, "_exit_code")))==1) %>%
     mutate(log_file=projects_file(project_id, str_c(phase, ".log"))) %>%
     phase_failure_cause() %>%
     group_by(project_id) %>%
@@ -189,14 +199,14 @@ for (phase in c("metadata", "compile", "semanticdb")) {
       !!sym(str_c(phase, "_failure")):=cause,
       !!sym(str_c(phase, "_failure_detail")):=detail
     )
-  
+
   projects <-
     left_join(
       projects,
       phase_problems,
       by="project_id"
     )
-  
+
   rm(phase_problems)
 }
 
