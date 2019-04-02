@@ -9,6 +9,37 @@ case class ImplicitCallSite(callSite: CallSite)(implicit idx: Index) {
   private val declaration = callSite.declaration
   private val declarationLibrary = declaration.library
 
+  case class Stat(callSites: Int, values: Int, chars: Int)
+  object Stat {
+    implicit val monoid = new cats.Monoid[Stat] {
+      override def empty: Stat = Stat(0, 0, 0)
+      override def combine(x: Stat, y: Stat): Stat =
+        Stat(x.callSites + y.callSites, x.values + y.values, x.chars + y.chars)
+    }
+  }
+
+  import Stat.monoid
+  import cats.syntax.monoid._
+
+  val nestedStat: Stat = {
+    val csIdx = module.implicitCallSites.map(x => x.callSiteId -> x).toMap
+    def count(cs: CallSite): Stat = {
+      cs.implicitArgumentTypes.collect {
+        case CallSiteRef(id) =>
+          val c = csIdx(id)
+          val d = c.declaration
+          Stat(1, 0, d.name.length) |+| count(c)
+        case ValueRef(id) =>
+          val d = module.resolveDeclaration(id)
+          Stat(0, 1, d.name.length)
+        case _ =>
+          Stat.monoid.empty
+      }.foldLeft(Stat.monoid.empty)(_ |+| _)
+    }
+
+    count(callSite)
+  }
+
   def projectId: String = module.projectId
   def moduleId: String = module.moduleId
   def groupId: String = module.groupId
@@ -31,6 +62,9 @@ case class ImplicitCallSite(callSite: CallSite)(implicit idx: Index) {
     case ValueRef(declarationId) =>
       module.resolveDeclaration(declarationId).resolveType.declarationId
   }
+  def nestedCallCount: Int = nestedStat.callSites
+  def nestedValuesCount: Int = nestedStat.values
+  def nestedArgLength: Int = nestedStat.chars
   def declarationId: String = declaration.declarationId
   def local: String =
     if (library == declarationLibrary) {
@@ -65,6 +99,9 @@ object ImplicitCallSite {
           "code",
           "nested_calls",
           "arguments",
+          "nested_calls_count",
+          "nested_values_count",
+          "nested_declarations_length",
           "declaration_id",
           "local",
           "location_path",
@@ -91,6 +128,9 @@ object ImplicitCallSite {
             cs.code,
             cs.nestedCalls,
             cs.arguments,
+            cs.nestedCallCount,
+            cs.nestedValuesCount,
+            cs.nestedArgLength,
             cs.declarationId,
             cs.local,
             cs.locationPath,
