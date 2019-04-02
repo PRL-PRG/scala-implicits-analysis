@@ -102,6 +102,8 @@ object MetadataExportPlugin extends AutoPlugin {
         val forcedSbtVersion = (sbtVersion in Compile).value
         val forcedCompileDependencyClasspath = (dependencyClasspath in Compile).value
         val forcedTestDependencyClasspath = (dependencyClasspath in Test).value
+        val forcedLibraries = (libraryDependencies in Compile).value
+        val forcedTestLibraries = (libraryDependencies in Test).value
         val forcedCleanDirectories = (classDirectory in Compile).value :: (classDirectory in Test).value :: Nil
 
         val forcedCompileProductDirectories = (productDirectories in Compile).value
@@ -206,7 +208,9 @@ object MetadataExportPlugin extends AutoPlugin {
         exportDependencyClasspath(
           moduleId,
           forcedCompileDependencyClasspath,
-          forcedTestDependencyClasspath)
+          forcedTestDependencyClasspath,
+          forcedLibraries,
+          forcedTestLibraries)
 
         exportCleanpaths(moduleId, forcedCleanDirectories)
       }
@@ -348,15 +352,32 @@ object MetadataExportPlugin extends AutoPlugin {
   private def exportDependencyClasspath(
       moduleId: String,
       compileDependencies: Classpath,
-      testDependencies: Classpath): Unit = {
+      testDependencies: Classpath,
+      compileLibraries: Seq[ModuleID],
+      testLibraries: Seq[ModuleID]): Unit = {
+
+    val nonTransitive =
+      (compileLibraries ++ testLibraries).map(x =>
+        (x.organization, x.name.replaceAll("_2\\.1[0-3]",""))
+      ).toSet
+
+
 
     val classpath =
-      compileDependencies
+      (compileDependencies
           .filter(_.data.isAbsolute)
           .map(projectDependency(projectId, moduleId, "compile")) ++
         testDependencies
           .filter(_.data.isAbsolute)
-          .map(projectDependency(projectId, moduleId, "test"))
+          .map(projectDependency(projectId, moduleId, "test"))).map { d =>
+
+        val id = (
+          d.groupId,
+          d.artifactId.replaceAll("_2\\.1[0-3]","") // libraries from some reason do not carry this
+        )
+
+        d.copy(transitive = !nonTransitive.contains(id))
+      }
 
     (compileDependencies ++ testDependencies)
       .filterNot(_.data.isAbsolute)
