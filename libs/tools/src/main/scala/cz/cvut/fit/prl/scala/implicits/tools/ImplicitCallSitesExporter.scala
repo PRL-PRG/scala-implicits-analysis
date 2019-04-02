@@ -7,15 +7,18 @@ import scala.util.Try
 
 object ImplicitCallSitesExporter extends Exporter[ImplicitCallSite] {
 
-  def encode(callSite: CallSite)(implicit idx: Index): ImplicitCallSite = {
-    ImplicitCallSite(callSite)
+  def encode(callSite: CallSite, csIdx: Int => CallSite)(implicit idx: Index): ImplicitCallSite = {
+    ImplicitCallSite(callSite, csIdx)
   }
 
   override def export(project: Project): Stream[Try[ImplicitCallSite]] = {
     implicit val idx: Index = ProjectIndex(project)
 
-    idx.implicitCallSites.toStream.map { callSite =>
-      Try(encode(callSite))
+    idx.modules.toStream.flatMap { m =>
+      val css = m.implicitCallSites
+      val csIdx = css.map(x => x.callSiteId -> x).toMap
+
+      css.toStream.map(callSite =>Try(encode(callSite, csIdx)))
     }
   }
 }

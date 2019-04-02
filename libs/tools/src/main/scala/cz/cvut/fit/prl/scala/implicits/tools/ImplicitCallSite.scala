@@ -1,43 +1,42 @@
 package cz.cvut.fit.prl.scala.implicits.tools
-import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind
+
 import cz.cvut.fit.prl.scala.implicits.model._
 import kantan.csv.{HeaderEncoder, RowEncoder}
 
-case class ImplicitCallSite(callSite: CallSite)(implicit idx: Index) {
+case class ImplicitCallSite(callSite: CallSite, csIdx:  Int => CallSite)(implicit idx: Index) {
   private val module = callSite.module
   private val library = callSite.library
   private val declaration = callSite.declaration
   private val declarationLibrary = declaration.library
 
-  case class Stat(callSites: Int, values: Int, chars: Int)
-  object Stat {
-    implicit val monoid = new cats.Monoid[Stat] {
-      override def empty: Stat = Stat(0, 0, 0)
-      override def combine(x: Stat, y: Stat): Stat =
-        Stat(x.callSites + y.callSites, x.values + y.values, x.chars + y.chars)
-    }
+  case class Stat(callSites: Int = 0, values: Int = 0, chars: Int = 0) {
+      @inline def combine(y: Stat): Stat =
+        Stat(this.callSites + y.callSites, this.values + y.values, this.chars + y.chars)
   }
 
-  import Stat.monoid
-  import cats.syntax.monoid._
-
-  val nestedStat: Stat = {
-    val csIdx = module.implicitCallSites.map(x => x.callSiteId -> x).toMap
+  val nestedStat: Option[Stat] = {
     def count(cs: CallSite): Stat = {
-      cs.implicitArgumentTypes.collect {
-        case CallSiteRef(id) =>
-          val c = csIdx(id)
-          val d = c.declaration
-          Stat(1, 0, d.name.length) |+| count(c)
-        case ValueRef(id) =>
-          val d = module.resolveDeclaration(id)
-          Stat(0, 1, d.name.length)
-        case _ =>
-          Stat.monoid.empty
-      }.foldLeft(Stat.monoid.empty)(_ |+| _)
+      cs.implicitArgumentTypes.foldLeft(Stat()) { (acc, arg) =>
+        val res = arg match {
+          case CallSiteRef(id) =>
+            val c = csIdx(id)
+            val d = c.declaration
+            Stat(1, 0, d.name.length).combine(count(c))
+          case ValueRef(id) =>
+            val d = module.resolveDeclaration(id)
+            Stat(0, 1, d.name.length)
+          case _ =>
+            Stat()
+        }
+        acc.combine(res)
+      }
     }
 
-    count(callSite)
+    if (callSite.parentId.isEmpty && callSite.implicitArgumentTypes.nonEmpty) {
+      Some(count(callSite))
+    } else {
+      None
+    }
   }
 
   def projectId: String = module.projectId
@@ -62,9 +61,9 @@ case class ImplicitCallSite(callSite: CallSite)(implicit idx: Index) {
     case ValueRef(declarationId) =>
       module.resolveDeclaration(declarationId).resolveType.declarationId
   }
-  def nestedCallCount: Int = nestedStat.callSites
-  def nestedValuesCount: Int = nestedStat.values
-  def nestedArgLength: Int = nestedStat.chars
+  def nestedCallCount: Option[Int] = nestedStat.map(_.callSites)
+  def nestedValuesCount: Option[Int] = nestedStat.map(_.values)
+  def nestedArgLength: Option[Int] = nestedStat.map(_.chars)
   def declarationId: String = declaration.declarationId
   def local: String =
     if (library == declarationLibrary) {
