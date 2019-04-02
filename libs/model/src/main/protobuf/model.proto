@@ -93,8 +93,10 @@ message Module {
     map<string, Declaration> declarations = 9;
     // all call sites involving implicits
     repeated CallSite implicit_call_sites = 10;
-    // number of all call sites
+    // number of all call sites (including tests)
     required int32 call_sites_count = 11;
+    // number of test call sites from the call_sites_count
+    required int32 test_call_sites_count = 12;
 }
 
 message Declaration {

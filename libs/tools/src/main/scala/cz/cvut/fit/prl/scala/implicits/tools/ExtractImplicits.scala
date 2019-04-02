@@ -23,10 +23,11 @@ object ExtractImplicits extends App {
       implicitDeclarations: Int,
       localImplicitDeclarations: Int,
       callSites: Int,
+      testCallSites: Int,
       implicitCallSites: Int,
       failures: Int) {
     override def toString: String =
-      s"$declarations, $implicitDeclarations, $localImplicitDeclarations, $callSites, $implicitCallSites, $failures"
+      s"$declarations, $implicitDeclarations, $localImplicitDeclarations, $callSites, $testCallSites, $implicitCallSites, $failures"
   }
 
   object Stats {
@@ -47,6 +48,7 @@ object ExtractImplicits extends App {
         implicitDeclarations.size,
         implicitDeclarations.count(_.isProjectLocal),
         modules.map(_.callSitesCount).sum,
+        modules.map(_.testCallSitesCount).sum,
         modules.map(_.implicitCallSites.size).sum,
         exceptions.size
       )
@@ -62,7 +64,8 @@ object ExtractImplicits extends App {
     }
 
     object Status {
-      implicit val statusEncoder = RowEncoder.encoder(0, 1, 2, 3, 4, 5, 6, 7)(
+      // TODO: provide a custom one, this is ugly
+      implicit val statusEncoder = RowEncoder.encoder(0, 1, 2, 3, 4, 5, 6, 7, 8)(
         (x: Status) =>
           (
             x.projectId,
@@ -71,6 +74,7 @@ object ExtractImplicits extends App {
             x.stats.implicitDeclarations,
             x.stats.localImplicitDeclarations,
             x.stats.callSites,
+            x.stats.testCallSites,
             x.stats.implicitCallSites,
             x.stats.failures
           )
@@ -143,6 +147,7 @@ object ExtractImplicits extends App {
             "implicit_declarations",
             "implicit_local_declarations",
             "callsites",
+            "test_callsites",
             "implicit_callsites",
             "failures"))
 
@@ -218,12 +223,6 @@ object ExtractImplicits extends App {
         }
         .split()
 
-    val csCount =
-      metadata.semanticdbs.map { implicit db =>
-        val ast = metadata.ast(db.uri)
-        csExtractor.callSiteCount(ast)
-      }.sum
-
     val classpath =
       metadata.classpathEntries ++ Libraries.JvmBootModelClasspath
 
@@ -261,6 +260,18 @@ object ExtractImplicits extends App {
             }
         }
 
+    val (csCount, testCsCount) =
+      metadata.semanticdbs.foldLeft((0,0)) {
+        case ((c, t), db) =>
+          val ast = metadata.ast(db.uri)
+          val count = csExtractor.callSiteCount(ast)(db)
+
+          paths.find(x => db.uri.startsWith(x._1)) match {
+            case Some((_, SourcepathEntry(_, "test", _))) => (c, t + count)
+            case _ => (c + count, t)
+          }
+      }
+
     val module = Module(
       projectId = projectId,
       moduleId = metadata.moduleId,
@@ -272,7 +283,8 @@ object ExtractImplicits extends App {
       paths = paths,
       declarations = ctx.declarations.map(x => x.declarationId -> x).toMap,
       implicitCallSites = callSites,
-      callSitesCount = csCount
+      callSitesCount = csCount + testCsCount, // callSitesCount contains all call sites
+      testCallSitesCount = testCsCount // out of which testCallSitesCount is found in test scope
     )
 
     module.declarations.foreach {

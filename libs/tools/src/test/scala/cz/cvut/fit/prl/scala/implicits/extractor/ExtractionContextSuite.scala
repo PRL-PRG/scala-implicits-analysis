@@ -258,6 +258,7 @@ abstract class ExtractionContextSuite
         (sourcePath +: classPath).map(x => x.path -> x).toMap,
         ctx.declarations.map(x => x.declarationId -> x).toMap,
         csResult.originalCallSites,
+        -1,
         -1
       )
 
