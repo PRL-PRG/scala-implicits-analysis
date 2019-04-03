@@ -14,8 +14,14 @@ object ImplicitDeclarationExporter extends Exporter[ImplicitDeclaration] {
   override def export(project: Project): Stream[Try[ImplicitDeclaration]] = {
     implicit val idx: ProjectIndex = ProjectIndex(project)
 
-    idx.implicitDeclarations
-      .toStream
+    // we have to do this since some of the declarations used in
+    // implicit call sites are regular functions expanded from macros
+    // and this won't be captured by the implicitDeclaration
+    val all =
+      idx.implicitDeclarations ++ idx.implicitCallSites.map(_.declaration)
+
+    all.toStream
+      .distinct
       .map { declaration =>
         Try(encode(declaration))
       }
