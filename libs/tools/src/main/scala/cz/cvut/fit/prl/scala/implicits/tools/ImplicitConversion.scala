@@ -19,6 +19,7 @@ case class ImplicitConversion(
   def projectId: String = module.projectId
   def moduleId: String = module.moduleId
   def declarationId: String = declaration.declarationId
+  def isLocal: Boolean = declaration.isProjectLocal || declaration.isImplicitClassCompanionDef(module)
   def fromType: String = from.resolveFullType.asCode
   def fromGroupId: String = fromLibrary.groupId
   def fromArtifactId: String = fromLibrary.artifactId
@@ -43,6 +44,7 @@ object ImplicitConversion {
           "project_id",
           "module_id",
           "declaration_id",
+          "is_local",
           "from",
           "from_groupId",
           "from_artifactId",
@@ -67,6 +69,7 @@ object ImplicitConversion {
             d.projectId,
             d.moduleId,
             d.declarationId,
+            d.isLocal,
             d.fromType,
             d.fromGroupId,
             d.fromArtifactId,

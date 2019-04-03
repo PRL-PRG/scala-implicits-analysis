@@ -29,7 +29,9 @@ object ImplicitConversionExporter extends Exporter[ImplicitConversion] {
               None
           }
         case OBJECT if d.hasClassSignature =>
-          val f1 = d.typeRef.allParents.dropWhile(x => !x.isTypeOf(declarationIds.Function1)).map(_.resolveType)
+          val f1 = d.typeRef.allParents
+            .dropWhile(x => !x.isTypeOf(declarationIds.Function1))
+            .map(_.resolveType)
           f1 match {
             case TypeRef(_, Seq(from, to)) #:: _ if !to.isKindOf(declarationIds.Unit) =>
               // type is of scala.Function1[A,B] where B is not scala.Unit
@@ -40,7 +42,9 @@ object ImplicitConversionExporter extends Exporter[ImplicitConversion] {
 
         case VAL | VAR | OBJECT if d.hasMethodSignature =>
           val rt = d.returnType.get
-          val f1 = (rt #:: rt.allParents).dropWhile(x => !x.isTypeOf(declarationIds.Function1)).map(_.resolveType)
+          val f1 = (rt #:: rt.allParents)
+            .dropWhile(x => !x.isTypeOf(declarationIds.Function1))
+            .map(_.resolveType)
           f1 match {
             case TypeRef(_, Seq(from, to)) #:: _ if !to.isKindOf(declarationIds.Unit) =>
               // type is of scala.Function1[A,B] where B is not scala.Unit
@@ -55,23 +59,17 @@ object ImplicitConversionExporter extends Exporter[ImplicitConversion] {
   }
 
   def export(d: Declaration)(implicit idx: Index): Option[Try[ImplicitConversion]] = {
-    if (d.isProjectLocal || d.isImplicitClassCompanionDef) {
-      // in case of implicit class, the actual conversion is not declared as project local, it is synthetic
-      Try(conversionTypes(d)) match {
-        case Success(Some((from, to))) => Some(Try(encode(d, from, to)))
-        case Success(None) => None
-        case Failure(e) => Some(Failure(e))
-      }
-    } else {
-      None
+    Try(conversionTypes(d)) match {
+      case Success(Some((from, to))) => Some(Try(encode(d, from, to)))
+      case Success(None) => None
+      case Failure(e) => Some(Failure(e))
     }
   }
 
   override def export(project: Project): Stream[Try[ImplicitConversion]] = {
     implicit val idx: Index = ProjectIndex(project)
 
-    idx.implicitDeclarations
-      .toStream
+    idx.implicitDeclarations.toStream
       .map(export)
       .collect {
         case Some(v) => v
