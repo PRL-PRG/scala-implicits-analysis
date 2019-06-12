@@ -1,3 +1,11 @@
+## About
+
+This repository contains an analysis pipeline that
+1. given a set of Scala projects, it builds a corpus of [SemanticDB](https://scalameta.org/docs/semanticdb/specification.html) databases including project metadata information extracted from GitHub and SBT, and
+2. from the corpus, it creates [model](https://github.com/PRL-PRG/scala-implicits-analysis/blob/master/libs/model/src/main/protobuf/model.proto) of implicits declared and used in each project.
+
+This has been used to analyze the use of Scala implicits in the wild.
+
 ## Requirements
 
 - GNU make >= 4.2.1 (on OSX this means to install one from homebrew/macports/nix)
@@ -10,6 +18,7 @@
   - DT
   - lubridate
 - cloc >= 1.8
+- SBT
 
 ## Structure
 
@@ -20,12 +29,14 @@
 - `sbt-plugins` - metadata and semanticdb plugin
 - `scripts` - various scripts used during a corpus building
 - `scripts/analysis` - scripts for the corpus analysis
+- `scripts/tools` - [Dejavu](https://github.com/PRL-PRG/dejavu-artifact) updated to process Scala
 
 - `Makefile` - building this project
 - `Makefile.project` - building a project in corpus
 - `Makefile.corpus` - orchestrating corpus build
 - `Makevars` - variables
 - `Makevars-$USER@$HOST` - local variables override
+- `docker-compose-$USER@$HOST.yml` - a docker setup that starts Rstudio and Jupyer with all data mounted
 
 ## Build
 
