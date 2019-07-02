@@ -22,7 +22,7 @@ $(PLUGIN_013): $(JAR)
 
 $(PLUGIN_10): $(JAR)
 	-mkdir -p ~/.sbt/1.0/plugins
-	echo 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")\n' > $(PLUGIN_10)
+	echo 'addSbtPlugin("$(GROUP_ID)" % "$(ARTIFACT_ID)" % "$(VERSION)")' > $(PLUGIN_10)
 
 install: $(PLUGIN_013) $(PLUGIN_10)
 
