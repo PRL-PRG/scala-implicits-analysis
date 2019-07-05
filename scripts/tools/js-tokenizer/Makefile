@@ -1,4 +1,4 @@
-.PHONY: all clean compile
+.PHONY: all build clean compile
 
 all: build compile
 
@@ -7,7 +7,7 @@ build:
 	cd build && cmake ..
 
 clean:
-	rm -fr build
+	-rm -fr build
 
 compile: build
 	cd build &&	make

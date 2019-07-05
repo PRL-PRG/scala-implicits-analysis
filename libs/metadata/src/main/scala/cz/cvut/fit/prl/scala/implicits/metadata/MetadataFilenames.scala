@@ -14,7 +14,6 @@ object MetadataFilenames {
 
   val ExtractedImplicitsFilename = "implicits.bin"
   val ExtractionExceptionsFilename = "implicits-exceptions.csv"
-  val ExtractionIndexExceptionsFilename = "implicits-index-exceptions.csv"
   val ExtractionStatsFilename = "implicits-stats.csv"
 
   val SemanticdbMergedFilename = s"semanticdb.bin"

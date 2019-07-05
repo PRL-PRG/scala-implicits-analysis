@@ -7,3 +7,4 @@ N_JOBS := 1
 TIMEOUT := 60m
 SBT_MEM := 8196
 MAX_MEM := 8196
+SBT_REPOSITORIES_FILE := $(base_dir)sbt-repositories@prl4

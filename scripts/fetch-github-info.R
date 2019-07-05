@@ -54,7 +54,21 @@ call_github <- function(projects, fun) {
 
 main <- function(projects_file, output_file) {
     finished <- if (file_exists(output_file)) {
-        read_csv(output_file) %>% filter(is.na(error) | error == "Status 404")
+        read_csv(
+            output_file,
+            col_types=cols(
+                project_id = col_character(),
+                name = col_character(),
+                stars = col_double(),
+                watchers = col_double(),
+                created_at = col_datetime(format = ""),
+                updated_at = col_datetime(format = ""),
+                pushed_at = col_datetime(format = ""),
+                fork = col_logical(),
+                archived = col_logical(),
+                error = col_logical()
+            )
+        ) %>% filter(is.na(error) | error == "Status 404")
     } else {
         tibble(
             project_id=character(0),
@@ -71,13 +85,17 @@ main <- function(projects_file, output_file) {
     }
 
     projects <- tibble(project_id=readLines(projects_file))
-    projects <- mutate(projects, reponame=str_replace(project_id, "--", "/"))
+    projects <- mutate(projects, name=str_replace(project_id, "--", "/"))
 
     missing <- anti_join(projects, finished, by="project_id")
+    if (nrow(missing) == 0) {
+        message("All ", nrow(projects), "/", nrow(finished), " projects have been fetched")
+        q(status=0)
+    }
 
-    message("Requested: ", nrow(projects), ", done: ", nrow(finished), " missing: ", nrow(missing))
+    message("Requested projects: ", nrow(projects), ", done: ", nrow(finished), " missing: ", nrow(missing))
 
-    gh_list <- call_github(missing$reponame, function(content) {
+    gh_list <- call_github(missing$name, function(content) {
         tibble(
             name=content$full_name,
             stars=content$stargazers_count,
@@ -90,17 +108,21 @@ main <- function(projects_file, output_file) {
         )
     })
     gh_df <- bind_rows(gh_list)
-    result <- left_join(missing, gh_df, by="reponame") %>% select(-reponame)
+    result <- left_join(missing, gh_df, by="name") %>% select(-name)
     all <- bind_rows(finished, result)
 
     write_csv(all, output_file)
 }
 
 client_id <- Sys.getenv("GH_CLIENT_ID")
-client_secret <- Sys.getenv("GH_CLIENT_SECRET")
+if (client_id == "") {
+    stop("Missing GH_CLIENT_ID (GitHub OAuth Client ID)")
+}
 
-stopifnot(nchar(client_id) > 0)
-stopifnot(nchar(client_secret) > 0)
+client_secret <- Sys.getenv("GH_CLIENT_SECRET")
+if (client_secret == "") {
+    stop("Missing GH_CLIENT_SECRET (GitHub OAuth Client Secret)")
+}
 
 args <- commandArgs(trailingOnly=T)
 stopifnot(length(args) == 2)

@@ -144,14 +144,26 @@ scala_sloc <-
   distinct(path, .keep_all=TRUE) %>%
   summarise(code=sum(code)) %>%
   unite(temp, scope, managed) %>%
-  spread(temp, code) %>%
+  spread(temp, code)
+
+# it is possible that there will not be any tests
+if (!("test_managed" %in% names(scala_sloc))) {
+  scala_sloc <- mutate(scala_sloc, test_managed=0)
+}
+if (!("test_unmanaged" %in% names(scala_sloc))) {
+  scala_sloc <- mutate(scala_sloc, test_unmanaged=0)
+}
+
+scala_sloc <-
+  scala_sloc %>%
   transmute(
       code_test_managed=replace_na(test_managed, 0),
       code_test=code_test_managed + replace_na(test_unmanaged, 0),
       code_compile_managed=replace_na(compile_managed, 0),
       code_compile=code_compile_managed + replace_na(compile_unmanaged, 0),
       code=code_test + code_compile
-  )
+  ) %>%
+  ungroup()
 
 modules <-
   metadata_modules %>%
@@ -187,7 +199,9 @@ projects <- local({
 message("Loading phases errors")
 
 for (phase in c("metadata", "compile", "semanticdb")) {
+
   message("Phase: ", phase)
+
   phase_problems <-
     filter(projects, (!!sym(str_c(phase, "_exit_code")))==1) %>%
     mutate(log_file=projects_file(project_id, str_c(phase, ".log"))) %>%

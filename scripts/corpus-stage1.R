@@ -76,6 +76,10 @@ repo_metadata <- read_csv(REPO_METADATA, col_types=cols(
 
 scaladex <- tolower(read_lines(SCALADEX))
 
+message("\n")
+message("====================")
+message("CORPUS AFTER STAGE 1")
+message("====================")
 message("All projects: ", nrow(project_status))
 message("GitHub info: ", nrow(github_project_info))
 
@@ -97,8 +101,8 @@ message("Dejavu info empty: ", nrow(filter(corpus, compatible, is.na(dejavu_dupl
 
 write_csv(corpus, CORPUS_STAGE1)
 
-stage2_projects <- 
-  filter(corpus, 
+stage2_projects <-
+  filter(corpus,
          compatible,
          commit_count >= threshold_commit_count,
          gh_pushed_at-gh_created_at > months(threshold_lifespan_months),
@@ -112,5 +116,6 @@ message("- lifespan:", threshold_lifespan_months)
 message("- stars: ", threshold_gh_stars)
 
 message("Filtered projects: ", nrow(stage2_projects))
+message("\n")
 
 write_lines(stage2_projects$project_id, PROJECTS_FILE)

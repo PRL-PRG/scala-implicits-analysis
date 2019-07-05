@@ -14,7 +14,22 @@ library(fs)
 source(path(SCRIPTS_DIR, "inc", "paths.R"))
 source(path(SCRIPTS_DIR, "inc", "functions.R"))
 
-projects <- readr::read_csv("repo-metadata.csv")
+projects <- readr::read_csv(
+    "repo-metadata.csv",
+    col_types=cols(
+        project_id = col_character(),
+        build_system = col_character(),
+        sbt_version = col_character(),
+        size_repo = col_double(),
+        size = col_double(),
+        commit_count = col_double(),
+        commit = col_character(),
+        commit_date = col_double(),
+        first_commit_date = col_double(),
+        scala_code = col_double(),
+        scala_files = col_double()
+    )
+)
 
 scala_projects <- 
   projects %>%

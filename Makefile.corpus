@@ -7,16 +7,9 @@ this_makefile := $(lastword $(MAKEFILE_LIST))
 include $(base_dir)/Makevars
 
 LOG_DIR_BASE := logs
-TIMESTAMP := $(shell LC_LOCALE=C date)
+LOG_DIR := $(LOG_DIR_BASE)/$(shell date +"%Y%m%d-%H%M%S")
 LOG_DIR_LATEST := $(LOG_DIR_BASE)/latest
 CORPUS := $(shell basename $$(pwd))
-
-ifeq ($(origin LOG_DIR_BASE), undefined)
-	LOG_DIR := $(LOG_DIR_BASE)/1
-else
-	LOG_DIR := $(LOG_DIR_BASE)/$(shell ls -1 $(LOG_DIR_BASE) | awk 'BEGIN {max = 0} /[0-9][0-9]*/ {if ($$1 > max) max=$$1} END {print max+1}' )
-endif
-
 
 # a file controlling the number of parallel tasks it can be updated while the
 # task is run, but gets reset before a task is run
@@ -63,13 +56,32 @@ bootstrap :=
 
 $(LOG_DIR):
 	@mkdir -p $(LOG_DIR)
-	@echo "$(TIMESTAMP)" > $(LOG_DIR)/timestamp
 	@rm -f $(LOG_DIR_LATEST)
 	@ln -s $(notdir $(LOG_DIR)) $(LOG_DIR_LATEST)
 
-stage1: fetch-github-info filter-all-projects repo-metadata filter-sbt-projects dejavu scaladex corpus-stage1 filter-final-projects
-stage2: compile metadata semanticdb
-stage3: implicits corpus-stage3 export-implicits report
+stage1:	repo-metadata \
+	filter-sbt-projects \
+	fetch-github-info \
+	filter-all-projects \
+	dejavu \
+	scaladex \
+	corpus-stage1 \
+	filter-final-projects
+
+stage2: compile \
+	metadata \
+	semanticdb
+
+stage3: implicits \
+	corpus-stage3 \
+	export-implicits \
+	report
+
+all: download-projects \
+	stage1 \
+	stage2 \
+	stage3 \
+	report
 
 parallel:
 	-mkdir -p $(LOG_DIR)
@@ -77,7 +89,7 @@ parallel:
 	@echo ">> Running parallel task $(TASK) (REDO=$(REDO)) with logs in $(LOG_DIR) using $(PROJECTS_FILE)..."
 	cp $(PROJECTS_FILE) $(LOG_DIR)/projects.txt
 	touch "$(LOG_DIR)/$(TASK)"
-	-parallel \
+	-$(parallel_base) \
       --jobs $(JOBS_FILE) \
       -a "$(PROJECTS_FILE)" \
       --files \
@@ -90,10 +102,12 @@ parallel:
 
 clean:
 	-$(MAKE) -f $(this_makefile) parallel TASK=$@
+	-$(MAKE) -f $(this_makefile) clean-dejavu
 	-rm -fr $(LOG_DIR_BASE) $(JOBSFILE)
 	-rm -f $(GLOBAL_REPO_METADATA)
 	-rm -f $(GLOBAL_REPO_SLOC)
 	-rm -fr $(SBT_PROJECTS_FILE) $(PROJECTS_DIR) $(PROJECTS_FILE)
+	-rm -f $(PROJECTS_GITHUB_INFO) $(SCALADEX) $(JOBS_FILE) $(ALL_PROJECTS_ORIG_FILE)
 	-rm -f $(GLOBAL_METADATA_STATUS) $(GLOBAL_METADATA_MODULES) $(GLOBAL_METADATA_SOURCEPATHS) $(GLOBAL_METADATA_DEPENDENCIES)
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
@@ -101,7 +115,9 @@ clean:
 	-rm -f $(CORPUS_STAGE1)
 	-rm -f $(CORPUS_STAGE3)
 	-rm -f $(CORPUS_ANALYSIS_HTML) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
-	$(MAKE) -f $(this_makefile) clean-dejavu
+	-rm -f stage1-analysis.* stage3-analysis.* table-corpus-building.tex corpus-overview.pdf
+	-rm -f *.feather.gz
+	-rm -f implicit-conversions.csv implicit-conversions-problems.csv implicit-declarations-problems.csv 
 
 clean-compile:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -112,7 +128,11 @@ clean-dejavu:
 
 clean-implicits:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
-	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS) $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS)
+	-rm -f $(GLOBAL_IMPLICITS_STATUS) \
+         $(GLOBAL_IMPLICITS_STATS) \
+         $(GLOBAL_IMPLICITS_EXCEPTIONS) \
+         $(GLOBAL_IMPLICITS) \
+         $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS)
 
 clean-metadata:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@
@@ -145,7 +165,7 @@ dejavu: $(SBT_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
 	-rm -fr $(DEJAVU_DOWNLOAD)
 	mkdir -p $(DEJAVU_DOWNLOAD)
 
-	parallel --bar -j1 -a $(SBT_PROJECTS_FILE) ln -sfT '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
+	$(parallel_base) --bar -j1 -a $(SBT_PROJECTS_FILE) ln -sfT '$$(pwd)/$(ALL_PROJECTS_DIR)/{1}' '$$(pwd)/$(DEJAVU_DOWNLOAD)/{#}'
 
 	$(SCRIPTS_DIR)/generate-dejavu-input.R $(SBT_PROJECTS_FILE) $(DEJAVU_INPUT)
 	sed -i 's/"""/"/g'  $(DEJAVU_INPUT)
@@ -167,7 +187,7 @@ dejavu: $(SBT_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
 download-projects: $(ALL_PROJECTS_FILE)
 	-mkdir -p $(ALL_PROJECTS_DIR)
 	-cat $(ALL_PROJECTS_FILE) | sed 's|\(.*\)--\(.*\)|\1,\2|g' | \
-        parallel --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
+        $(parallel_base) --timeout 30m -C, --bar -j8 $(SCRIPTS_DIR)/download-project.sh 'https://github.com/{1}/{2}' '$(ALL_PROJECTS_DIR)/{1}--{2}'
 	$(MAKE) -f $(this_makefile) patch-downloaded-projects
 
 filter-all-projects: $(ALL_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
@@ -179,14 +199,18 @@ filter-sbt-projects: $(GLOBAL_REPO_METADATA)
 filter-final-projects: $(PROJECTS_FILE)
 	rm -fr $(PROJECTS_DIR)
 	mkdir -p $(PROJECTS_DIR)
-	parallel --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)'
+	$(parallel_base) --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)'
 
 fetch-github-info: $(SBT_PROJECTS_FILE)
-	$(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
-	cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned
+	if [ -f $(PROJECTS_GITHUB_INFO).pinned ]; then \
+    cp $(PROJECTS_GITHUB_INFO).pinned $(PROJECTS_GITHUB_INFO); \
+  else \
+    $(SCRIPTS_DIR)/fetch-github-info.R $(SBT_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO); \
+    cp $(PROJECTS_GITHUB_INFO) $(PROJECTS_GITHUB_INFO).pinned; \
+  fi
 
 patch-downloaded-projects:
-	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR)
+	[ -f $(ALL_PROJECTS_PATCH) ] && $(SCRIPTS_DIR)/patch-downloaded-projects.R $(ALL_PROJECTS_PATCH) $(ALL_PROJECTS_DIR) || /bin/true
 
 repo-metadata: $(ALL_PROJECTS_FILE) $(ALL_PROJECTS_DIR)
 ifneq ($(REDO), -1)
@@ -254,12 +278,18 @@ corpus-stage3: $(GLOBAL_COMPILE_STATUS) \
   $(GLOBAL_IMPLICITS_STATUS) \
   $(GLOBAL_IMPLICITS_STATS) \
   $(GLOBAL_IMPLICITS_EXCEPTIONS) \
-  $(GLOBAL_IMPLICITS_INDEX_EXCEPTIONS) \
   $(CORPUS-STAGE1)
 
 	$(SCRIPTS_DIR)/corpus-stage3.R
 
 export-implicits: $(GLOBAL_IMPLICITS)
 	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc $(GLOBAL_IMPLICITS)
-	parallel --bar $(SCRIPTS_DIR)/csv-to-feather.R ::: $(EXPORTED_IMPLICIT_FILES)
+	$(parallel_base) --bar $(SCRIPTS_DIR)/csv-to-feather.R ::: $(EXPORTED_IMPLICIT_FILES)
 
+stage1-analysis.html:
+	Rscript -e "rmarkdown::render('$(SCRIPTS_DIR)/analysis/stage1-analysis.Rmd', output_dir='$(CURDIR)', params=list(base_dir='$(CURDIR)', lib_dir='../inc'))"
+
+stage3-analysis.html:
+	Rscript -e "rmarkdown::render('$(SCRIPTS_DIR)/analysis/stage3-analysis.Rmd', output_dir='$(CURDIR)', params=list(base_dir='$(CURDIR)', lib_dir='../inc'))"
+
+report: stage1-analysis.html stage3-analysis.html

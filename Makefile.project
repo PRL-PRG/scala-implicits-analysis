@@ -1,10 +1,16 @@
 # -*- mode: makefile -*-
 
-base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+base_dir := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 this_makefile := $(lastword $(MAKEFILE_LIST))
 
 include $(base_dir)/Makevars
 
+# recompute the paths to get relative one instead of the absolute
+GLOBAL_IVY_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_IVY_DIR)", fs::path(getwd(), "$(IVY_DIR)"))')
+GLOBAL_SBT_BOOT_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_SBT_BOOT_DIR)", getwd())')
+GLOBAL_COURSIER_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_COURSIER_DIR)", getwd())')
+
+# we have to use bash since we rely on $SECONDS implicit variable
 SHELL := /bin/bash
 
 define SBT_BASE
@@ -42,9 +48,9 @@ REDO ?= 0
 all: repo-metadata compile implicits
 
 define BOOTSTRAP
-	[ -d $(ANALYSIS_DIR) ] || mkdir -p $(ANALYSIS_DIR)
+	[ -d "$(ANALYSIS_DIR)" ] || mkdir -p $(ANALYSIS_DIR)
 
-	if [ ! -d $(IVY_DIR) ]; then \
+	if [ ! -d "$(IVY_DIR)" ]; then \
       mkdir -p $(IVY_DIR); \
       ln -sf $(GLOBAL_IVY_DIR)/cache $(IVY_DIR); \
       ln -sf $(GLOBAL_IVY_DIR)/local $(IVY_DIR); \
@@ -53,25 +59,25 @@ define BOOTSTRAP
 	[ -d project ] || mkdir project
 	echo 'addSbtPlugin("cz.cvut.fit.prl.scala.implicits" % "sbt-plugins" % "1.0-SNAPSHOT")' > project/_sbt-implicits-plugins_.sbt
 
-	if [ ! -d $(SBT_DIR) ]; then \
-      mkdir -p $(SBT_DIR); \
-      ln -s $(SBT_REPOSITORIES_FILE) $(SBT_DIR)/repositories; \
-    fi
-	if [ ! -d $(SBT_BOOT_DIR) ]; then \
+	[ -d "$(SBT_DIR)" ] || mkdir -p $(SBT_DIR)
+
+	if [ ! -d "$(SBT_BOOT_DIR)" ]; then \
       mkdir -p $(SBT_BOOT_DIR); \
       ls -1 $(GLOBAL_SBT_BOOT_DIR) | \
         grep "^scala-" | \
-        parallel ln -sf "$(GLOBAL_SBT_BOOT_DIR)/{1}" "$(SBT_BOOT_DIR)"; \
+        $(parallel_base) ln -sf "$$(Rscript -e 'fs::path_rel("$(GLOBAL_SBT_BOOT_DIR)/{1}", fs::path(getwd(), "$(SBT_BOOT_DIR)"))')" "$(SBT_BOOT_DIR)"; \
     fi
 
-	[ -d $(COURSIER_DIR) ] || ln -s $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
+	[ -L $(COURSIER_DIR) ] || ln -s $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
+
+	[ -f "$(SBT_REPOSITORIES_FILE)" ] && ln -s $(SBT_REPOSITORIES_FILE) $(SBT_DIR)/repositories || /bin/true
 endef
 
 $(COMPILE_STATUS):
 	echo "exit_code,duration,classes" > $(COMPILE_STATUS)
 	echo "130,0,0" >> $(COMPILE_STATUS)
 
-	$(BOOTSTRAP)
+	@$(BOOTSTRAP)
 
 	JAVA_OPTS="-XX:MaxMetaspaceSize=2G -Xms512M -Xmx8G -Xss1M" \
     $(SBT) clean compileWithStats > $(COMPILE_LOG) 2>&1; \
@@ -92,7 +98,7 @@ $(IMPLICITS_STATUS): $(METADATA_STATUS) $(SEMANTICDB_STATUS) $(SEMANTICDB_MERGED
     fi
 
 $(METADATA_STATUS):
-	$(BOOTSTRAP)
+	@$(BOOTSTRAP)
 
 	echo "exit_code,duration" > $(METADATA_STATUS)
 	echo "130,0" >> $(METADATA_STATUS)
@@ -106,7 +112,7 @@ $(METADATA_STATUS):
 
 # runs the semanticdb task on a clean project
 $(SEMANTICDB_STATUS):
-	$(BOOTSTRAP)
+	@$(BOOTSTRAP)
 
 	echo "exit_code,duration,classes" > $(SEMANTICDB_STATUS)
 	echo "130,0,0" >> $(SEMANTICDB_STATUS)
@@ -124,12 +130,19 @@ $(SEMANTICDB_MERGED_FILE): $(SEMANTICDB_STATUS)
     fi
 
 $(REPO_METADATA):
-	$(BOOTSTRAP)
+	@$(BOOTSTRAP)
 	$(SCRIPTS_DIR)/repo-metadata.R . $(REPO_METADATA) $(REPO_SLOC)
+
+bootstrap:
+	$(BOOTSTRAP)
 
 # removes the artifacts created by running tasks from this Makefile
 clean:
 	rm -fr $(ANALYSIS_DIR)
+	rm -fr $(IVY_DIR)
+	rm -fr $(COURSIER_DIR)
+	rm -fr $(SBT_BOOT_DIR)
+	rm -fr $(SBT_DIR)
 
 clean-compile:
 	rm -f $(COMPILE_STATUS) $(COMPILE_LOG)
@@ -222,7 +235,7 @@ reset-all:
 	git clean -fdx
 
 sbt:
-	$(BOOTSTRAP)
+	@$(BOOTSTRAP)
 	$(SBT_BASE)
 
 semanticdb:

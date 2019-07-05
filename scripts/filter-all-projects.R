@@ -14,7 +14,21 @@ library(fs)
 source(path(SCRIPTS_DIR, "inc", "paths.R"))
 
 all_projects <- tibble(project_id=read_lines(ALL_PROJECTS_FILE))
-github_info <- read_csv(PROJECTS_GH_INFO)
+github_info <- read_csv(
+    PROJECTS_GH_INFO,
+    col_types=cols(
+        project_id = col_character(),
+        name = col_character(),
+        stars = col_double(),
+        watchers = col_double(),
+        created_at = col_datetime(format = ""),
+        updated_at = col_datetime(format = ""),
+        pushed_at = col_datetime(format = ""),
+        fork = col_logical(),
+        archived = col_logical(),
+        error = col_logical()
+    )
+)
 
 projects <- 
   semi_join(github_info, all_projects, by="project_id") %>%
@@ -38,6 +52,6 @@ unique_projects <-
 
 message("non-forked, single name projects: ", nrow(unique_projects))
 
-file_copy(ALL_PROJECTS_FILE, ALL_PROJECTS_FILE_ORIG)
+file_copy(ALL_PROJECTS_FILE, ALL_PROJECTS_FILE_ORIG, overwrite=TRUE)
 
 write_lines(unique_projects$project_id, ALL_PROJECTS_FILE)

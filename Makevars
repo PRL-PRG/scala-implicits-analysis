@@ -5,27 +5,37 @@ MAKEFLAGS += --no-builtin-rules
 HOSTNAME := $(shell hostname)
 USERNAME := $(shell id -un)
 base_dir := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+user_config := $(base_dir)/Makevars-$(USERNAME)@$(HOSTNAME)
+
+# include Makevars-<user>@<host>
+ifneq ("$(wildcard $(user_condig))","")
 include $(base_dir)/Makevars-$(USERNAME)@$(HOSTNAME)
+endif
 
 # absolute path to the ivy directory that contains cache and local subdirs
 ifndef GLOBAL_IVY_DIR
-$(error GLOBAL_IVY_DIR is not set. Typically ~/.ivy2)
+GLOBAL_IVY_DIR := $(HOME)/.ivy2
 endif
 
 # absolute path to the prepopulated sbt-boot directory
 ifndef GLOBAL_SBT_BOOT_DIR
-$(error GLOBAL_SBT_BOOT_DIR is not set. Typically ~/.sbt/boot)
+GLOBAL_SBT_BOOT_DIR := $(HOME)/.sbt/boot
 endif
 
 # absolute path to the prepopulated sbt-boot directory
 ifndef GLOBAL_COURSIER_DIR
-$(error GLOBAL_COURSIER_DIR is not set. Typically ~/.cache/coursier)
+GLOBAL_COURSIER_DIR := $(HOME)/.cache/coursier
 endif
 
 # level of concurrency
 ifndef N_JOBS
-$(error N_JOBS is not set. Controls the number of parallel jobs)
+N_JOBS := 1
 endif
+
+$(info N_JOBS=$(N_JOBS))
+$(info GLOBAL_IVY_DIR := $(GLOBAL_IVY_DIR))
+$(info GLOBAL_SBT_BOOT_DIR := $(GLOBAL_SBT_BOOT_DIR))
+$(info GLOBAL_COURSIER_DIR := $(GLOBAL_COURSIER_DIR))
 
 SBT_MEM ?= 16000
 TIMEOUT ?= 30m
@@ -34,6 +44,7 @@ MAX_MEM ?= 128000
 # the initial projects
 ALL_PROJECTS_DIR := all-projects
 ALL_PROJECTS_FILE := all-projects.txt
+ALL_PROJECTS_ORIG_FILE := all-projects.orig.txt
 ALL_PROJECTS_PATCH := all-projects-patch.csv
 
 SBT_PROJECTS_FILE := sbt-projects.txt
@@ -47,7 +58,6 @@ SCRIPTS_DIR := $(base_dir)scripts
 IVY_DIR := _ivy_
 SBT_BOOT_DIR := _sbt-boot_
 SBT_DIR := _sbt_
-SBT_REPOSITORIES_FILE := $(base_dir)sbt-repositories@prl4
 SBT_PLUGIN_FILE := $(base_dir)sbt-plugins.sbt
 COURSIER_DIR := _coursier_
 SCALAMETA_VERSION := 4.1.4
@@ -122,3 +132,5 @@ IMPLICIT_CALLSITES_PROBLEMS := implicit-callsites-problems.csv
 IMPLICIT_DECLARATIONS_PROBLEMS := implicit-declarations-problems.csv
 IMPLICIT_CONVERSION_PROBLEMS := implicit-conversions-problems.csv
 EXPORTED_IMPLICIT_FILES := $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS) $(IMPLICIT_CONVERSIONS) $(IMPLICIT_CALLSITES_PROBLEMS) $(IMPLICIT_CONVERSION_PROBLEMS) $(IMPLICIT_DECLARATIONS_PROBLEMS)
+
+parallel_base := parallel --will-cite

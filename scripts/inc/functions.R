@@ -1,6 +1,20 @@
 library(dplyr)
 library(stringr)
 
+parse_sbt_version <- Vectorize(function(version) {
+  if (is.na(version)) return(NA)
+  if (nchar(version) < 5) return(NA)
+  
+  version <- str_replace_all(version, "-.*", "")
+  
+  parsed <- suppressWarnings(as.integer(str_split(version, "\\.")[[1]]))
+  
+  if (any(is.na(parsed))) return(NA)
+  if (length(parsed) != 3) return(NA)
+  
+  return(parsed)
+}, USE.NAMES = FALSE, SIMPLIFY=FALSE)
+
 is_compatible_sbt_version <- function(sbt_version) {
   compatible <- function(version) {
     all(version >= c(1,  0, 0)) | all(version >= c(0, 13, 5))
@@ -33,20 +47,6 @@ add_prefix <- function(prefix) {
   function(x) str_c(prefix, '_', x)
 }
 
-parse_sbt_version <- Vectorize(function(version) {
-  if (is.na(version)) return(NA)
-  if (nchar(version) < 5) return(NA)
-  
-  version <- str_replace_all(version, "-.*", "")
-  
-  parsed <- suppressWarnings(as.integer(str_split(version, "\\.")[[1]]))
-  
-  if (any(is.na(parsed))) return(NA)
-  if (length(parsed) != 3) return(NA)
-  
-  return(parsed)
-}, USE.NAMES = FALSE)
-
 format_size <- Vectorize(function(x) {
   if (is.na(x)) return(x)
   
@@ -64,7 +64,7 @@ format_size <- Vectorize(function(x) {
   fmt(x)
 })
 
-fmt <- function(x, prefix="", suffix="", ...) {
+fmt <- Vectorize(function(x, prefix="", suffix="", ...) {
   if (is.na(x)) {
     NA
   } else if (is.null(x)) {
@@ -73,17 +73,17 @@ fmt <- function(x, prefix="", suffix="", ...) {
     v <- .fmt(x, ...)
     str_c(prefix, v, suffix)
   }
-}
+}, USE.NAMES=FALSE, vectorize.args="x")
 
-.fmt <- function(x) {
-  UseMethod(".fmt", x)  
+.fmt <- function(x, ...) {
+  UseMethod(".fmt")  
 }
 
 .fmt.default <- function(x) {
   x
 }
 
-.fmt.integer <- function(x) {
+.fmt.integer <- function(x, ...) {
   format(x, big.mark=",", small.mark=".")
 }
 
@@ -93,7 +93,7 @@ fmt <- function(x, prefix="", suffix="", ...) {
   format(round(x, digits), big.mark=",")
 }
 
-percent <- function(x, ...) my_format(x, s="%", ...)
+percent <- function(x, ...) fmt(x, suffix="%", ...)
 
 round_down_nice <- function(x, nice=c(1,2,4,5,6,8,10)) {
   if(length(x) != 1) stop("'x' must be of length 1")
@@ -101,9 +101,22 @@ round_down_nice <- function(x, nice=c(1,2,4,5,6,8,10)) {
 }
 
 my_stat_fmt <- function(x) {
-  s <- sd(x, na.rm = T)
-  m <- median(x, na.rm = T)
-  str_c('(s=', fmt(s, floor=s > 1e3), ' m=', fmt(m, floor=m > 1e3), ')')
+  s <- sd(as.double(x), na.rm = T)
+  m <- mean(as.double(x), na.rm = T)
+  str_c(fmt(m, floor=s > 1e3), ' (s=', fmt(s, floor=s > 1e3), ')')
+}
+
+my_fullstat_fmt <- function(x) {
+  sm <- sum(as.double(x), na.rm = T)
+  s <- sd(as.double(x), na.rm = T)
+  m <- median(as.double(x), na.rm = T)
+  str_c(
+    fmt(sm, floor=sm > 1e3),
+    ' (',
+    'm=', fmt(m, floor=m > 1e3), 
+    ' sd=', fmt(s, floor=s > 1e3), 
+    ')'
+    )
 }
 
 add_nrow <- function(key, df) {
@@ -132,24 +145,61 @@ latex_tags <- function(tags=GLOBAL_TAGS, prefix="") {
   tags <- tags %>%
     mutate(
       name=str_c(prefix, " ", name),
-      comment=str_c("% ", key, " of ", name, ": ", "'", value, "'"),
+      comment=if_else(
+        key=="",
+        str_c("% ", name, ": ", "'", value, "'"),
+        str_c("% ", key, " of ", name, ": ", "'", value, "'")
+      ),
       name=str_c(key, string_to_latex_tag(name)),
+      value=str_replace(value, "%", "\\\\%"),
       tag=str_c('\\newcommand{\\', name, '}{', value, '\\xspace}'),
       latex=str_c(comment, tag, sep="\n")
     )
+    
   
   if (any(duplicated(tags$name))) {
     warning("There are duplicated tags: ", str_c(tags$name[duplicated(tags$name)], collapse = ", "))
+    tags <- distinct(tags, name, .keep_all = TRUE)
   }
   
   tags$latex
+}
+
+tag <- function(name, v, ...) {
+  r <- tibble(name, key="", value=fmt(v, ...))
+  insert_tags(r)
+  r
+}
+
+tag_nrow <- function(name, v, ...) {
+  tag(name, nrow(v), ...)
+}
+
+tag_sum <- function(name, v, ...) {
+  tag(name, sum(v, na.rm = T), ...)
+}
+
+tag_round <- function(name, v, digits, ...) {
+  tag(name, round(v, digits), ...)
+}
+
+tag_ratio <- function(name, x, y, inverse=FALSE) {
+  v <- if (inverse) mean(1-ratio(x, y)) else mean(ratio(x, y))
+  tag(name, v)
+  tag(str_c(name, "Pct"), v*100, suffix="%")
+}
+
+ratio <- function(x, y) {
+  stopifnot(length(x) == length(y))
+  if_else(x==0, 0, as.double(x)/as.double(y))
 }
 
 write_latex_tags <- function(filename, tags=GLOBAL_TAGS, ...) {
   write_lines(str_c(latex_tags(tags, ...), "\n"), filename)
 }
 
-add_num <- function(name, v) {
+add_num <- function(name, v, suffix="", formatter=identity) {
+  stopifnot(is.numeric(v))
   stopifnot(is.character(name))
   stopifnot(length(name)==1)
   
@@ -164,28 +214,86 @@ add_num <- function(name, v) {
     sd=stat(sd),
     min=stat(min),
     max=stat(max)
-  ) %>%
-    mutate_at(vars(-key), fmt)
+  )
   
   tags <- 
     gather(df, "key", "value") %>% 
     filter(!is.na(value)) %>%
-    mutate(name=name) %>% 
+    mutate(
+      name=name,
+      value=fmt(formatter(value), suffix=suffix)
+    ) %>% 
     select(name, everything())
   
   if (length(v) == 1) {
     tags <- filter(tags, key == "sum")
+  } else {
+    tags <- add_row(tags, name=name, key="stat", value=my_stat_fmt(v))
   }
   
+  tags <- mutate(tags, key=if_else(key=="sum", "", key))
+  
   insert_tags(tags)
-
+  
   df
+}
+
+add_ratio <- function(name, v) {
+  stopifnot(is.numeric(v))
+  stopifnot(is.character(name))
+  stopifnot(length(name)==1)
+  
+  stat <- function(fun) if (length(v) > 1) fun(v, na.rm=TRUE) else NA
+  
+  df <- tibble(
+    key=name, 
+    sum=NA,
+    n=length(v),
+    mean=stat(mean), 
+    median=stat(median), 
+    sd=stat(sd),
+    min=stat(min),
+    max=stat(max)
+  )
+
+  tags <- tribble(
+    ~key, ~name, ~value,
+    "meanPct",   name, value=percent(mean(v, na.rm=TRUE)*100),
+    "medianPCt", name, value=percent(median(v, na.rm=TRUE)*100),
+    "mean",      name, value=mean(v, na.rm=TRUE),
+    "median",    name, value=median(v, na.rm=TRUE)
+  )
+
+  insert_tags(tags)
+  
+  df
+}
+
+add_chr <- function(name, v) {
+  stopifnot(is.character(v))
+  stopifnot(is.character(name))
+  stopifnot(length(name)==1)
+  
+  insert_tags(tibble(name, key="", value=v))
+  
+  tibble(key=name, sum=v)
+}
+
+add_percent <- function(name, v) {
+  stopifnot(is.numeric(v))
+  stopifnot(length(v)==1)
+  stopifnot(is.character(name))
+  stopifnot(length(name)==1)
+  
+  insert_tags(tibble(name, key="", value=percent(v*100)))
+  
+  tibble(key=name, sum=v)
 }
 
 make_stats <- function(...) {
   all <- list(...)
   df <- bind_rows(all)
-  if (all(df$n == 1)) {
+  if (all(df$n == 1, na.rm=TRUE)) {
     select(df, key, value=sum)
   } else {
     df
@@ -221,11 +329,14 @@ my_table <- function(...) {
 }
 
 my_datatable <- function(df, page_size=20, ...) {
-  if (nrow(df) < page_size) {
-    datatable(df, options=list(paging=FALSE, searching=FALSE, info=FALSE), ...)
+  options <- if (nrow(df) < page_size) {
+    list(paging=FALSE, searching=FALSE, info=FALSE)
   } else {
-    datatable(df, options=list(paging=TRUE, searching=TRUE, info=TRUE, pageLength=page_size), ...)
+    list(paging=TRUE, searching=TRUE, info=TRUE, pageLength=page_size)
   }
+  
+  datatable(df, options=options, ...) %>% 
+    formatRound(sapply(df, is.numeric), 2)
 }
 
 phase_status <- function(phase, df) {
@@ -343,10 +454,14 @@ guess_failure_cause <- function(df, tail_lines=20) {
 }
 
 phase_failure_cause <- function(df) {
-  df %>%
-    rowwise() %>%
-    do(guess_failure_cause(.)) %>%
-    ungroup()
+  if (nrow(df) > 0) {
+    df %>%
+      rowwise() %>%
+      do(guess_failure_cause(.)) %>%
+      ungroup()
+  } else {
+    tibble(project_id=character(), log_file=character(), cause=character(), detail=character())
+  }
 }
 
 phase_failure_cause_from_status <- function(status, log_filename) {
@@ -359,4 +474,3 @@ phase_failure_cause_from_status <- function(status, log_filename) {
     do(guess_failure_cause(.)) %>%
     ungroup()
 }
-
