@@ -3,6 +3,8 @@ package cz.cvut.fit.prl.scala.implicits.tools
 import cz.cvut.fit.prl.scala.implicits.model._
 import kantan.csv.{HeaderEncoder, RowEncoder}
 
+import scala.util.Try
+
 
 case class ImplicitParameter(parameter: Parameter, declaringType: Declaration)(implicit idx: Index) {
   private implicit val module: Module = declaringType.module
@@ -10,6 +12,7 @@ case class ImplicitParameter(parameter: Parameter, declaringType: Declaration)(i
 
   private val returnType = parameter.tpe
   private val returnDeclaration = returnType.declaration
+  private val resolvedReturnDeclaration = Try(returnDeclaration.resolveType(module)).toOption
   private val returnLibrary = returnDeclaration.library
 
   def projectId: String = module.projectId
@@ -48,6 +51,8 @@ case class ImplicitParameter(parameter: Parameter, declaringType: Declaration)(i
     } else {
       "NA"
     }
+  def resolvedTypeId: Option[String] = resolvedReturnDeclaration.map(_.declarationId)
+  def resolvedTypeKind: Option[Declaration.Kind] = resolvedReturnDeclaration.map(_.kind)
   def numTypeArguments: Int = returnType.typeArguments.size
   def numTypeArgumentRefs: Int = parameter.tpe.typeArguments.count { x =>
     x.declaration.kind.isTypeParameter
@@ -88,6 +93,8 @@ object ImplicitParameter {
           "type_location_uri",
           "type_location_github",
           "type_local",
+          "resolved_type_id",
+          "resolved_type_kind",
           "num_type_arguments",
           "num_type_argument_refs"
         )
@@ -126,6 +133,8 @@ object ImplicitParameter {
             d.typeLocationUri,
             d.typeLocationGithub,
             d.typeLocal,
+            d.resolvedTypeId,
+            d.resolvedTypeKind,
             d.numTypeArguments,
             d.numTypeArgumentRefs
           ).map(_.str)

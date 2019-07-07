@@ -1,5 +1,6 @@
 ---
-title: "Stage 3 analysis"
+title: "Stage 3 Analysis"
+authors: Filip Krikava, Jan Vitek and Heather Miller
 output:
   html_document:
     toc: true
@@ -7,7 +8,7 @@ output:
     theme: united
     code_folding: hide
 params:
-  base_dir: ../../../corpora/2-single
+  base_dir: ../../../corpora/4-github
   lib_dir: ../inc
   base_url: http://prl1.ele.fit.cvut.cz:8149
 editor_options: 
@@ -27,6 +28,7 @@ library(glue)
 library(pbapply)
 library(xtable)
 library(ggthemes)
+library(feather)
 
 theme_set(theme_minimal())
 
@@ -38,80 +40,13 @@ source(path(params$lib_dir, "functions.R"))
 pboptions(type="txt")
 ```
 
-## Loading data
+## Overview
 
-```{r loading data}
-stage1_corpus <- read_csv(CORPUS_STAGE1)
+The `r CORPUS_STAGE3_F` contains only the projects that were selected in stage 1.
+It also contains details about the stage 2, i.e. the SBT metadata extraction, compilation and semanticdb generation.
+In the stage 3, we filter the projects that have been successfully processed and which will be part of the final corpus.
 
-stage3_corpus <- read_csv(CORPUS_STAGE3, col_types=cols(
-  project_id = col_character(),
-  origin = col_character(),
-  build_system = col_character(),
-  sbt_version = col_character(),
-  size_repo = col_double(),
-  size = col_double(),
-  commit_count = col_integer(),
-  commit = col_character(),
-  commit_date = col_datetime(format = ""),
-  first_commit_date = col_datetime(format = ""),
-  scala_code = col_integer(),
-  scala_files = col_integer(),
-  dejavu_n_files = col_integer(),
-  dejavu_n_duplicated_files = col_integer(),
-  dejavu_duplication = col_double(),
-  gh_name = col_character(),
-  gh_stars = col_integer(),
-  gh_watchers = col_integer(),
-  gh_created_at = col_datetime(format = ""),
-  gh_updated_at = col_datetime(format = ""),
-  gh_pushed_at = col_datetime(format = ""),
-  gh_fork = col_logical(),
-  gh_archived = col_logical(),
-  scaladex = col_logical(),
-  metadata_exit_code = col_integer(),
-  metadata_duration = col_integer(),
-  metadata_scala_code_test_managed = col_integer(),
-  metadata_scala_code_test = col_integer(),
-  metadata_scala_code_compile_managed = col_integer(),
-  metadata_scala_code_compile = col_integer(),
-  metadata_scala_code = col_integer(),
-  modules = col_integer(),
-  scala_version = col_character(),
-  updated_scala_version = col_character(),
-  compile_exit_code = col_integer(),
-  compile_duration = col_integer(),
-  compile_classes = col_integer(),
-  semanticdb_exit_code = col_integer(),
-  semanticdb_duration = col_integer(),
-  semanticdb_classes = col_integer(),
-  semanticdb_files = col_integer(),
-  semanticdb_occurrences = col_integer(),
-  semanticdb_synthetics = col_integer(),
-  semanticdb_symbols = col_integer(),
-  implicits_exit_code = col_integer(),
-  implicits_duration = col_integer(),
-  implicit_failure = col_character(),
-  declarations = col_integer(),
-  implicit_declarations = col_integer(),
-  implicit_local_declarations = col_integer(),
-  callsites = col_integer(),
-  implicit_callsites = col_integer(),
-  implicit_extraction_errors = col_integer(),
-  metadata_failure = col_character(),
-  metadata_failure_detail = col_character(),
-  compile_failure = col_character(),
-  compile_failure_detail = col_character(),
-  semanticdb_failure = col_character(),
-  semanticdb_failure_detail = col_character()
-))
-
-corpus <- filter(stage3_corpus, implicits_exit_code==0, metadata_scala_code > 0) 
-```
-
-## Basic info
-
-The `r CORPUS_STAGE3` contains only the projects that were selected in stage 1.
-It contains the following columns:
+The file contains the following columns:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
 - `origin` (chr): the URL to github 
@@ -179,7 +114,16 @@ Exit code:
 - `-1`: not run because of failed dependencies
 - `>= 130`: timeouted
 
-## Summary
+## Loading data
+
+```{r loading data}
+stage1_corpus <- read_feather(CORPUS_STAGE1_F)
+stage3_corpus <- read_feather(CORPUS_STAGE3_F)
+
+corpus <- filter(stage3_corpus, implicits_exit_code==0, metadata_scala_code > 0) 
+```
+
+## Stage 3 Corpus Summary
 
 The difference between _Scala SLOC_ and _SBT Scala SLOC_ is that the former one is computed using [cloc](https://sourceforge.net/projects/cloc/) with `--vcs=git` so it includes all the Scala files that are in the repository.
 The latter on the other hand only includes the source directories known to SBT (`sbt show sourceDirectories`).
@@ -268,8 +212,6 @@ corpus %>%
       size="Github stars",
       linetype=""
     )
-
-ggsave(get_corpus_path("corpus-overview.pdf"), width=12)
 ```
 
 ## Pipeline
@@ -496,7 +438,7 @@ Each of the gets logged into an `r IMPLICITS_EXCEPTIONS` files.
 Here we try to clasify them.
 
 ```{r load implicit errors}
-exceptions <- read_csv(GLOBAL_IMPLICITS_EXCEPTIONS, col_types="cccccccc")
+exceptions <- read_feather(IMPLICIT_EXCEPTIOSN_F)
 ```
 
 ```{r}
@@ -644,8 +586,4 @@ filter(corpus, implicits_exit_code==0, metadata_scala_code>0) %>%
       y="Number of local declarations (log)", 
       color="Project type"
     )
-```
-
-```{r}
-write_latex_tags(get_corpus_path("stage3-analysis.tex"), prefix="")
 ```

@@ -100,18 +100,13 @@ add_chr <- function(name, v) {
 }
 
 make_stats <- function(...) {
-  browser()
-  global_tags <- latextags:::get_default_tags()
-  new_tags <- create_tags(NULL)
-  
-  list(...)
-  
-  values <- tags(new_tags)
-  
-  merge_tags(new_tags, global_tags)
-  latextags:::set_default_tags(global_tags)
-  
-  values
+  all <- list(...)
+  df <- bind_rows(all)
+  if (all(df$n == 1)) {
+    select(df, key, value=sum)
+  } else {
+    df
+  }
 }
 
 is_outlier_min <- function(x) quantile(x, 0.25) - 1.5 * IQR(x)
@@ -287,4 +282,111 @@ phase_failure_cause_from_status <- function(status, log_filename) {
     rowwise() %>%
     do(guess_failure_cause(.)) %>%
     ungroup()
+}
+
+remove_version_from_module_id <- function(df) {
+  mutate(df, module_id=str_replace(module_id, "([^:]+)::([^:]+):([^:]+):[^:]+:([^:]+)","\\1::\\2:\\3:\\4"))
+}
+
+expand_scope <- function(df) {
+  df %>%
+    mutate(
+      is_in_main=str_detect(location_scope, "compile"),
+      is_in_test=str_detect(location_scope, "test")
+    )
+}
+
+expand_location <- function(df) {
+  df %>%
+    mutate(
+      #is_transitive=str_detect(location_scope, "transitive"),
+      # this is to fix scala--scala which will define all as transitive, yet thanks to groupId and artifactId they will
+      # appear as part of the project
+      #is_external=is_transitive|str_detect(location_scope, "dependency"),
+      is_external=str_detect(location_scope, "dependency"),
+      is_local=!is_external,
+      is_managed=str_detect(location_scope, "managed"),
+
+      is_external_test=is_external & is_in_test,
+      is_local_test=is_local & is_in_test,
+      is_managed_test=is_managed & is_in_test
+    )
+}
+
+expand_access_info <- function(df) {
+  df %>%
+    mutate(
+      is_access_specified=access!="NOT_SPECIFIED",
+      is_public=access=="PUBLIC",
+      is_private=startsWith(access, "PRIVATE"),
+      is_protected=startsWith(access, "PROTECTED")
+    ) %>%
+    select(-access)
+}
+
+is_from_scala <- function(df) {
+  df %>%
+    mutate(
+      is_from_scala=is_external & startsWith(def_group_id, "org.scala-lang"),
+      is_from_scala_test=is_from_scala & is_in_test
+    )
+}
+
+
+format_size <- Vectorize(function(x) {
+  if (is.na(x)) return(x)
+
+  units <- c("B", "kB", "MB", "GB", "TB", "PB")
+
+  fmt <- function(x, i=1) {
+    xx <- x / 1024
+    if (abs(xx) > 1 && i < length(units)) {
+      fmt(xx, i+1)
+    } else {
+      sprintf("%.2f %s", x, units[i])
+    }
+  }
+
+  fmt(x)
+})
+
+fmt <- Vectorize(function(x, prefix="", suffix="", ...) {
+  if (is.na(x)) {
+    NA
+  } else if (is.null(x)) {
+    NULL
+  } else {
+    v <- .fmt(x, ...)
+    str_c(prefix, v, suffix)
+  }
+}, USE.NAMES=FALSE, vectorize.args="x")
+
+.fmt <- function(x, ...) {
+  UseMethod(".fmt")
+}
+
+.fmt.default <- function(x) {
+  x
+}
+
+.fmt.integer <- function(x, ...) {
+  format(x, big.mark=",", small.mark=".")
+}
+
+.fmt.double <- function(x, floor=FALSE, ceiling=FALSE, digits=1) {
+  if (floor) x <- floor(x)
+  if (ceiling) x <- ceiling(x)
+  format(round(x, digits), big.mark=",")
+}
+
+percent <- function(x, ...) fmt(x, suffix="%", ...)
+
+
+add_percent <- function(name, v) {
+  stopifnot(is.numeric(v))
+  stopifnot(length(v)==1)
+  stopifnot(is.character(name))
+  stopifnot(length(name)==1)
+
+  tibble(key=name, sum=v)
 }
