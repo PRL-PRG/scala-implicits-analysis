@@ -5,10 +5,11 @@ this_makefile := $(lastword $(MAKEFILE_LIST))
 
 include $(base_dir)/Makevars
 
+$(info "Before" $(GLOBAL_IVY_DIR))
+
 # recompute the paths to get relative one instead of the absolute
-GLOBAL_IVY_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_IVY_DIR)", fs::path(getwd(), "$(IVY_DIR)"))')
-GLOBAL_SBT_BOOT_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_SBT_BOOT_DIR)", getwd())')
-GLOBAL_COURSIER_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_COURSIER_DIR)", getwd())')
+REL_GLOBAL_IVY_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_IVY_DIR)", fs::path(getwd(), "$(IVY_DIR)"))')
+REL_GLOBAL_COURSIER_DIR := $(shell Rscript -e 'fs::path_rel("$(GLOBAL_COURSIER_DIR)", getwd())')
 
 # we have to use bash since we rely on $SECONDS implicit variable
 SHELL := /bin/bash
@@ -28,8 +29,10 @@ SBT := $(SBT_BASE) -batch
 REDO ?= 0
 
 .PHONY: \
-    all \
+  all \
+  bootstrap \
 	clean \
+	clean-bootstrap \
 	clean-compile \
 	clean-implicits \
 	clean-metadata \
@@ -52,8 +55,8 @@ define BOOTSTRAP
 
 	if [ ! -d "$(IVY_DIR)" ]; then \
       mkdir -p $(IVY_DIR); \
-      ln -sf $(GLOBAL_IVY_DIR)/cache $(IVY_DIR); \
-      ln -sf $(GLOBAL_IVY_DIR)/local $(IVY_DIR); \
+      ln -sf $(REL_GLOBAL_IVY_DIR)/cache $(IVY_DIR); \
+      ln -sf $(REL_GLOBAL_IVY_DIR)/local $(IVY_DIR); \
     fi
 
 	[ -d project ] || mkdir project
@@ -68,7 +71,7 @@ define BOOTSTRAP
         $(parallel_base) ln -sf "$$(Rscript -e 'fs::path_rel("$(GLOBAL_SBT_BOOT_DIR)/{1}", fs::path(getwd(), "$(SBT_BOOT_DIR)"))')" "$(SBT_BOOT_DIR)"; \
     fi
 
-	[ -L $(COURSIER_DIR) ] || ln -s $(GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
+	[ -L "$(COURSIER_DIR)" ] || ln -s $(REL_GLOBAL_COURSIER_DIR)/v1 $(COURSIER_DIR)
 
 	[ -f "$(SBT_REPOSITORIES_FILE)" ] && ln -s $(SBT_REPOSITORIES_FILE) $(SBT_DIR)/repositories || /bin/true
 endef
@@ -137,8 +140,10 @@ bootstrap:
 	$(BOOTSTRAP)
 
 # removes the artifacts created by running tasks from this Makefile
-clean:
+clean: clean-bootstrap
 	rm -fr $(ANALYSIS_DIR)
+
+clean-bootstrap:
 	rm -fr $(IVY_DIR)
 	rm -fr $(COURSIER_DIR)
 	rm -fr $(SBT_BOOT_DIR)

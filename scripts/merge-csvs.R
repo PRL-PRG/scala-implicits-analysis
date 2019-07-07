@@ -24,7 +24,7 @@ df <- map2_dfr(
 )
 
 df <- if (nrow(df) == 0) {
-    data_frame(project_id=character())
+    tibble(project_id=character())
 } else {
     select(df, project_id, everything())
 }

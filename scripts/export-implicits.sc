@@ -11,7 +11,8 @@ def main(implicitsPath: String) = {
   val compositeExporter = new CompositeMultiProjectExporter(Seq(
     ImplicitDeclarationExporterApp.csvExporter,
     ImplicitCallSitesExporterApp.csvExporter,
-    ImplicitConversionExporterApp.csvExporter
+    ImplicitConversionExporterApp.csvExporter,
+    ImplicitParameterExporterApp.csvExporter
   ))
 
   for {

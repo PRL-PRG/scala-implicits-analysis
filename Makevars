@@ -112,7 +112,6 @@ IMPLICITS_EXCEPTIONS := $(ANALYSIS_DIR)/implicits-exceptions.csv
 GLOBAL_IMPLICITS_STATUS := $(notdir $(IMPLICITS_STATUS))
 GLOBAL_IMPLICITS_STATS := $(notdir $(IMPLICITS_STATS))
 GLOBAL_IMPLICITS_EXCEPTIONS := $(notdir $(IMPLICITS_EXCEPTIONS))
-GLOBAL_IMPLICITS_INDEX_EXCEPTIONS := implicits-index-exceptions.csv
 GLOBAL_IMPLICITS := $(notdir $(IMPLICITS))
 
 CORPUS_STAGE1 := corpus-stage1.csv
@@ -128,9 +127,24 @@ AMM := JAVA_OPTS="-Xmx$(MAX_MEM)m" amm
 IMPLICIT_CALLSITES := implicit-callsites.csv
 IMPLICIT_DECLARATIONS := implicit-declarations.csv
 IMPLICIT_CONVERSIONS := implicit-conversions.csv
+IMPLICIT_PARAMETERS := implicit-parameters.csv
 IMPLICIT_CALLSITES_PROBLEMS := implicit-callsites-problems.csv
 IMPLICIT_DECLARATIONS_PROBLEMS := implicit-declarations-problems.csv
-IMPLICIT_CONVERSION_PROBLEMS := implicit-conversions-problems.csv
-EXPORTED_IMPLICIT_FILES := $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS) $(IMPLICIT_CONVERSIONS) $(IMPLICIT_CALLSITES_PROBLEMS) $(IMPLICIT_CONVERSION_PROBLEMS) $(IMPLICIT_DECLARATIONS_PROBLEMS)
+IMPLICIT_CONVERSIONS_PROBLEMS := implicit-conversions-problems.csv
+IMPLICIT_PARAMETERS_PROBLEMS := implicit-parameters-problems.csv
 
+# the following files will be converted into feather format and compressed by gzip
+EXPORTED_IMPLICIT_FILES := $(GLOBAL_IMPLICITS_EXCEPTIONS) \
+  $(CORPUS_STAGE1) \
+  $(CORPUS_STAGE3) \
+  $(IMPLICIT_CALLSITES) \
+  $(IMPLICIT_DECLARATIONS) \
+  $(IMPLICIT_CONVERSIONS) \
+  $(IMPLICIT_PARAMETERS) \
+  $(IMPLICIT_CALLSITES_PROBLEMS) \
+  $(IMPLICIT_DECLARATIONS_PROBLEMS) \
+  $(IMPLICIT_CONVERSIONS_PROBLEMS) \
+  $(IMPLICIT_PARAMETERS_PROBLEMS)
+
+# we do cite parallel! this will silent it to make it easier to go through the output
 parallel_base := parallel --will-cite

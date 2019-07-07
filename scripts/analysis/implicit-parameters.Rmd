@@ -1,0 +1,163 @@
+---
+title: Implicit Parameters
+authors: Filip Krikava, Jan Vitek and Heather Miller
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    code_folding: hide
+params:
+  base_dir: ../../../corpora/4-github
+  lib_dir: ../inc
+  base_url: http://prl1.ele.fit.cvut.cz:8149
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(glue)
+library(ggplot2)
+library(knitr)
+library(fs)
+library(DT)
+library(pbapply)
+library(latextags)
+library(feather)
+
+theme_set(theme_minimal())
+
+options(corpus_dir=params$base_dir)
+
+source(path(params$lib_dir, "paths.R"))
+source(path(params$lib_dir, "functions.R"))
+
+pboptions(type="txt")
+```
+
+## Overview
+
+The data frame in `r IMPLICIT_PARAMETERS_F` represents implicit parameter declarations.
+For each declaration that carries implicit argument list we record a number of characteristics.
+
+## Data loading
+
+```{r}
+parameters <- read_feather(IMPLICIT_PARAMETERS_F) %>%
+  mutate(
+    def_in_compile=str_detect(def_location_scope, "compile"),
+    def_in_test=str_detect(def_location_scope, "test"),
+    def_in_dependency=str_detect(def_location_scope, "dependency"),
+    def_in_transitive=str_detect(def_location_scope, "transitive")
+  ) %>%
+  select(-def_location_scope)
+```
+
+## Type classes
+
+Essentially, an instance of a type class is injected by a compiler as an implicit argument.
+The important thing, which differentiate it from an ordinary implicit argument is that it that the type of the implicit parameter has type arguments that are linked to type parameters available in the parent context.
+For example, the following won't be considered:
+
+```{scala eval=FALSE}
+def fun(x: Int)(implicit y: A[Int])
+```
+
+while the following two will:
+
+```{scala eval=FALSE}
+def fun[T](x: T)(implicit y: A[T])
+```
+
+```{scala eval=FALSE}
+implicit class C[T](x: T)(implicit y: A[T])
+```
+
+We are therefore looking for implicit parameters that do have at least one type argument that references a type parameter:
+
+```{r}
+type_classes <-
+  parameters %>%
+  filter(num_type_argument_refs >= 1)
+```
+
+Based on the above, we can find which types occur the most frequently (TOP100):
+
+```{r}
+type_classes_count_by_type <-
+  type_classes %>%
+  count(type_id, project_id) %>%
+  count(type_id)
+```
+
+```{r}
+type_classes_count_by_type %>%
+  top_n(100) %>%
+  arrange(desc(n)) %>%
+  my_datatable(colnames = c("Type", "Number of projects"))
+```
+
+The _number of projects_ indicates how many projects use the given type as an implicit parameter.
+
+Next we look at the declarations where these types are used (TOP100):
+
+```{r}
+type_classes_declarations <-
+  type_classes %>%
+  count(declaration_id, project_id) %>%
+  count(declaration_id)
+```
+
+```{r}
+type_classes_declarations %>%
+  top_n(100) %>%
+  arrange(desc(n)) %>%
+  my_datatable()
+```
+
+## Context
+
+Whether or not an implicit argument is an instance of the context pattern is hard to quantify, since it depends on the intention of the author and is structurally unrecognizable. Here we look at implicit parameters that are defined without any type arguments.
+
+```{r}
+contexts <-
+  parameters %>%
+  filter(num_type_argument_refs == 0)
+```
+
+```{r}
+contexts_type <-
+  contexts %>%
+  count(type_id, project_id) %>%
+  count(type_id)
+```
+
+There are `r nrow(contexts_type)` context types used in the corpus.
+Following are the ones used the most frequently (TOP100):
+
+```{r}
+contexts_type %>%
+  top_n(100) %>%
+  arrange(desc(n)) %>%
+  my_datatable()
+```
+
+Looking at the most used types, they indeed look like instances of contexts.
+One type that looks suspicious is the `org/scalactic/Prettifier` that comes from [Scala Test](http://www.scalatest.org/).
+The name suggest that it provides a functionality similar to `Show` type class, i.e. an alternative to `toString` method (cf. [cat's version](https://typelevel.org/cats/typeclasses/show.html)).
+The scaladoc [page](http://doc.scalactic.org/3.0.0/index.html#org.scalactic.Prettifier) describes it as:
+
+> A function that given any object will produce a “pretty” string representation of that object, where “pretty” is in the eye of the implementer.
+
+which is exactly like a `Show` type class. However, the documentation later adds the following note:
+
+> Note: Prettifier is not parameterized (i.e., Prettifier[T], where T is the type to prettify) because assertions (including matcher expressions) in ScalaTest would then need to look up Prettifiers implicitly by type. This would slow compilation even though most (let's guess 99.9%) of the time in practice assertions do not fail, and thus 99.9% of the time no error messages need to be generated. If no error messages are needed 99.9% of the time, no prettification is needed 99.9% of the time, so the slow down in compile time for the implicit look ups is unlikely to be worth the benefit. Only a few types in practice usually need prettification for testing error message purposes, and those will be covered by the default Prettifier. A future version of ScalaTest will provide a simple mechanism to replace the default Prettifier with a custom one when a test actually fails.
+
+This well explaines why it is not modelled as a type class. An explaination which is well aligned with our findings about compilation time overhead.
+
+
+## Type proofs

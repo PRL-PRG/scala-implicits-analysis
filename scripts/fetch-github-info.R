@@ -23,7 +23,7 @@ get_gh_repo <- function(reponame, content_extraction_fun) {
   }, error=function(e) {
     tibble(error=str_c("Status ", e$message))
   })
-  mutate(result, reponame=reponame)
+  mutate(result, name=reponame)
 }
 
 call_github <- function(projects, fun) {
@@ -108,7 +108,7 @@ main <- function(projects_file, output_file) {
         )
     })
     gh_df <- bind_rows(gh_list)
-    result <- left_join(missing, gh_df, by="name") %>% select(-name)
+    result <- left_join(missing, gh_df, by="name")
     all <- bind_rows(finished, result)
 
     write_csv(all, output_file)

@@ -117,7 +117,7 @@ clean:
 	-rm -f $(CORPUS_ANALYSIS_HTML) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
 	-rm -f stage1-analysis.* stage3-analysis.* table-corpus-building.tex corpus-overview.pdf
 	-rm -f *.feather.gz
-	-rm -f implicit-conversions.csv implicit-conversions-problems.csv implicit-declarations-problems.csv 
+	-rm -f $(EXPORTED_IMPLICIT_FILES)
 
 clean-compile:
 	$(MAKE) -f $(this_makefile) parallel TASK=$@

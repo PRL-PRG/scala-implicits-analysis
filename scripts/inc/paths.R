@@ -63,6 +63,10 @@ GLOBAL_IMPLICITS_STATS <- get_corpus_path(IMPLICITS_STATS)
 GLOBAL_IMPLICITS_EXCEPTIONS <- get_corpus_path(IMPLICITS_EXCEPTIONS)
 GLOBAL_IMPLICITS <- get_corpus_path(IMPLICITS)
 
+CORPUS_STAGE1_F <- get_corpus_path("corpus-stage1.csv")
+CORPUS_STAGE3_F <- get_corpus_path("corpus-stage3.csv")
+IMPLICIT_PARAMETERS_F <- get_corpus_path("implicit-parameters.feather")
+
 projects_file <- Vectorize(function(project, filename) {
   path(PROJECTS_DIR, project, ANALYSIS_DIR, filename)
 }, USE.NAMES = FALSE, vectorize.args = "project")
