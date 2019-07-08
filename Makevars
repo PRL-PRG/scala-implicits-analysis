@@ -146,5 +146,9 @@ EXPORTED_IMPLICIT_FILES := $(GLOBAL_IMPLICITS_EXCEPTIONS) \
   $(IMPLICIT_CONVERSIONS_PROBLEMS) \
   $(IMPLICIT_PARAMETERS_PROBLEMS)
 
+REPORTS := stage1-analysis.html \
+	stage3-analysis.html \
+	implicits-analysis.html
+
 # we do cite parallel! this will silent it to make it easier to go through the output
 parallel_base := parallel --will-cite

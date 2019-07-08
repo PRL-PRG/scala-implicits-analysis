@@ -102,10 +102,14 @@ add_chr <- function(name, v) {
 make_stats <- function(...) {
   all <- list(...)
   df <- bind_rows(all)
-  if (all(df$n == 1)) {
-    select(df, key, value=sum)
+  if (nrow(df) > 0) {
+      if (all(df$n == 1)) {
+          select(df, key, value=sum)
+      } else {
+          df
+      }
   } else {
-    df
+      tibble(key=character(), sum=integer(), n=integer())
   }
 }
 
@@ -137,15 +141,18 @@ my_table <- function(...) {
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 }
 
-my_datatable <- function(df, page_size=20, ...) {
+my_datatable <- function(df, page_size=20, round=TRUE, ...) {
   options <- if (nrow(df) < page_size) {
     list(paging=FALSE, searching=FALSE, info=FALSE)
   } else {
     list(paging=TRUE, searching=TRUE, info=TRUE, pageLength=page_size)
   }
 
-  datatable(df, options=options, ...) %>%
-    formatRound(sapply(df, is.numeric), 2)
+  table <- datatable(df, options=options, ...)
+  if (round) {
+    table <- formatRound(table, sapply(df, is.numeric), 2)
+  }
+  table
 }
 
 phase_status <- function(phase, df) {

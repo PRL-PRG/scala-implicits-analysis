@@ -137,9 +137,9 @@ make_stats(
   add_nrow("Maven Projects", filter(corpus, build_system=="maven")),
   add_nrow("Graddle Projects", filter(corpus, build_system=="graddle")),
   add_nrow("Unknown Build Systen", filter(corpus, is.na(build_system)))
-)
+) %>%
+  my_datatable()
 ```
-
 
 ### The _unknown_ build system?
 
@@ -183,7 +183,7 @@ filter(projects, build_system=="sbt") %>%
   count(sbt_version) %>% 
   replace_na(list(sbt_version="Not specified")) %>% 
   arrange(desc(n)) %>%
-  my_datatable(page_size=10, colnames = c("SBT version", "Count"))
+  my_datatable(page_size=10, round=FALSE, colnames = c("SBT version", "Count"))
 ```
 
 #### Missing sbt.version
@@ -299,10 +299,10 @@ Based on the threshold, these are the projects that can go to stage 2.
 make_stats(
   add_nrow("Analyzable Projects", stage2_projects),
   add_num("Analyzable Projects code", stage2_projects$scala_code),
-  add_num("Analyzable Projects diles", stage2_projects$scala_files),
+  add_num("Analyzable Projects files", stage2_projects$scala_files),
   add_num("Analyzable Projects stars", stage2_projects$gh_stars),
   add_num("Analyzable Projects commits", stage2_projects$commit_count),
-  add_percent("Analyzable Projects duplication", mean(stage2_projects$dejavu_duplication))
+  add_num("Analyzable Projects duplication", stage2_projects$dejavu_duplication)
 ) %>%
   my_datatable()
 ```
@@ -353,7 +353,7 @@ spark <- corpus %>%
 make_stats(
   add_nrow("Spark projects (in corpus)", spark),
   add_num("Spark code (in corpus)", spark$scala_code),
-  add_percent("Ratio of Spark code (in corpus)", sum(spark$scala_code)/sum(corpus$scala_code, na.rm=T))
+  add_num("Ratio of Spark code (in corpus)", sum(spark$scala_code)/sum(corpus$scala_code, na.rm=T))
 ) %>%
   my_datatable()
 ```

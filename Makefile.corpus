@@ -54,6 +54,12 @@ bootstrap :=
 	export-implicits \
 	report
 
+all: download-projects \
+	stage1 \
+	stage2 \
+	stage3 \
+	report
+
 $(LOG_DIR):
 	@mkdir -p $(LOG_DIR)
 	@rm -f $(LOG_DIR_LATEST)
@@ -75,12 +81,6 @@ stage2: compile \
 stage3: implicits \
 	corpus-stage3 \
 	export-implicits \
-	report
-
-all: download-projects \
-	stage1 \
-	stage2 \
-	stage3 \
 	report
 
 parallel:
@@ -112,11 +112,11 @@ clean:
 	-rm -f $(GLOBAL_COMPILE_STATUS)
 	-rm -f $(GLOBAL_SEMANTICDB_STATUS) $(GLOBAL_SEMANTICDB_MERGED_STATS_FILE)
 	-rm -f $(GLOBAL_IMPLICITS_STATUS) $(GLOBAL_IMPLICITS_STATS) $(GLOBAL_IMPLICITS_EXCEPTIONS) $(GLOBAL_IMPLICITS)
-	-rm -f $(CORPUS_STAGE1)
-	-rm -f $(CORPUS_STAGE3)
+	-rm -f $(CORPUS_STAGE1) $(CORPUS_STAGE3)
 	-rm -f $(CORPUS_ANALYSIS_HTML) $(IMPLICIT_CALLSITES) $(IMPLICIT_DECLARATIONS)
-	-rm -f stage1-analysis.* stage3-analysis.* table-corpus-building.tex corpus-overview.pdf
-	-rm -f *.feather.gz
+	-rm -f $(REPORTS)
+	-rm -f ${EXPORTED_IMPLICIT_FILES:.csv=.feather.gz}
+	-rm -f ${EXPORTED_IMPLICIT_FILES:.csv=.feather}
 	-rm -f $(EXPORTED_IMPLICIT_FILES)
 
 clean-compile:
@@ -286,10 +286,7 @@ export-implicits: $(GLOBAL_IMPLICITS)
 	$(AMM) $(SCRIPTS_DIR)/export-implicits.sc $(GLOBAL_IMPLICITS)
 	$(parallel_base) --bar $(SCRIPTS_DIR)/csv-to-feather.R ::: $(EXPORTED_IMPLICIT_FILES)
 
-stage1-analysis.html:
-	Rscript -e "rmarkdown::render('$(SCRIPTS_DIR)/analysis/stage1-analysis.Rmd', output_dir='$(CURDIR)', params=list(base_dir='$(CURDIR)', lib_dir='../inc'))"
+%.html:
+	Rscript -e "rmarkdown::render('$(SCRIPTS_DIR)/analysis/${@:html=Rmd}', output_dir='$(CURDIR)', params=list(base_dir='$(CURDIR)', lib_dir='../inc'))"
 
-stage3-analysis.html:
-	Rscript -e "rmarkdown::render('$(SCRIPTS_DIR)/analysis/stage3-analysis.Rmd', output_dir='$(CURDIR)', params=list(base_dir='$(CURDIR)', lib_dir='../inc'))"
-
-report: stage1-analysis.html stage3-analysis.html
+report: $(REPORTS)
