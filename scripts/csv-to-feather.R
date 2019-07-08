@@ -22,4 +22,4 @@ message("Converting ", input, " to ", output)
 
 df <- suppressMessages(read_csv(input))
 write_feather(df, output)
-system2("gzip", c("-f", output))
+system2("gzip", c("-f", "--keep", output))
