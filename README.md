@@ -11,14 +11,25 @@ This has been used to analyze the use of Scala implicits in the wild.
 - GNU make >= 4.2.1 (on OSX this means to install one from homebrew/macports/nix)
 - GNU parallel >= 2018*
 - GNU sed
-- R >= 3.5
+- GNU R >= 3.5
 - R packages
-  - tidyverse
-  - fs
   - DT
+  - feather
+  - fs
+  - ggplot2
+  - ggthemes
+  - httr
+  - knitr
   - lubridate
+  - pbapply
+  - tidyverse
+- Ammonite 1.6.9
+- bash
 - cloc >= 1.8
+- cmake >= 3.7
+- curl
 - SBT
+- JDK 1.8
 
 ## Structure
 
