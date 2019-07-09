@@ -81,6 +81,9 @@ It contains the folling data:
 
 ## Loading data
 
+We load the data from a feather file and then immediatelly discards the ones that do not contain any Scala code.
+This can happen as we have no assumptions about the projects that are included in the corpus.
+
 ```{r loading data}
 corpus <- read_feather(CORPUS_STAGE1_F) %>% filter(scala_code > 0)
 ```
@@ -103,6 +106,8 @@ sbt_projects <-
 projects <- 
   filter(corpus, compatible)
 ```
+
+An overview of what projects are part of the corpus:
 
 ```{r basic stats}
 make_stats(
@@ -157,6 +162,7 @@ filter(corpus, is.na(build_system)) %>%
 ### Overview of the sbt versions
 
 Breakdown on the SBT versions.
+Here we have an analysis of the different SBT versions.
 
 #### Major versions
 

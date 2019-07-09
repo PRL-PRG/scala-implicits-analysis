@@ -908,6 +908,16 @@ type_classes_declarations %>%
   my_datatable()
 ```
 
+Finally, a table summary.
+
+```{r}
+make_stats(
+  add_nrow("Number of type classes", type_classes_count_by_type),
+  add_nrow("Number of declarations using type classes", type_classes_declarations)
+) %>% my_datatable()
+```
+
+
 ## Context
 
 Whether or not an implicit argument is an instance of the context pattern is hard to quantify, since it depends on the intention of the author and is structurally unrecognizable.

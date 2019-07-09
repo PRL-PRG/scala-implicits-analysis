@@ -1,5 +1,6 @@
 MAKEFLAGS += --no-builtin-rules
 
+# do not use any suffixes
 .SUFFIXES:
 
 HOSTNAME := $(shell hostname)
@@ -37,9 +38,12 @@ $(info GLOBAL_IVY_DIR := $(GLOBAL_IVY_DIR))
 $(info GLOBAL_SBT_BOOT_DIR := $(GLOBAL_SBT_BOOT_DIR))
 $(info GLOBAL_COURSIER_DIR := $(GLOBAL_COURSIER_DIR))
 
-SBT_MEM ?= 16000
+# -Xmx memory for running SBT
+SBT_MEM ?= 8192
+# -Xmx memory for running ammonite
+MAX_MEM ?= 8192
+# default timeout for tasks running in parallel
 TIMEOUT ?= 30m
-MAX_MEM ?= 128000
 
 # the initial projects
 ALL_PROJECTS_DIR := all-projects
