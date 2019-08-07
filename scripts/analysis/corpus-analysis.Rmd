@@ -11,7 +11,7 @@ params:
   corpus_dir: /var/lib/scala/corpora/github
   corpus_url: http://prl1.ele.fit.cvut.cz:8149
   lib_dir: ../inc
-  report_name: stage3-analysis
+  report_name: corpus-analysis
 editor_options: 
   chunk_output_type: console
 ---
@@ -21,7 +21,9 @@ source(file.path(params$lib_dir, "setup.R"))
 ```
 
 ```{r output, include=FALSE}
-TOP_PROJECTS_TEX <- get_corpus_path("top-projects.tex")
+OUT_TOP_PROJECTS_TEX <- path(output_dir, "top-projects.tex")
+OUT_CORPUS_OVERVIEW_PDF <- path(output_dir, "corpus-overview.pdf")
+OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
 ```
 
 ## Overview
@@ -255,7 +257,7 @@ corpus %>%
     )
   ) +
     geom_point(alpha=.6) +
-    geom_text(size=2.5, check_overlap = F, vjust=-1, na.rm = TRUE, color="black") + 
+    #geom_text(size=2.5, check_overlap = F, vjust=-1, na.rm = TRUE, color="black") + 
     scale_x_log10(labels = scales::comma) + 
     scale_y_log10(labels = scales::comma) +
     scale_size_continuous(range = c(.1, 8)) +
@@ -284,6 +286,11 @@ corpus %>%
     )
 ```
 
+```{r save plot}
+ggsave(OUT_CORPUS_OVERVIEW_PDF)
+```
+
+
 ### Implicits
 
 ```{r implicits overview}
@@ -308,49 +315,27 @@ overview_table(
 
 #### Graph
 
-```{r}
-my_scale <- function (...) {
-  log_breaks_fun <- scales::log_breaks(base = 10)
-  breaks <- function(x) {
-    c(-1, 0, log_breaks_fun(x[x >= 1]))
-  }
-  
-  trans <- 
-    scales::trans_new(
-      "my-scale", 
-      transform=function(x) ifelse(x >= 1, log10(x), x), 
-      inverse=function(x) ifelse(x >= 1, 10^x, x), 
-      breaks=breaks
-    )
-
-  scale_y_continuous(..., trans=trans)
-}
-```
-
-```{r}
-scale_y_asinh <- function(...) {
-  trans <- scales::trans_new(
-    name="asinh",
-    transform=function(x) asinh(x), 
-    inverse=function(x) sinh(x)
-  )
-  
-  scale_y_continuous(..., trans=trans)
-}
-```
-
 ```{r implicit overview}
+local({
+
+callsite_color <- "#ED6559"
+declaration_color <- "#4C5D7C"
+  
+# the trick with superposition is to do the log10 scaling manually
 corpus_implicitness_overview <- 
   corpus %>%
-#  sample_n(1000) %>%
   mutate(
     implicit_local_declarations=if_else(implicit_local_declarations > 0, log10(implicit_local_declarations), 0)
   )
 
+# up to which part of the implicit local declarations can this graph overlap
 cs_ds_opverlap <- .4
 cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
+# this is the height of the overlap which is equal to 100% of implicit callsites ration
 cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
 
+# the implicit callsites ratio will be plotted using segments
+# for this we need to compute y and yend (x and xend are the same - project_id)
 corpus_implicitness_overview <- 
   corpus_implicitness_overview %>%
   transmute(
@@ -362,13 +347,12 @@ corpus_implicitness_overview <-
   mutate(
     project_id=forcats::fct_reorder(project_id, ds)
   )
-```
 
-```{r implicit overview plot, }
-local({
-  breaks <- c(0:as.integer(cs_end), cs_end)
-  labels <- c("0", fmt(10^breaks[-1]))
-  
+pri_breaks <- seq(cs_end, cs_end*(1-cs_ds_opverlap), length.out = 5)
+pri_labels <- seq(0, 100, length.out = length(pri_breaks)) %>% str_c("%")
+sec_breaks <- c(0:as.integer(cs_end), cs_end)
+sec_labels <- c("0", fmt(10^sec_breaks[-1]))
+
 corpus_implicitness_overview %>%
   ggplot(
     aes(
@@ -376,11 +360,8 @@ corpus_implicitness_overview %>%
       y=ds
     )
   ) + 
-#  scale_y_asinh(sec.axis=sec_axis(trans=my_scale2, name = "A")) +
-#  my_scale() +
-  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end), color="#ED6559", alpha=.5) +
-  geom_bar(width=1, stat="identity", color="#4C5D7C", alpha=.5) +
-#  scale_fill_manual(values=c("cs"="#ED6559", "csi"="#ED6559", "ds"="#4C5D7C", "dsi"="#4C5D7C")) +
+  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end), color=callsite_color, alpha=.5) +
+  geom_bar(width=1, stat="identity", fill=declaration_color, color=declaration_color, alpha=1) +
   theme(
     axis.text.x=element_blank(), 
     axis.ticks.x=element_blank(),
@@ -391,87 +372,23 @@ corpus_implicitness_overview %>%
     panel.grid.minor.y=element_blank()
   ) + 
   scale_y_continuous(
-    name="Number of implicit declarations (log)",
-    breaks=breaks, 
-    labels=labels,
+    breaks=pri_breaks,
+    labels=pri_labels,
+    name="Ratio of implicit calls",
     sec.axis=sec_axis(
-      trans=function(x) x/(-cs_height)+cs_end/cs_height, 
-      name="Ratio of implicit calls",
-      breaks=(0:5)/4,
-      labels=scales::percent 
+      trans=~.,
+      name="Number of implicit declarations (log)",
+      breaks=sec_breaks, 
+      labels=sec_labels
     ) 
   ) +
   labs(x="Projects")
 })
 ```
 
-TESTS
-
-```{r implicit overview}
-corpus_implicitness_overview <- 
-  corpus %>%
-  sample_n(1000)
-
-cs_ds_opverlap <- .3
-cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
-cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
-
-corpus_implicitness_overview <- 
-  corpus_implicitness_overview %>%
-  transmute(
-    project_id,
-    ds=implicit_local_declarations,
-    cs=implicit_callsites/callsites,
-    cs_start=cs_end - cs_height * cs
-  ) %>%
-  mutate(
-    project_id=forcats::fct_reorder(project_id, ds)
-  ) #%>% gather("key", "value", ds, cs)
+```{r save plot}
+ggsave(OUT_IMPLICITS_OVERVIEW_PDF)
 ```
-
-```{r implicit overview plot}
-my_scale2 <- function(x) {
-  x/(-cs_height)+cs_end/cs_height
-}
-
-corpus_implicitness_overview %>%
-  ggplot(
-    aes(
-      x=project_id,
-      y=ds
-    )
-  ) + 
-  scale_y_asinh(sec.axis=sec_axis(trans=my_scale2, name = "A")) +
-#  my_scale() +
-  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end), color="#ED6559") +
-  geom_bar(width=1, stat="identity") +
-#  scale_fill_manual(values=c("cs"="#ED6559", "csi"="#ED6559", "ds"="#4C5D7C", "dsi"="#4C5D7C")) +
-  theme(axis.text.x  = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank())
-```
-
-
-TETS
-
-
-```{r eval=FALSE}
-#loc_of_top_10 <- lapply(1:length(combo_df$package_name), function(x) if (combo_df$package_name[[x]] %in% top_10) x else FALSE) 
-df_rc %>% 
-  select(names_o, r_c_log, c_c_log) %>% 
-  mutate(c_c_log=-c_c_log) %>%
-  melt(id.vars="names_o",variable.name="language") -> zzz
-zzz %>%
-ggplot(aes(x=names_o, value, group=1)) +
- geom_line(aes(colour = language), size=0.008) + guides(colour=F) + 
- theme( axis.text.x  = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank(),
-        axis.ticks.y = element_line(),  panel.grid.major.y = element_line(colour = "red")) + # ,
-  scale_y_continuous(name="", breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4), 
-                     labels = c(10000, 1000, 100, 10, 0, 10, 100, 1000, 10000)) 
-#+  geom_text_repel(data=subset(zzz, names %in% top_10 & language == "loc_r"), 
-#                  aes(y = 0, label=names), position=position_dodge(0.9), direction="y")
-  
-ggsave("../paper/plots/linesofrandccode.pdf",width=10,height=4)
-```
-
 
 ### TOP projects
 
@@ -501,20 +418,22 @@ top_projects <-
   )
 ```
 
-```{r}
+```{r show top projects}
 top_projects %>% my_datatable()
 ```
 
-```{r}
+```{r save top projects}
 top_projects %>%
   xtable::xtable(align="llrrrrc") %>%
   print(
     floating=F,
-    file=TOP_PROJECTS_TEX,
+    file=OUT_TOP_PROJECTS_TEX,
     include.rowname=F,
     sanitize.text.function=identity
   )
 ```
+
+## Heatmaps
 
 
 

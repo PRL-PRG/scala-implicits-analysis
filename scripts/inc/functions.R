@@ -1,6 +1,7 @@
 library(assertthat)
 library(dplyr)
 library(DT)
+library(forcats)
 library(fs)
 library(fst)
 library(lubridate)
@@ -17,7 +18,7 @@ read_data <- function(path) {
 
 # for the final corpus, we only consider projects that have some Scala code and for which the implicit extractor does run successfully
 filter_final_corpus <- function(corpus) {
-  filter(corpus, implicits_exit_code==0, metadata_scala_code > 0)
+  filter(corpus, implicits_exit_code==0, metadata_scala_code > 0, callsites > 0)
 }
 
 parse_sbt_version <- Vectorize(function(version) {

@@ -10,6 +10,12 @@ corpus_dir <- params$corpus_dir
 stopifnot(dir_exists(corpus_dir))
 options(corpus_dir=corpus_dir)
 
+output_dir <- path(corpus_dir, "output")
+options(output_dir=output_dir)
+if (!dir_exists(output_dir)) {
+  dir_create(output_dir)
+}
+
 source(file.path(params$lib_dir, "paths.R"))
 source(file.path(params$lib_dir, "functions.R"))
 source(file.path(params$lib_dir, "latextags.R"))
@@ -18,7 +24,7 @@ source(file.path(params$lib_dir, "latextags.R"))
 # the output will go the corpus_dir
 report_name <- params$report_name
 stopifnot(!is.null(report_name))
-tags_path <- path(corpus_dir, str_c(report_name, ".tex"))
+tags_path <- path(output_dir, str_c(report_name, ".tex"))
 create_tags(tags_path, prefix="tg", default=TRUE)
 
 message("Tags will go into: ", path_real(tags_path))
@@ -31,4 +37,3 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # my favorite ggplot theme
 theme_set(theme_minimal())
-
