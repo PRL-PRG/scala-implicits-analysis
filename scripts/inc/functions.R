@@ -1,5 +1,24 @@
+library(assertthat)
 library(dplyr)
+library(DT)
+library(fs)
+library(fst)
+library(lubridate)
+library(purrr)
+library(readr)
 library(stringr)
+library(tidyr)
+
+# reads a file written by write_fst, converts it to a tibble
+read_data <- function(path) {
+  read_fst(path) %>% 
+    as_tibble()
+}
+
+# for the final corpus, we only consider projects that have some Scala code and for which the implicit extractor does run successfully
+filter_final_corpus <- function(corpus) {
+  filter(corpus, implicits_exit_code==0, metadata_scala_code > 0)
+}
 
 parse_sbt_version <- Vectorize(function(version) {
   if (is.na(version)) return(NA)
@@ -47,74 +66,10 @@ add_prefix <- function(prefix) {
   function(x) str_c(prefix, '_', x)
 }
 
-#my_stat_fmt <- function(x) {
-#  s <- sd(as.double(x), na.rm = T)
-#  m <- mean(as.double(x), na.rm = T)
-#  str_c(fmt(m, floor=s > 1e3), ' (s=', fmt(s, floor=s > 1e3), ')')
-#}
-
-# TODO: to latextags?
-ratio <- function(name, x, y, inverse=FALSE) {
-  v <- if (inverse) mean(1-ratio(x, y)) else mean(ratio(x, y))
-  latextags::percent(v)
-}
-
-ratio <- function(x, y) {
-  stopifnot(length(x) == length(y))
-  if_else(x==0, 0, as.double(x)/as.double(y))
-}
-
-write_latex_tags <- function(filename, tags=GLOBAL_TAGS, ...) {
-  write_lines(str_c(latex_tags(tags, ...), "\n"), filename)
-}
-
-add_num <- function(name, v, suffix="", formatter=identity) {
-  stopifnot(is.numeric(v))
-  stopifnot(is.character(name))
-  stopifnot(length(name)==1)
-
-  stat <- function(fun) if (length(v) > 1) fun(v, na.rm=TRUE) else NA
-
-  tibble(
-    key=name,
-    sum=sum(v, na.rm = TRUE),
-    n=length(v),
-    mean=stat(mean),
-    median=stat(median),
-    sd=stat(sd),
-    min=stat(min),
-    max=stat(max)
-  )
-}
-
-add_nrow <-function(name, df) {
-  add_num(name, nrow(df))
-}
-
-add_chr <- function(name, v) {
-  stopifnot(is.character(v))
-  stopifnot(is.character(name))
-  stopifnot(length(name)==1)
-
-  tibble(key=name, sum=v)
-}
-
-make_stats <- function(...) {
-  all <- list(...)
-  df <- bind_rows(all)
-  if (nrow(df) > 0) {
-      if (all(df$n == 1)) {
-          select(df, key, value=sum)
-      } else {
-          df
-      }
-  } else {
-      tibble(key=character(), sum=integer(), n=integer())
-  }
-}
-
 is_outlier_min <- function(x) quantile(x, 0.25) - 1.5 * IQR(x)
+
 is_outlier_max <- function(x) quantile(x, 0.75) + 1.5 * IQR(x)
+
 is_outlier <- function(x) {
   (x < is_outlier_min(x)) | (x > is_outlier_max(x))
 }
@@ -123,11 +78,11 @@ make_corpus_link <- Vectorize(function(file, text=basename(file)) {
   url <- if (startsWith(file, "/")) {
     file
   } else {
-    path(params$base_dir, "all-projects", file)
+    path(corpus_dir, "all-projects", file)
   }
 
-  rel <- path_rel(url, params$base_dir)
-  url <- str_c(params$base_url, "/", basename(params$base_dir), "/", rel)
+  rel <- path_rel(url, corpus_dir)
+  url <- str_c(corpus_dir, "/", basename(corpus_dir), "/", rel)
 
   make_link(url, text)
 }, USE.NAMES = FALSE)
@@ -136,9 +91,9 @@ make_link <- Vectorize(function(url, text) {
   glue('<a href="{url}">{text}</a>')
 }, USE.NAMES = FALSE)
 
-my_table <- function(...) {
-  kable(...) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+overview_table <- function(...) {
+  overview(...) %>%
+    my_datatable(page_size=Inf)
 }
 
 my_datatable <- function(df, page_size=20, round=TRUE, ...) {
@@ -339,61 +294,37 @@ is_from_scala <- function(df) {
     )
 }
 
+# stage 2 projects thresholds
+s2_min_commit_count <- 2
+s2_min_lifespan_months <- 2
+s2_max_duplication1 <- .75
+s2_min_gh_stars1 <- 5
+s2_max_duplication2 <- .8
+s2_min_gh_stars2 <- 500
 
-format_size <- Vectorize(function(x) {
-  if (is.na(x)) return(x)
-
-  units <- c("B", "kB", "MB", "GB", "TB", "PB")
-
-  fmt <- function(x, i=1) {
-    xx <- x / 1024
-    if (abs(xx) > 1 && i < length(units)) {
-      fmt(xx, i+1)
-    } else {
-      sprintf("%.2f %s", x, units[i])
-    }
-  }
-
-  fmt(x)
-})
-
-fmt <- Vectorize(function(x, prefix="", suffix="", ...) {
-  if (is.na(x)) {
-    NA
-  } else if (is.null(x)) {
-    NULL
-  } else {
-    v <- .fmt(x, ...)
-    str_c(prefix, v, suffix)
-  }
-}, USE.NAMES=FALSE, vectorize.args="x")
-
-.fmt <- function(x, ...) {
-  UseMethod(".fmt")
+filter_stage_2_projects <- function(projects) {
+  filter(
+    projects, 
+    compatible,     
+    commit_count >= s2_min_commit_count,
+    gh_pushed_at-gh_created_at >= months(s2_min_lifespan_months),
+    scaladex | gh_stars >= s2_min_gh_stars2 | dejavu_duplication < s2_max_duplication2,
+    scaladex | gh_stars >= s2_min_gh_stars1 | dejavu_duplication < s2_max_duplication1
+  )
 }
 
-.fmt.default <- function(x) {
-  x
-}
-
-.fmt.integer <- function(x, ...) {
-  format(x, big.mark=",", small.mark=".")
-}
-
-.fmt.double <- function(x, floor=FALSE, ceiling=FALSE, digits=1) {
-  if (floor) x <- floor(x)
-  if (ceiling) x <- ceiling(x)
-  format(round(x, digits), big.mark=",")
-}
-
-percent <- function(x, ...) fmt(x, suffix="%", ...)
-
-
-add_percent <- function(name, v) {
-  stopifnot(is.numeric(v))
-  stopifnot(length(v)==1)
-  stopifnot(is.character(name))
-  stopifnot(length(name)==1)
-
-  tibble(key=name, sum=v)
+overview_projects <- function(name, df, code_column=scala_code) {
+  code_column <- enquo(code_column)
+  summary <- 
+    summarise(
+      df, 
+      `projects`=n(),
+      `projects code`=sum(!!code_column, na.rm=TRUE),
+      `projects stars`=sum(gh_stars, na.rm=TRUE),
+      `projects commits`=sum(commit_count, na.rm=TRUE)
+    ) %>%
+    mutate_all(fmt)
+  
+  colnames(summary) <- str_c(name, " ",colnames(summary))
+  summary %>% gather("name", "value")
 }

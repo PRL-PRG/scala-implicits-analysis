@@ -14,11 +14,8 @@ library(fs)
 
 source(path(SCRIPTS_DIR, "inc", "paths.R"))
 source(path(SCRIPTS_DIR, "inc", "functions.R"))
+source(path(SCRIPTS_DIR, "inc", "latextags.R"))
 
-threshold_duplication<- .75
-threshold_lifespan_months <- 3
-threshold_gh_stars <- 5
-threshold_commit_count <- 2
 
 project_status <-local({
   all_projects <- tibble(project_id=readLines(ALL_PROJECTS_FILE))
@@ -78,12 +75,10 @@ scaladex <- tolower(read_lines(SCALADEX))
 
 message("\n")
 message("====================")
-message("CORPUS AFTER STAGE 1")
+message("STAGE 1")
 message("====================")
-message("All projects: ", nrow(project_status))
-message("GitHub info: ", nrow(github_project_info))
 
-corpus <-
+stage1_projects <-
   project_status %>%
   left_join(repo_metadata, by="project_id") %>%
   left_join(dejavu_project_duplication, by="project_id") %>%
@@ -95,27 +90,33 @@ corpus <-
   # the reason we cannot simply join is that we do not have normalized project_id (TODO: cf #53)
   mutate(scaladex=tolower(project_id) %in% scaladex)
 
-message("Corpus: ", nrow(corpus))
-message("GitHub info empty: ", nrow(filter(corpus, is.na(gh_stars))))
-message("Dejavu info empty: ", nrow(filter(corpus, compatible, is.na(dejavu_duplication))))
+overview(
+  r("All projects: ",      project_status),
+  r("GitHub info: ",       github_project_info),
+  r("GitHub info empty: ", filter(stage1_projects, is.na(gh_stars))),
+  r("Dejavu info empty: ", filter(stage1_projects, compatible, is.na(dejavu_duplication))),
+  
+  overview_projects("Stage 1", stage1_projects)
+) %>% knitr::kable(format = "markdown")
 
-write_csv(corpus, CORPUS_STAGE1)
+write_csv(stage1_projects, CORPUS_STAGE1)
 
 stage2_projects <-
-  filter(corpus,
-         compatible,
-         commit_count >= threshold_commit_count,
-         gh_pushed_at-gh_created_at > months(threshold_lifespan_months),
-         dejavu_duplication < threshold_duplication | gh_stars >= threshold_gh_stars
-  )
+  stage1_projects %>%
+  filter_stage_2_projects()
 
-message("Thresholds:")
-message("- commits: ", threshold_commit_count)
-message("- duplication: ", threshold_duplication)
-message("- lifespan:", threshold_lifespan_months)
-message("- stars: ", threshold_gh_stars)
-
-message("Filtered projects: ", nrow(stage2_projects))
-message("\n")
+message("\n\n")
+message("====================")
+message("STAGE 2")
+message("====================")
+overview(
+  r("crit min commits",         s2_min_commit_count),
+  r("crit min lifespan",        s2_min_lifespan_months),
+  r("crit max duplication one", percent(s2_max_duplication1)),
+  r("crit min stars one",       s2_min_gh_stars1),
+  r("crit max duplication two", percent(s2_max_duplication2)),
+  r("crit min stars two",       s2_min_gh_stars2),
+  overview_projects("stage 2", stage2_projects)
+) %>% knitr::kable(format = "markdown")
 
 write_lines(stage2_projects$project_id, PROJECTS_FILE)

@@ -1,41 +1,23 @@
 ---
 title: "Stage 1 Analysis"
-authors: Filip Krikava, Jan Vitek and Heather Miller
+authors: Filip Krikava, Heather Miller and Jan Vitek
 output:
-  html_document:
-    toc: true
-    toc_float: true
-    theme: united
+  html_document: 
     code_folding: hide
+    theme: united
+    toc: yes
+    toc_float: yes
 params:
-  base_dir: ../../../corpora/4-github
+  corpus_dir: /var/lib/scala/corpora/github
+  corpus_url: http://prl1.ele.fit.cvut.cz:8149
   lib_dir: ../inc
-  base_url: http://prl1.ele.fit.cvut.cz:8149
+  report_name: stage1-analysis
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
-library(tidyverse)
-library(lubridate)
-library(glue)
-library(ggplot2)
-library(knitr)
-library(fs)
-library(DT)
-library(pbapply)
-library(feather)
-
-theme_set(theme_minimal())
-
-options(corpus_dir=params$base_dir)
-
-source(path(params$lib_dir, "paths.R"))
-source(path(params$lib_dir, "functions.R"))
-
-pboptions(type="txt")
+source(file.path(params$lib_dir, "setup.R"))
 ```
 
 ## Overview
@@ -83,9 +65,10 @@ It contains the folling data:
 
 We load the data from a feather file and then immediatelly discards the ones that do not contain any Scala code.
 This can happen as we have no assumptions about the projects that are included in the corpus.
+For example, the ghtorrent marks the project as Scala project, but in the end it does not contain any Scala code.
 
 ```{r loading data}
-corpus <- read_feather(CORPUS_STAGE1_F) %>% filter(scala_code > 0)
+corpus <- read_corpus_data(CORPUS_STAGE1_F) %>% filter(scala_code > 0)
 ```
 
 ### Checks for duplicits
@@ -109,19 +92,12 @@ projects <-
 
 An overview of what projects are part of the corpus:
 
-```{r basic stats}
-make_stats(
-  add_nrow("All Projects", corpus),
-  add_num("All Projects code", corpus$scala_code),
-  add_num("All Projects stars", corpus$gh_stars),
-  add_nrow("SBT projects", sbt_projects),
-  add_num("SBT projects code", sbt_projects$scala_code),
-  add_num("SBT projects stars", sbt_projects$gh_stars),
-  add_nrow("Compatible SBT projects", projects),
-  add_num("Compatible SBT projects code", projects$scala_code),
-  add_num("Compatible SBT projects stars", projects$gh_stars)
-) %>% 
-  my_datatable()
+```{r}
+overview_table(
+  overview_projects("all", corpus),
+  overview_projects("sbt", sbt_projects),
+  overview_projects("compatible sbt", projects)
+)
 ```
 
 ### Overview of the build systems
@@ -138,15 +114,14 @@ group_by(corpus, build_system) %>%
 ```
 
 ```{r}
-make_stats(
-  add_nrow("Maven Projects", filter(corpus, build_system=="maven")),
-  add_nrow("Graddle Projects", filter(corpus, build_system=="graddle")),
-  add_nrow("Unknown Build Systen", filter(corpus, is.na(build_system)))
-) %>%
-  my_datatable()
+overview_table(
+  r("maven projects",       filter(corpus, build_system=="maven")),
+  r("graddle projects",     filter(corpus, build_system=="graddle")),
+  r("unknown build projects", filter(corpus, is.na(build_system)))
+)
 ```
 
-### The _unknown_ build system?
+### The _unknown_ build projects?
 
 This is here just to understand what are the largest of the projects for which we cannot guess build system.
 
@@ -154,7 +129,7 @@ This is here just to understand what are the largest of the projects for which w
 filter(corpus, is.na(build_system)) %>% 
   top_n(100, scala_code) %>%
   arrange(desc(scala_code)) %>% 
-  mutate(project_id=make_link(origin, project_id), size=format_size(size)) %>%
+  mutate(project_id=make_link(origin, project_id), size=fmt(size(size))) %>%
   select(project_id, scala_code, commit_count, size, commit_date) %>%
   my_datatable(escape=FALSE)
 ```
@@ -201,7 +176,7 @@ We skip them since most of them are not worth the trouble.
 missing_sbt_version <- 
   filter(sbt_projects, build_system == "sbt", is.na(sbt_version)) %>%
   mutate(
-    sbt_properties=path(params$base_dir, "all-projects", project_id, "project", "build.properties"), 
+    sbt_properties=path(corpus_dir, "all-projects", project_id, "project", "build.properties"), 
     sbt_properties=ifelse(file_exists(sbt_properties), make_corpus_link(sbt_properties), NA)
   ) %>%
   select(project_id, commit_count, scala_code, gh_stars, sbt_properties)
@@ -271,46 +246,80 @@ dejavu_duplication_summary %>%
 
 ## Stage 2 Corpus 
 
-Any changes to the following variables must be then replicated in the `corpus-stage1.R`.
-Here it is to experiment wirh.
+For the Stage 2 we use the following criteria:
 
 ```{r}
-treshold_duplication<- .75
-treshold_lifespan_months <- 3
-treshold_gh_stars <- 5
-treshold_commit_count <- 2
+overview_table(
+  r("crit min commits",         s2_min_commit_count),
+  r("crit min lifespan",        s2_min_lifespan_months),
+  r("crit max duplication one", percent(s2_max_duplication1)),
+  r("crit min stars one",       s2_min_gh_stars1),
+  r("crit max duplication two", percent(s2_max_duplication2)),
+  r("crit min stars two",       s2_min_gh_stars2)
+)
 ```
 
 The final set of projects that will go to the next stage is composed based on the following criteria:
 
-- at least `r treshold_commit_count` commits,
-- at least `r treshold_lifespan_months` months between project creation at github and the last push,
-- projects with more than `r treshold_duplication*100`% duplication, at least `r treshold_gh_stars` stars on GitHub.
+- at least `r s2_min_commit_count` commits,
+- at least `r s2_min_lifespan_months` months between project creation at github and the last push,
+- be in scaladex or have more than `r s2_min_gh_stars1` or less than `r s2_max_duplication1` duplication,
+- be in scaladex or have more than `r s2_min_gh_stars2` or less than `r s2_max_duplication2` duplication
 
 ```{r}
-lifespan_treshold <- months(treshold_lifespan_months)
-stage2_projects <- 
-  filter(projects, 
-         commit_count >= treshold_commit_count,
-         scaladex | (gh_pushed_at-gh_created_at > lifespan_treshold),
-         dejavu_duplication < treshold_duplication | gh_stars >= treshold_gh_stars
+human_corpus <- function(corpus, view=FALSE, code_column=scala_code) {
+  code_column <- enquo(code_column)
+  df <- transmute(
+    corpus, 
+    origin, 
+    commit_count, 
+    !!code_column, 
+    dejavu_duplication=fmt(dejavu_duplication, digit=3), 
+    active=gh_pushed_at-gh_created_at, 
+    gh_stars, 
+    scaladex
   )
+  
+  if (view) 
+    View(df)
+  else
+    df
+}
 ```
+
+
+```{r}
+stage2_projects <- filter_stage_2_projects(projects)
+```
+
+```{r eval=FALSE}
+old_stage2_projects <- 
+  filter(projects, 
+         commit_count >= 2,
+         scaladex | (gh_pushed_at-gh_created_at > months(2)),
+         dejavu_duplication < .75 | gh_stars >= 5
+  )
+
+overview_table(
+  overview_projects("old", old_stage2_projects),
+  overview_projects("new", stage2_projects)
+)
+
+anti_join(stage2_projects,old_stage2_projects, by="project_id") %>%
+  transmute(origin, commit_count, scala_code, dejavu_duplication=fmt(dejavu_duplication, digit=2), active=gh_pushed_at-gh_created_at, gh_stars, scaladex) %>% 
+  View()
+```
+
 
 ### Summary
 
 Based on the threshold, these are the projects that can go to stage 2.
 
 ```{r stage2 overview}
-make_stats(
-  add_nrow("Analyzable Projects", stage2_projects),
-  add_num("Analyzable Projects code", stage2_projects$scala_code),
-  add_num("Analyzable Projects files", stage2_projects$scala_files),
-  add_num("Analyzable Projects stars", stage2_projects$gh_stars),
-  add_num("Analyzable Projects commits", stage2_projects$commit_count),
-  add_num("Analyzable Projects duplication", stage2_projects$dejavu_duplication)
-) %>%
-  my_datatable()
+overview_table(
+  overview_projects("stage two", stage2_projects),
+  r("stage two duplication mean", percent(mean(stage2_projects$dejavu_duplication)))
+)
 ```
 
 ```{r stage2 project visualization}
@@ -347,54 +356,55 @@ stage2_projects %>%
 
 It seems that people like to have their own version of Spark.
 The problem is that Spark is big (the biggest Scala project excluding the JS stuff) so it will potetially skew the data.
-In the corpus we have:
+
+The simple heuristics is that the name contains `spark` and the project has over 100K lines of code.
+```{r}
+filter_spark <- function(df) {
+  df %>%
+    filter(
+      str_detect(tolower(project_id), "spark"), 
+      scala_code > 1e5 # spark has over 100K SLOC
+    )
+}
+```
+
+In the corpus we have approximatelly:
 
 ```{r corpus spark overview}
-spark <- corpus %>%
-  filter(
-    str_detect(tolower(project_id), "spark"), 
-    scala_code > 1e5 # spark has over 100K SLOC
-  )
+spark_in_corpus <- filter_spark(corpus)
 
-make_stats(
-  add_nrow("Spark projects (in corpus)", spark),
-  add_num("Spark code (in corpus)", spark$scala_code),
-  add_num("Ratio of Spark code (in corpus)", sum(spark$scala_code)/sum(corpus$scala_code, na.rm=T))
-) %>%
-  my_datatable()
+overview_table(
+  overview_projects("spark", spark_in_corpus),
+  r("ratio of spark code in corpus", percent(sum(spark_in_corpus$scala_code)/sum(corpus$scala_code, na.rm=T)))
+)
 ```
 
 Who are they:
 
 ```{r}
-spark %>% 
-  select(project_id, origin, commit_count, scala_code, gh_stars, dejavu_duplication, gh_created_at, gh_pushed_at, scaladex) %>%
+spark_in_corpus %>% 
+  arrange(desc(gh_stars)) %>%
+  human_corpus() %>%
   my_datatable(page_size=10)
 ```
 
 After filtering we get
 
 ```{r stage2 spark overview}
-spark <- stage2_projects %>%
-  filter(
-    str_detect(tolower(project_id), "spark"), 
-    scala_code > 1e5
-  )
+spark_in_stage2 <- filter_spark(stage2_projects)
 
-make_stats(
-  add_nrow("Final Spark projects (in corpus)", spark),
-  add_num("Final Spark code (in corpus)",spark$scala_code),
-  add_percent("Final ratio of Spark code (in corpus)", sum(spark$scala_code)/sum(stage2_projects$scala_code))
-) %>%
-  my_datatable()
-
+overview_table(
+  overview_projects("stage two spark", spark_in_stage2),
+  r("stage two ratio of spark code in corpus", percent(sum(spark_in_stage2$scala_code)/sum(corpus$scala_code, na.rm=T)))
+)
 ```
 
 Who are they:
 
 ```{r}
-spark %>% 
-  select(project_id, origin, commit_count, scala_code, gh_stars, dejavu_duplication, gh_created_at, gh_pushed_at, scaladex) %>%
+spark_in_stage2 %>% 
+  arrange(desc(gh_stars)) %>%
+  human_corpus() %>%
   my_datatable(page_size=10)
 ```
 
@@ -409,5 +419,5 @@ bind_rows(
   top_n(stage2_projects, 50, gh_stars)
 ) %>%
   distinct(project_id, .keep_all = TRUE) %>%
-  my_datatable(page_size=10)
+  my_datatable(page_size=20)
 ```

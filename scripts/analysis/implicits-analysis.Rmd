@@ -1,6 +1,6 @@
 ---
 title: Corpus Analysis
-authors: Filip Krikava, Jan Vitek and Heather Miller
+authors: Filip Krikava, Heather Miller and Jan Vitek
 output:
   html_document:
     toc: true
@@ -8,35 +8,16 @@ output:
     theme: united
     code_folding: hide
 params:
-  base_dir: ../../../corpora/4-github
+  corpus_dir: /var/lib/scala/corpora/github
+  corpus_url: http://prl1.ele.fit.cvut.cz:8149
   lib_dir: ../inc
-  base_url: http://prl1.ele.fit.cvut.cz:8149
+  report_name: implicit-analysis
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
-library(tidyverse)
-library(lubridate)
-library(glue)
-library(ggplot2)
-library(ggthemes)
-library(knitr)
-library(fs)
-library(DT)
-library(pbapply)
-library(feather)
-
-theme_set(theme_minimal())
-
-options(corpus_dir=params$base_dir)
-
-source(path(params$lib_dir, "paths.R"))
-source(path(params$lib_dir, "functions.R"))
-
-pboptions(type="txt")
+source(file.path(params$lib_dir, "setup.R"))
 ```
 
 ## Introduction
@@ -200,15 +181,24 @@ They were extracted using [ImplicitParameterExporter.scala](https://github.com/P
 
 ## Loading data
 
+The `corpus` variable contains prject metadata information.
+We only consider projects for which the extractor run successfully (which transitively implies that the project was compiled and semanticdb was generated) and that contains some compile Scala code (there are projects that do contain Scala code, but none is being compile).
+
 ```{r loading corpus}
-corpus <- read_feather(CORPUS_STAGE3_F) %>% 
-  filter(implicits_exit_code==0, metadata_scala_code > 0) 
+corpus <- read_data(CORPUS_STAGE3_F) %>% filter_final_corpus()
 ```
 
 ```{r loading declarations}
-all_declarations <- read_feather(IMPLICIT_DECLARATIONS_F) %>%
+all_declarations <- read_data(IMPLICIT_DECLARATIONS_F) %>%
   remove_version_from_module_id()
 ```
+
+TODO: make some indexes with project_id and module_id
+- use _id for numbers
+- use _name for the names in external data frames
+TODO: all locations that are transitive, but are not a dependency are not a dependency.
+The sbt.librarymanagement.ModuleID.isTransitive is not super precise and in some cases inter-project dependencies will mark as transitive.
+
 
 ```{r loading callsites}
 

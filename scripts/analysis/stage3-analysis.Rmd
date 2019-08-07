@@ -3,41 +3,25 @@ title: "Stage 3 Analysis"
 authors: Filip Krikava, Jan Vitek and Heather Miller
 output:
   html_document:
+    code_folding: hide
+    theme: united
     toc: true
     toc_float: true
-    theme: united
-    code_folding: hide
 params:
-  base_dir: ../../../corpora/4-github
+  corpus_dir: /var/lib/scala/corpora/github
+  corpus_url: http://prl1.ele.fit.cvut.cz:8149
   lib_dir: ../inc
-  base_url: http://prl1.ele.fit.cvut.cz:8149
+  report_name: stage3-analysis
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+source(file.path(params$lib_dir, "setup.R"))
+```
 
-library(fs)
-library(tidyverse)
-library(ggplot2)
-library(DT)
-library(lubridate)
-library(knitr)
-library(glue)
-library(pbapply)
-library(xtable)
-library(ggthemes)
-library(feather)
-
-theme_set(theme_minimal())
-
-options(corpus_dir=params$base_dir)
-
-source(path(params$lib_dir, "paths.R"))
-source(path(params$lib_dir, "functions.R"))
-
-pboptions(type="txt")
+```{r output, include=FALSE}
+TOP_PROJECTS_TEX <- get_corpus_path("top-projects.tex")
 ```
 
 ## Overview
@@ -116,58 +100,137 @@ Exit code:
 
 ## Loading data
 
-First, we need to load the data.
+First, we need to load the data. We have three stages:
+
+- stage 1 - downloads all the projects and gathers the repository-level metadata
+- stage 2 - extracts sbt project metadata, compiles and generates semanticdb
+- stage 3 - extracts implicits
+
+The `r CORPUS_STAGE1_F` contains information about projects that finished stage 1 and indicates which can go to stage 2 before de-duplication.
+The `r CORPUS_STAGE3_F` contains information about projects that went to stage 2 and indicates which managed to pass stage 3.
+So `stage1_corpus` contains all Scala projects we could get, `stage2_corpus` contains all compatible de-duplicated projects and `corpus` is the final corpus containing only the projects we could extract implicits from.
 
 ```{r loading data}
-stage1_corpus <- read_feather(CORPUS_STAGE1_F)
-stage3_corpus <- read_feather(CORPUS_STAGE3_F)
+stage1_corpus <- read_csv(CORPUS_STAGE1)
+stage2_corpus <- read_csv(CORPUS_STAGE3)
 ```
 
 The final corpus only contains projects for which the implicit extractor successfully ran and that have some compiled Scala code.
 
+```{r final corpus}
+corpus <- filter_final_corpus(stage2_corpus)
+```
+
+Add total call sites:
+
 ```{r}
-corpus <- filter(stage3_corpus, implicits_exit_code==0, metadata_scala_code > 0) 
+corpus <- mutate(
+  corpus,
+  explicit_callsites=callsites,
+  callsites=implicit_callsites+explicit_callsites
+) %>%
+  rename(
+    explitic_test_callsites=test_callsites
+  )
+```
+
+
+### Checks
+
+In the final corpus, the metadata, semanticdb stages should have 0 exit code.
+
+```{r check metadata}
+corpus_failed_metadata <- corpus %>% filter(metadata_exit_code != 0)
+assert_that(nrow(corpus_failed_metadata) == 0)
+```
+
+```{r check semanticdb}
+corpus_failed_semanticdb <- corpus %>% filter(semanticdb_exit_code != 0)
+assert_that(nrow(corpus_failed_semanticdb) == 0)
 ```
 
 ## Stage 3 Corpus Summary
 
 The following is the result of the corpus after running the stage 2.
 
-```{r projects stats}
-make_stats(
-  add_num("Scala code", stage3_corpus$scala_code),
-  add_num("Scala files", stage3_corpus$scala_files),
-  add_num("Compiled Scala code", stage3_corpus$metadata_scala_code),
-  add_num("Compiled Scala test code", stage3_corpus$metadata_scala_code_test),
-  add_num("Github Stars", stage3_corpus$gh_stars),
-  add_nrow("Extracted metadata", filter(stage3_corpus, metadata_exit_code==0)),
-  add_nrow("Compiled", filter(stage3_corpus, compile_exit_code==0)),
-  add_nrow("Extracted semanticdb", filter(stage3_corpus, semanticdb_exit_code==0)),
-  add_nrow("Extracted implicits", filter(stage3_corpus, implicits_exit_code==0)),
-  add_nrow("Analyzed projects (non-empty)", corpus),
-  add_num("Analyzed Scala code (compiled and successfully extracted)", corpus$metadata_scala_code),
-  add_num("Analyzed Scala generated code (managed)", corpus$metadata_scala_code_compile_managed+corpus$metadata_scala_code_test_managed),
-  add_num("Analyzed Scala test code", corpus$metadata_scala_code_test),
-  add_num("Analyzed Scala generated test code (managed)", corpus$metadata_scala_code_test_managed),
-  add_num("Analyzed commits", corpus$commit_count),
-  add_num("Analyzed GitHub stars", corpus$gh_stars),
-  add_nrow("Analyzed scaladex indexed projects (libraries)", filter(corpus, scaladex)),
-  add_nrow("Analyzed non-scaladex indexed projects (applications)", filter(corpus, !scaladex)),
-  add_num("Implicit declarations", corpus$implicit_declarations),
-  add_num("Local implicit declarations", corpus$implicit_local_declarations),
-  add_num("Implicit call sites", corpus$implicit_callsites),
-  add_num("Call sites", corpus$callsites),
-  add_num("Errors in implicit extraction", corpus$implicit_extraction_errors),
-  add_nrow("Implicits extraction failures", filter(corpus, !is.na(implicit_failure)))
-) %>%
-  my_datatable()
+```{r projects overview}
+compatible_projects <- filter(stage1_corpus, compatible)
+duplicated_projects <- anti_join(compatible_projects, stage2_corpus, by="project_id")
+
+overview_table(
+  overview_projects("stage one",               stage1_corpus),
+  overview_projects("sbt projects",            filter(stage1_corpus, build_system=="sbt")),
+  overview_projects("maven projects",          filter(stage1_corpus, build_system=="maven")),
+  overview_projects("graddle projects",        filter(stage1_corpus, build_system=="graddle")),
+  overview_projects("compatible sbt projects", compatible_projects),
+  overview_projects("duplicated",              duplicated_projects),
+  overview_projects("stage two",               stage2_corpus)
+)
+```
+
+```{r projects duplication}
+compatible_big_projects <- filter(compatible_projects, scala_code > 5e4)
+stage2_big_projects <- filter(stage2_corpus, scala_code > 5e4)
+
+overview_table(
+  r("compatilbe big projects", compatible_big_projects),
+  r("stage two big projects", stage2_big_projects),
+  r("compatible big projects duplication pct", percent(mean(compatible_big_projects$dejavu_duplication))),
+  r("stage two big projects duplication pct", percent(mean(stage2_big_projects$dejavu_duplication))),
+  r("lost stars in duplicated projects pct", percent(sum(duplicated_projects$gh_stars)/sum(compatible_projects$gh_stars))),
+)
+```
+
+```{r projects stage 2 details}
+extracted_metadata <- filter(stage2_corpus, metadata_scala_code > 0, metadata_exit_code == 0)
+generated_semanticdb <- filter(extracted_metadata, semanticdb_exit_code == 0)
+
+scala_code <- sum(corpus$metadata_scala_code)
+scala_code_compile <- sum(corpus$metadata_scala_code_compile)
+scala_gencode_compile <- sum(corpus$metadata_scala_code_compile_managed)
+scala_code_test <- sum(corpus$metadata_scala_code_test)
+scala_gencode_test <- sum(corpus$metadata_scala_code_test_managed)
+scala_gencode <- scala_gencode_compile + scala_gencode_test
+
+projects_with_tests <- nrow(filter(corpus, metadata_scala_code_test > 0))
+projects_without_tests <- nrow(filter(corpus, metadata_scala_code_test == 0))
+
+overview_table(
+  overview_projects("extracted metadata",   extracted_metadata, code_column=metadata_scala_code),
+  overview_projects("generated semanticdb", generated_semanticdb, code_column=metadata_scala_code),
+  overview_projects("corpus", corpus, code_column=metadata_scala_code),
+
+  r("corpus projects gencode", scala_gencode),
+  r("corpus projects main code", scala_code_compile),
+  r("corpus projects main gencode", scala_gencode_compile),
+  r("corpus projects test code", scala_code_test),
+  r("corpus projects test gencode", scala_gencode_test),
+  r("corpus projects files", sum(corpus$scala_files)),
+  r("corpus projects gencode pct", percent(scala_gencode/scala_code)),
+  r("corpus projects test pct", percent(scala_code_test/scala_code)),
+  r("corpus projects main gencode pct", percent(scala_gencode_compile/scala_code_compile)),
+  r("corpus projects test gencode pct", percent(scala_gencode_test/scala_code_test)),
+  r("corpus projects with test", projects_with_tests),
+  r("corpus projects without test", projects_without_tests),
+  r("corpus projects with test pct", percent(projects_with_tests/nrow(corpus))),
+)
 ```
 
 Notes:
 
-- The difference between _Scala code_ and _Analyzed Scala code_ is that the former one is computed using [cloc](https://sourceforge.net/projects/cloc/) with `--vcs=git` so it includes all the Scala files that are in the repository. The latter on the other hand only includes the source directories known to SBT (`sbt show sourceDirectories`).
+```{r compiler benchmakr, include=FALSE}
+compiler_benchmark <- filter(corpus, project_id=="scala--compiler-benchmark")
+```
 
-### Graphical overview
+- For the final corpus we use `metadata_scala_code` instead of `scala_code`.
+  The difference is that `scala_code` is computed using [cloc](https://sourceforge.net/projects/cloc/) with `--vcs=git` so it includes all the Scala files that are in the repository. 
+  The `metadata_scala_code` on the other hand includes the code that was actually compiled. 
+  It includes the source directories known to SBT (`sbt show sourceDirectories`) which could be a subset of what is stored in the project repository.
+  Also it will include generated code.
+  The good example is [compiler-benchmark](https://github.com/scala/compiler-benchmark) which has `r fmt(compiler_benchmark$scala_code)` lines of Scala code stored in git (`scala_code`), but only `r fmt(compiler_benchmark$metadata_scala_code)` is actually compiled (`metadata_scala_code`).
+  The rest is code from various projects used for menchmarking scalac.
+
+#### Graph
 
 ```{r corpus overview plot}
 corpus_code_mean <- mean(corpus$metadata_scala_code)
@@ -220,6 +283,240 @@ corpus %>%
       linetype=""
     )
 ```
+
+### Implicits
+
+```{r implicits overview}
+explicit_callsites <- sum(corpus$explicit_callsites)
+implicit_callsites <- sum(corpus$implicit_callsites)
+explicit_test_callsites <- sum(corpus$explitic_test_callsites, na.rm = T)
+callsites <- sum(corpus$callsites)
+
+overview_table(
+  r("implicit extraction errors", sum(corpus$implicit_extraction_errors)),
+  r("Implicit extraction failures", filter(corpus, !is.na(implicit_failure))),
+  r("implicit declarations", sum(corpus$implicit_declarations)),
+  r("local implicit declarations", sum(corpus$implicit_local_declarations)),
+  r("call sites", callsites),
+  r("explicit call sites", explicit_callsites),
+  r("implicit call sites", implicit_callsites),
+  r("implicit call sites pct", percent(implicit_callsites/callsites)),
+  r("test call sites", explicit_test_callsites),
+  r("test call sites pct", percent(explicit_test_callsites/explicit_callsites)),
+)
+```
+
+#### Graph
+
+```{r}
+my_scale <- function (...) {
+  log_breaks_fun <- scales::log_breaks(base = 10)
+  breaks <- function(x) {
+    c(-1, 0, log_breaks_fun(x[x >= 1]))
+  }
+  
+  trans <- 
+    scales::trans_new(
+      "my-scale", 
+      transform=function(x) ifelse(x >= 1, log10(x), x), 
+      inverse=function(x) ifelse(x >= 1, 10^x, x), 
+      breaks=breaks
+    )
+
+  scale_y_continuous(..., trans=trans)
+}
+```
+
+```{r}
+scale_y_asinh <- function(...) {
+  trans <- scales::trans_new(
+    name="asinh",
+    transform=function(x) asinh(x), 
+    inverse=function(x) sinh(x)
+  )
+  
+  scale_y_continuous(..., trans=trans)
+}
+```
+
+```{r implicit overview}
+corpus_implicitness_overview <- 
+  corpus %>%
+#  sample_n(1000) %>%
+  mutate(
+    implicit_local_declarations=if_else(implicit_local_declarations > 0, log10(implicit_local_declarations), 0)
+  )
+
+cs_ds_opverlap <- .4
+cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
+cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
+
+corpus_implicitness_overview <- 
+  corpus_implicitness_overview %>%
+  transmute(
+    project_id,
+    ds=implicit_local_declarations,
+    cs=implicit_callsites/callsites,
+    cs_start=cs_end - cs_height * cs
+  ) %>%
+  mutate(
+    project_id=forcats::fct_reorder(project_id, ds)
+  )
+```
+
+```{r implicit overview plot, }
+local({
+  breaks <- c(0:as.integer(cs_end), cs_end)
+  labels <- c("0", fmt(10^breaks[-1]))
+  
+corpus_implicitness_overview %>%
+  ggplot(
+    aes(
+      x=project_id,
+      y=ds
+    )
+  ) + 
+#  scale_y_asinh(sec.axis=sec_axis(trans=my_scale2, name = "A")) +
+#  my_scale() +
+  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end), color="#ED6559", alpha=.5) +
+  geom_bar(width=1, stat="identity", color="#4C5D7C", alpha=.5) +
+#  scale_fill_manual(values=c("cs"="#ED6559", "csi"="#ED6559", "ds"="#4C5D7C", "dsi"="#4C5D7C")) +
+  theme(
+    axis.text.x=element_blank(), 
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_line(),
+    panel.grid.major.x=element_blank(), 
+    panel.grid.minor.x=element_blank(),
+    panel.grid.major.y=element_line(),
+    panel.grid.minor.y=element_blank()
+  ) + 
+  scale_y_continuous(
+    name="Number of implicit declarations (log)",
+    breaks=breaks, 
+    labels=labels,
+    sec.axis=sec_axis(
+      trans=function(x) x/(-cs_height)+cs_end/cs_height, 
+      name="Ratio of implicit calls",
+      breaks=(0:5)/4,
+      labels=scales::percent 
+    ) 
+  ) +
+  labs(x="Projects")
+})
+```
+
+TESTS
+
+```{r implicit overview}
+corpus_implicitness_overview <- 
+  corpus %>%
+  sample_n(1000)
+
+cs_ds_opverlap <- .3
+cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
+cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
+
+corpus_implicitness_overview <- 
+  corpus_implicitness_overview %>%
+  transmute(
+    project_id,
+    ds=implicit_local_declarations,
+    cs=implicit_callsites/callsites,
+    cs_start=cs_end - cs_height * cs
+  ) %>%
+  mutate(
+    project_id=forcats::fct_reorder(project_id, ds)
+  ) #%>% gather("key", "value", ds, cs)
+```
+
+```{r implicit overview plot}
+my_scale2 <- function(x) {
+  x/(-cs_height)+cs_end/cs_height
+}
+
+corpus_implicitness_overview %>%
+  ggplot(
+    aes(
+      x=project_id,
+      y=ds
+    )
+  ) + 
+  scale_y_asinh(sec.axis=sec_axis(trans=my_scale2, name = "A")) +
+#  my_scale() +
+  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end), color="#ED6559") +
+  geom_bar(width=1, stat="identity") +
+#  scale_fill_manual(values=c("cs"="#ED6559", "csi"="#ED6559", "ds"="#4C5D7C", "dsi"="#4C5D7C")) +
+  theme(axis.text.x  = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+
+TETS
+
+
+```{r eval=FALSE}
+#loc_of_top_10 <- lapply(1:length(combo_df$package_name), function(x) if (combo_df$package_name[[x]] %in% top_10) x else FALSE) 
+df_rc %>% 
+  select(names_o, r_c_log, c_c_log) %>% 
+  mutate(c_c_log=-c_c_log) %>%
+  melt(id.vars="names_o",variable.name="language") -> zzz
+zzz %>%
+ggplot(aes(x=names_o, value, group=1)) +
+ geom_line(aes(colour = language), size=0.008) + guides(colour=F) + 
+ theme( axis.text.x  = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.ticks.y = element_line(),  panel.grid.major.y = element_line(colour = "red")) + # ,
+  scale_y_continuous(name="", breaks = c(-4, -3, -2, -1, 0, 1, 2, 3, 4), 
+                     labels = c(10000, 1000, 100, 10, 0, 10, 100, 1000, 10000)) 
+#+  geom_text_repel(data=subset(zzz, names %in% top_10 & language == "loc_r"), 
+#                  aes(y = 0, label=names), position=position_dodge(0.9), direction="y")
+  
+ggsave("../paper/plots/linesofrandccode.pdf",width=10,height=4)
+```
+
+
+### TOP projects
+
+```{r top projects table}
+top_projects <- 
+  corpus %>%
+  transmute(
+    name=str_replace(project_id, "--", "/"),
+    name=xtable::sanitize(name),
+    name=str_c("\\href{https://github.com/", name, "/}{", name, "}"),
+    gh_stars,
+    metadata_scala_code,
+    commit_count,
+    dejavu_duplication,
+    scaladex=if_else(scaladex, "Y", "N")
+  ) %>%
+  top_n(40, gh_stars) %>%
+  arrange(desc(gh_stars)) %>%
+  mutate_all(fmt) %>%
+  rename(
+    `Project`=name,
+    `GitHub stars`=gh_stars,
+    `Code size`=metadata_scala_code,
+    `Commits`=commit_count,
+    `Duplication`=dejavu_duplication,
+    `Scaladex`=scaladex
+  )
+```
+
+```{r}
+top_projects %>% my_datatable()
+```
+
+```{r}
+top_projects %>%
+  xtable::xtable(align="llrrrrc") %>%
+  print(
+    floating=F,
+    file=TOP_PROJECTS_TEX,
+    include.rowname=F,
+    sanitize.text.function=identity
+  )
+```
+
+
 
 ### Duplicate projects
 
@@ -469,7 +766,7 @@ Each of the gets logged into an ``r IMPLICITS_EXCEPTIONS`` files.
 The following is their classification based on a number of regular expressions.
 
 ```{r load implicit errors}
-exceptions <- read_feather(IMPLICIT_EXCEPTIOSN_F)
+exceptions <- read_data(IMPLICIT_EXCEPTIOSN_F)
 ```
 
 ```{r}

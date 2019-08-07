@@ -63,13 +63,11 @@ GLOBAL_IMPLICITS_STATS <- get_corpus_path(IMPLICITS_STATS)
 GLOBAL_IMPLICITS_EXCEPTIONS <- get_corpus_path(IMPLICITS_EXCEPTIONS)
 GLOBAL_IMPLICITS <- get_corpus_path(IMPLICITS)
 
-CORPUS_STAGE1_F <- get_corpus_path("corpus-stage1.feather")
-CORPUS_STAGE3_F <- get_corpus_path("corpus-stage3.feather")
-IMPLICIT_EXCEPTIOSN_F <- get_corpus_path("implicits-exceptions.feather")
-IMPLICIT_DECLARATIONS_F <- get_corpus_path("implicit-declarations.feather")
-IMPLICIT_CALLSITES_F <- get_corpus_path("implicit-callsites.feather")
-IMPLICIT_PARAMETERS_F <- get_corpus_path("implicit-parameters.feather")
-IMPLICIT_CONVERSIONS_F <- get_corpus_path("implicit-conversions.feather")
+IMPLICIT_EXCEPTIOSN_F <- get_corpus_path("implicits-exceptions.fst")
+IMPLICIT_DECLARATIONS_F <- get_corpus_path("implicit-declarations.fst")
+IMPLICIT_CALLSITES_F <- get_corpus_path("implicit-callsites.fst")
+IMPLICIT_PARAMETERS_F <- get_corpus_path("implicit-parameters.fst")
+IMPLICIT_CONVERSIONS_F <- get_corpus_path("implicit-conversions.fst")
 
 projects_file <- Vectorize(function(project, filename) {
   path(PROJECTS_DIR, project, ANALYSIS_DIR, filename)
