@@ -42,6 +42,7 @@ bootstrap :=
 	filter-all-projects \
 	filter-sbt-projects \
 	filter-final-repos \
+  link-corpus-stage2 \
 	fetch-github-info \
 	scaladex \
 	dejavu \
@@ -72,7 +73,7 @@ stage1:	repo-metadata \
 	dejavu \
 	scaladex \
 	corpus-stage1 \
-	filter-final-projects
+	link-corpus-stage2
 
 stage2: compile \
 	metadata \
@@ -196,7 +197,7 @@ filter-all-projects: $(ALL_PROJECTS_FILE) $(PROJECTS_GITHUB_INFO)
 filter-sbt-projects: $(GLOBAL_REPO_METADATA)
 	$(SCRIPTS_DIR)/filter-sbt-projects.R
 
-filter-final-projects: $(PROJECTS_FILE)
+link-corpus-stage2: $(PROJECTS_FILE)
 	rm -fr $(PROJECTS_DIR)
 	mkdir -p $(PROJECTS_DIR)
 	$(parallel_base) --bar -j1 -a $(PROJECTS_FILE) ln -s '../$(ALL_PROJECTS_DIR)/{1}' '$(PROJECTS_DIR)'
