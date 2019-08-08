@@ -32,9 +32,9 @@ status %>% kable()
 
 stats <- read_csv("implicits-stats.csv")
 
-cat("\nStats:\n")
-stats %>% 
-  mutate(failure=if_else(is.na(failure), 0, 1)) %>% 
-  summarise_at(vars(-project_id), sum) %>% 
-  gather() %>% 
+cat("\nStats:")
+stats %>%
+  mutate(failure=if_else(is.na(failure), 0, 1)) %>%
+  summarise_at(vars(-project_id), ~sum(., na.rm=T)) %>%
+  gather() %>%
   kable()
