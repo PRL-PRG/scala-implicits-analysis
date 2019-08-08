@@ -8,18 +8,17 @@ SCRIPTS_DIR <- local({
   dir
 })
 
-library(readr)
-library(feather)
+library(data.table)
+library(fst)
 library(fs)
 
 args <- commandArgs(trailingOnly=TRUE)
 stopifnot(length(args) == 1)
 
 input <- args[1]
-output <- paste0(tools::file_path_sans_ext(input), ".feather")
+output <- paste0(tools::file_path_sans_ext(input), ".fst")
 
 message("Converting ", input, " to ", output)
 
-df <- suppressMessages(read_csv(input))
-write_feather(df, output)
-system2("gzip", c("-f", "--keep", output))
+df <- fread(input)
+write_fst(df, output, compress=100)
