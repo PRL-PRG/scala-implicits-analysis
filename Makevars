@@ -39,9 +39,9 @@ $(info GLOBAL_SBT_BOOT_DIR := $(GLOBAL_SBT_BOOT_DIR))
 $(info GLOBAL_COURSIER_DIR := $(GLOBAL_COURSIER_DIR))
 
 # -Xmx memory for running SBT
-SBT_MEM ?= 8192
+SBT_MEM ?= 16384
 # -Xmx memory for running ammonite
-MAX_MEM ?= 8192
+MAX_MEM ?= 16384
 # default timeout for tasks running in parallel
 TIMEOUT ?= 30m
 
