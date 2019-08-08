@@ -326,6 +326,22 @@ overview_projects <- function(name, df, code_column=scala_code) {
     ) %>%
     mutate_all(fmt)
   
-  colnames(summary) <- str_c(name, " ",colnames(summary))
+  colnames(summary) <- str_c(name, " ", colnames(summary))
   summary %>% gather("name", "value")
+}
+
+view_corpus <- function(corpus, view=FALSE) {
+  code_column <- if ("metadata_scala_code" %in% names(corpus)) quo(metadata_scala_code) else quo(scala_code)
+  df <- transmute(
+    corpus, 
+    origin, 
+    commit_count, 
+    !!code_column, 
+    dejavu_duplication=fmt(dejavu_duplication, digit=3), 
+    active=gh_pushed_at-gh_created_at, 
+    gh_stars, 
+    scaladex
+  )
+  
+  if (view) View(df) else df
 }

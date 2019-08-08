@@ -28,11 +28,17 @@ OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
 
 ## Overview
 
-The ``r CORPUS_STAGE3_F`` contains only the projects that were selected in stage 1.
-Next to the data collected in ``r CORPUS_STAGE1_F``, it contains details about the stage 2, i.e. the project compilation, SBT metadata extraction, semanticdb generation and implicit extraction.
-The goal of the stage 3 is to filter the projects that have been successfully processed and which will be part of the final corpus.
+The pipeline runs in three stages:
 
-The file contains the following columns:
+1. stage - downloads all the projects and gathers the repository-level metadata
+2. stage - extracts sbt project metadata, compiles and generates semanticdb
+3. stage - extracts implicits and put all the information together
+
+The ``r CORPUS_STAGE1`` contains information about projects that finished stage 1 and indicates which can go to stage 2 before de-duplication.
+The ``r CORPUS_STAGE3`` contains information about projects that went to stage 2 and indicates which managed to pass stage 3.
+So `stage1_corpus` contains all Scala projects we could get, `stage2_corpus` contains all compatible de-duplicated projects and `corpus` is the final corpus containing only the projects we could extract implicits from.
+
+The ``r CORPUS_STAGE3`` file contains the following columns:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
 - `origin` (chr): the URL to github 
@@ -101,16 +107,6 @@ Exit code:
 - `>= 130`: timeouted
 
 ## Loading data
-
-First, we need to load the data. We have three stages:
-
-- stage 1 - downloads all the projects and gathers the repository-level metadata
-- stage 2 - extracts sbt project metadata, compiles and generates semanticdb
-- stage 3 - extracts implicits
-
-The `r CORPUS_STAGE1_F` contains information about projects that finished stage 1 and indicates which can go to stage 2 before de-duplication.
-The `r CORPUS_STAGE3_F` contains information about projects that went to stage 2 and indicates which managed to pass stage 3.
-So `stage1_corpus` contains all Scala projects we could get, `stage2_corpus` contains all compatible de-duplicated projects and `corpus` is the final corpus containing only the projects we could extract implicits from.
 
 ```{r loading data}
 stage1_corpus <- read_csv(CORPUS_STAGE1)
@@ -202,19 +198,23 @@ overview_table(
   overview_projects("generated semanticdb", generated_semanticdb, code_column=metadata_scala_code),
   overview_projects("corpus", corpus, code_column=metadata_scala_code),
 
-  r("corpus projects gencode", scala_gencode),
-  r("corpus projects main code", scala_code_compile),
-  r("corpus projects main gencode", scala_gencode_compile),
-  r("corpus projects test code", scala_code_test),
-  r("corpus projects test gencode", scala_gencode_test),
-  r("corpus projects files", sum(corpus$scala_files)),
-  r("corpus projects gencode pct", percent(scala_gencode/scala_code)),
-  r("corpus projects test pct", percent(scala_code_test/scala_code)),
-  r("corpus projects main gencode pct", percent(scala_gencode_compile/scala_code_compile)),
-  r("corpus projects test gencode pct", percent(scala_gencode_test/scala_code_test)),
-  r("corpus projects with test", projects_with_tests),
-  r("corpus projects without test", projects_without_tests),
-  r("corpus projects with test pct", percent(projects_with_tests/nrow(corpus))),
+  r("corpus gencode", scala_gencode),
+  r("corpus main code", scala_code_compile),
+  r("corpus main gencode", scala_gencode_compile),
+  r("corpus test code", scala_code_test),
+  r("corpus test gencode", scala_gencode_test),
+  r("corpus files", sum(corpus$scala_files)),
+  r("corpus gencode pct", percent(scala_gencode/scala_code)),
+  r("corpus test pct", percent(scala_code_test/scala_code)),
+  r("corpus main gencode pct", percent(scala_gencode_compile/scala_code_compile)),
+  r("corpus test gencode pct", percent(scala_gencode_test/scala_code_test)),
+  r("corpus with test", projects_with_tests),
+  r("corpus without test", projects_without_tests),
+  r("corpus with test pct", percent(projects_with_tests/nrow(corpus))),
+  r("corpus code median", median(corpus$metadata_scala_code)),
+  r("corpus big projects", filter(corpus, metadata_scala_code > 5e4)),
+  r("corpus in scaladex", filter(corpus, scaladex)),
+  r("corpus not in scaladex", filter(corpus, !scaladex)),
 )
 ```
 
@@ -286,10 +286,9 @@ corpus %>%
     )
 ```
 
-```{r save plot}
+```{r save corpus overview plot}
 ggsave(OUT_CORPUS_OVERVIEW_PDF)
 ```
-
 
 ### Implicits
 
@@ -298,6 +297,9 @@ explicit_callsites <- sum(corpus$explicit_callsites)
 implicit_callsites <- sum(corpus$implicit_callsites)
 explicit_test_callsites <- sum(corpus$explitic_test_callsites, na.rm = T)
 callsites <- sum(corpus$callsites)
+
+projects_using_implicits <- nrow(filter(corpus, implicit_callsites > 0))
+projects_defining_implicits <- nrow(filter(corpus, implicit_local_declarations> 0))
 
 overview_table(
   r("implicit extraction errors", sum(corpus$implicit_extraction_errors)),
@@ -310,6 +312,10 @@ overview_table(
   r("implicit call sites pct", percent(implicit_callsites/callsites)),
   r("test call sites", explicit_test_callsites),
   r("test call sites pct", percent(explicit_test_callsites/explicit_callsites)),
+  r("projects using implicits", projects_using_implicits),
+  r("projects defining implicits", projects_defining_implicits),
+  r("projects using implicits pct", percent(projects_using_implicits/nrow(corpus))),
+  r("projects defining implicits pct", percent(projects_defining_implicits/nrow(corpus)))
 )
 ```
 
@@ -318,8 +324,8 @@ overview_table(
 ```{r implicit overview}
 local({
 
-callsite_color <- "#ED6559"
-declaration_color <- "#4C5D7C"
+callsite_color <- "darkblue" #"#ED6559"
+declaration_color <-"darkgoldenrod1"    #"#4C5D7C"
   
 # the trick with superposition is to do the log10 scaling manually
 corpus_implicitness_overview <- 
@@ -329,7 +335,7 @@ corpus_implicitness_overview <-
   )
 
 # up to which part of the implicit local declarations can this graph overlap
-cs_ds_opverlap <- .4
+cs_ds_opverlap <- 1
 cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
 # this is the height of the overlap which is equal to 100% of implicit callsites ration
 cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
@@ -360,16 +366,21 @@ corpus_implicitness_overview %>%
       y=ds
     )
   ) + 
-  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end), color=callsite_color, alpha=.5) +
-  geom_bar(width=1, stat="identity", fill=declaration_color, color=declaration_color, alpha=1) +
+  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end),
+               color=callsite_color, alpha=.5) +
+  geom_bar(width=1, stat="identity",
+           fill=declaration_color, alpha=.7) +
   theme(
-    axis.text.x=element_blank(), 
     axis.ticks.x=element_blank(),
     axis.ticks.y=element_line(),
     panel.grid.major.x=element_blank(), 
     panel.grid.minor.x=element_blank(),
     panel.grid.major.y=element_line(),
-    panel.grid.minor.y=element_blank()
+    panel.grid.minor.y=element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(color = "grey20", size = 10),
+    axis.title.x = element_text( size = 11),
+    axis.title.y = element_text( size = 11)
   ) + 
   scale_y_continuous(
     breaks=pri_breaks,
@@ -386,7 +397,7 @@ corpus_implicitness_overview %>%
 })
 ```
 
-```{r save plot}
+```{r save implicits overview plot}
 ggsave(OUT_IMPLICITS_OVERVIEW_PDF)
 ```
 
@@ -435,22 +446,6 @@ top_projects %>%
 
 ## Heatmaps
 
-
-
-### Duplicate projects
-
-The following table show the number of projects (Scala code and GitHub stars) that were removed based on our duplication thresolds.
-
-```{r duplicate projects}
-removed_duplicates <- anti_join(filter(stage1_corpus, compatible), stage3_corpus, by="project_id")
-make_stats(
-  add_nrow("Removed duplicate projects", removed_duplicates),
-  add_num("Removed duplicate projects code", sum(removed_duplicates$scala_code)),
-  add_num("Removed duplicate projects stars", sum(removed_duplicates$gh_stars)),
-  add_num("Removed duplicate projects size", sum(removed_duplicates$size_repo), formatter=format_size)
-) %>% my_datatable()
-```
-
 ## Pipeline
 
 In stage 2 each project goes through the following phases:
@@ -473,42 +468,30 @@ Since we are working with real-world projects it is possible that not all of the
 The following table shows how many projects (Scala code and GitHub stars) do we loose in each step.
 
 ```{r}
-corpus_shrinking <- tibble(phase=character(0), projects=integer(0), sloc=integer(0), stars=integer(0), size=integer(0))
-add_phase <- function(phase, df, sloc="metadata_scala_code", stars="gh_stars", size="size_repo") {
-  corpus_shrinking <<- add_row(
-    corpus_shrinking, 
-    phase=phase, 
-    projects=nrow(df),
-    sloc=ifelse(nrow(df) > 0, sum(df[, sloc], na.rm=T), 0),
-    stars=ifelse(nrow(df) > 0, sum(df[, stars], na.rm=T), 0), 
-    size=format_size(ifelse(nrow(df) > 0, sum(df[, size], na.rm=T), 0))
-  )
+phase_info <- function(phase, df, code_column=metadata_scala_code, size_column=size_repo) {
+  code_column <- enquo(code_column)
+  size_column <- enquo(size_column)
+
+  df %>%
+    summarise(
+      `Phase`=phase,
+      `Number of projects`=n(),
+      `Scala code`=sum(!!code_column, na.rm=T),
+      `GitHub Stars`=sum(gh_stars),
+      `Project size`=size(sum(!!size_column, na.rm=T))
+    ) %>%
+    mutate_all(fmt)
 }
 
-add_phase("All projects", stage3_corpus)
-add_phase("Metadata extraction",     filter(stage3_corpus, metadata_exit_code==0))
-add_phase("Semanticdb generation",   filter(stage3_corpus, semanticdb_exit_code==0))
-add_phase("Implicits extraction",    filter(stage3_corpus, implicits_exit_code==0))
-
-corpus_shrinking %>% 
-  my_datatable(colnames = c("Phase", "Number of projects", "Scala code", "GitHub Stars", "Project size"))
-```
-
-Connecting that with the data from stage 1:
-
-```{r}
-corpus_shrinking <- tibble(phase=character(0), projects=integer(0), sloc=integer(0), stars=integer(0), size=integer(0))
-
-add_phase("Cloned projects", stage1_corpus, "scala_code")
-add_phase("Compatible SBT projects", filter(stage1_corpus, compatible), "scala_code")
-add_phase("Removed duplicate projects", anti_join(filter(stage1_corpus, compatible), stage3_corpus, by="project_id"), "scala_code")
-add_phase("Without duplicates", stage3_corpus, "scala_code")
-add_phase("Metadata extraction", filter(stage3_corpus, metadata_exit_code==0), size="size")
-add_phase("Semanticdb generation", filter(stage3_corpus, semanticdb_exit_code==0), size="size")
-add_phase("Implicits extraction", filter(stage3_corpus, implicits_exit_code==0), size="size")
-
-corpus_shrinking %>% 
-  my_datatable(colnames = c("Phase", "Number of projects", "Scala code", "GitHub Stars", "Project size"))
+overview_table(
+  phase_info("downloaded projects",   stage1_corpus, code_column=scala_code),
+  phase_info("compatible projects",   filter(stage1_corpus, compatible), code_column=scala_code),
+  phase_info("removed duplicates",    anti_join(filter(stage1_corpus, compatible), stage2_corpus, by="project_id"), code_column=scala_code),
+  phase_info("all projects",          stage2_corpus),
+  phase_info("metadata extraction",   filter(stage2_corpus, metadata_exit_code==0), size_column=size),
+  phase_info("semanticdb generation", filter(stage2_corpus, semanticdb_exit_code==0), size_column=size),
+  phase_info("implicits extraction",  filter(stage2_corpus, implicits_exit_code==0), size_column=size)
+)
 ```
 
 ### Errors
@@ -520,10 +503,10 @@ This table shows the summary of exit codes in the different phases:
 ```{r}
 phases <- c("metadata", "compile", "semanticdb", "implicits")
 phases_data <- list(
-  select(stage3_corpus, project_id, exit_code=metadata_exit_code),
-  select(stage3_corpus, project_id, exit_code=compile_exit_code),
-  select(stage3_corpus, project_id, exit_code=semanticdb_exit_code),
-  select(stage3_corpus, project_id, exit_code=implicits_exit_code)
+  select(stage2_corpus, project_id, exit_code=metadata_exit_code),
+  select(stage2_corpus, project_id, exit_code=compile_exit_code),
+  select(stage2_corpus, project_id, exit_code=semanticdb_exit_code),
+  select(stage2_corpus, project_id, exit_code=implicits_exit_code)
 )
 status <- map2_dfr(phases, phases_data, ~phase_status(.x, .y)) %>% mutate_at(vars(-phase), function(x) coalesce(x, 0))
 status %>% my_datatable()
@@ -533,9 +516,11 @@ status %>% my_datatable()
 
 These are errors should be investigated closely, since extracting metadata should in general have less problems that generating semanticdb.
 However, with SBT no one really knows.
+Usually the cause of the problem is that metadata does not compile the same modules.
 
 ```{r}
-sdb_no_metadata <- filter(stage3_corpus, metadata_exit_code != 0, semanticdb_exit_code == 0) %>%
+sdb_no_metadata <- 
+  filter(stage2_corpus, metadata_exit_code != 0, semanticdb_exit_code == 0) %>%
   select(project_id, metadata_exit_code, metadata_failure, metadata_failure_detail, metadata_duration, metadata_scala_code, gh_stars)
 ```
 
@@ -560,9 +545,8 @@ They are decribed in the `[guess_failure_cause](https://github.com/PRL-PRG/scala
 
 ```{r}
 failed_projects <- filter(
-  stage3_corpus, 
-  metadata_exit_code == 1 | 
-    (metadata_exit_code == 0 & semanticdb_exit_code == 1)
+  stage2_corpus, 
+  metadata_exit_code != 0 | (metadata_exit_code == 0 & semanticdb_exit_code > 0)
 ) %>%
   mutate(
     phase=case_when(
@@ -586,275 +570,19 @@ count(failed_projects, cause) %>%
 ```
 
 ```{r}
-make_stats(
-  add_nrow("Projects failed to build", filter(stage3_corpus, implicits_exit_code!=0 | is.na(metadata_scala_code))),
-  add_nrow("Projects missing dependencies", filter(failed_projects, cause=="missing-dependencies")),
-  add_nrow("Projects with compile error", filter(failed_projects, cause=="compilation-failed")),
-  add_nrow("Projects with broken build", filter(failed_projects, cause=="project-loading-failed")),
-  add_nrow("Projects with empty build", filter(stage3_corpus, implicits_exit_code==0, is.na(metadata_scala_code))),
-  add_nrow("Projects missing Scala JS", filter(failed_projects, cause=="missing-dependencies", str_detect(cause_detail, "scalajs"))),
-  add_nrow("Projects missing Snapshot Dependencies", filter(failed_projects, cause=="missing-dependencies", str_detect(cause_detail, "SNAPSHOT")))
-) %>% my_datatable()
+overview_table(
+  r("failed projects - all",                  filter(stage2_corpus, implicits_exit_code != 0)),
+  r("failed projects - metadata",             filter(stage2_corpus, metadata_exit_code != 0)),
+  r("failed projects - semanticdb",           filter(stage2_corpus, metadata_exit_code == 0, semanticdb_exit_code > 0)),
+  r("failed projects - missing dependencies", filter(failed_projects, cause=="missing-dependencies")),
+  r("failed projects - compile error",        filter(failed_projects, cause=="compilation-failed")),
+  r("failed projects - broken build",         filter(failed_projects, cause=="project-loading-failed")),
+  r("failed projects - empty build",          filter(stage2_corpus, implicits_exit_code==0, is.na(metadata_scala_code))),
+  r("failed projects - missing scalajs",      filter(failed_projects, cause=="missing-dependencies", str_detect(cause_detail, "scalajs"))),
+  r("failed projects - missing snapshots",    filter(failed_projects, cause=="missing-dependencies", str_detect(cause_detail, "SNAPSHOT")))
+)
 ```
 
+### Extractor code size
 
-#### Missing dependencies
-
-Missing dependencies is a common failure.
-This section gives an overview which dependencies are missing to help to indentify if there are some patterns.
-The `guess_failure_cause` function only considers the first missing dependency.
-
-```{r}
-count(filter(failed_projects, cause=="missing-dependencies"), cause_detail) %>% arrange(desc(n)) %>% my_datatable(colnames=c("Dependency", "Count"))
-```
-
-Notes:
-- The `scalajs` is possibly missing because it has been removed due to some security vulnerabilities is some particular version.
-
-#### List of Java errors
-
-The list of JVM errors reported during any of the phases.
-This helps us to identify if there are some patterns.
-
-```{r}
-filter(failed_projects, cause=="java-error") %>%
-  mutate(
-    log=make_corpus_link(path(project_id, "_analysis_", str_c(phase, ".log")))
-  ) %>%
-  select(-phase, -cause) %>%
-  select(project_id, log, everything()) %>%
-  my_datatable(escape=FALSE)
-```
-
-
-#### List of unknown problems
-
-This is just to see of peraps there is something that could be done about it.
-For our experience, these are simply broken builds.
-
-```{r}
-filter(failed_projects, cause=="unknown") %>%
-  mutate(
-    log=make_corpus_link(path(project_id, "_analysis_", str_c(phase, ".log")))
-  ) %>%
-  select(-phase, -cause) %>%
-  select(project_id, log, everything()) %>%
-  my_datatable(escape=FALSE)
-```
-
-## Missing Semanticdb
-
-In some cases, the semanticdb would run, but not generate any output.
-This is just a safety measure to list projects for which the pipeline reports a successful semanticdb generation, yet they need a manual inspection since no output has been generated.
-
-```{r}
-filter(corpus, semanticdb_exit_code==0, is.na(semanticdb_files) | semanticdb_files==0) %>%
-  mutate(path=make_corpus_link(project_id)) %>%
-  select(project_id, path, metadata_exit_code, scala_version, commit_count, gh_stars, metadata_scala_code) %>%
-  my_datatable(escape=FALSE)
-```
-
-## Errors in implicit extraction
-
-The final phase runs the [implicit extractor](https://github.com/PRL-PRG/scala-implicits-analysis/blob/oopsla19/libs/tools/src/main/scala/cz/cvut/fit/prl/scala/implicits/tools/ExtractImplicits.scala).
-The extractor takes the generated semanticdb files together with the extracted metadata and build a [model](https://github.com/PRL-PRG/scala-implicits-analysis/blob/master/libs/model/src/main/protobuf/model.proto) of implicits.
-Not all implcits that we find the semanticdb can be resolved and stored in our model.
-There is a number of issues that can appear, but the main ones are:
-- missing symbol - the implicit is referencing a symbol that cannot be found in neither the semanticdb nor the class path extracted from SBT
-- unsupported type - semanticdb defines 14 different [Scala types](https://github.com/scalameta/scalameta/blob/master/semanticdb/semanticdb3/semanticdb3.md#scala-type). We do not support structural, dependent and existential types.
-- missing term - the implicit call sites are injected by compiler. These are represented in semanticdb as AST [nodes](https://github.com/scalameta/scalameta/blob/master/semanticdb/semanticdb3/semanticdb3.md#tree) which are different from Scala AST. Our tool tries to map terms from one to the other, but it might not be possible every time. 
-
-### Failures
-
-This lists failures encountered when trying to extract implicits from semanticdb.
-A failure is when the running the extractor did not terminate normally.
-
-```{r}
-filter(corpus, !is.na(implicit_failure)) %>%
-  select(project_id, implicit_failure, metadata_scala_code, gh_stars) %>%
-  my_datatable()
-```
-
-Notes:
-- The `ZipException: error in opening zip file` means that it could not open a a dependency jar file.
-
-### Errors
-
-When extracting implicit declarations and call sites, there can be a number of problems.
-Each of the gets logged into an ``r IMPLICITS_EXCEPTIONS`` files.
-The following is their classification based on a number of regular expressions.
-
-```{r load implicit errors}
-exceptions <- read_data(IMPLICIT_EXCEPTIOSN_F)
-```
-
-```{r}
-classified_exceptions <- 
-  mutate(
-    exceptions,
-    class=case_when(
-      exception == "SymbolNotFoundException" & str_detect(message, "local\\d+") ~ "missing-local-symbol",
-      exception == "SymbolNotFoundException" & str_detect(message, "symbol: local\\d+") ~ "missing-local-symbol",
-      exception == "SymbolNotFoundException" & str_detect(message, "at Range\\(\\d+,\\d+,\\d+,\\d+\\)") ~ "missing-symbol-at-range",
-      exception == "SymbolNotFoundException" ~ "missing-symbol-other",
-      exception == "LoadingMetadataException" & str_detect(message, "No module found") & str_detect(message, "multi-jvm") ~ "missing-module-multijvm",
-      exception == "LoadingMetadataException" & str_detect(message, "No module found") ~ "missing-module",
-      exception == "LoadingMetadataException" ~ "metadata-loading",
-      exception == "NotImplementedError" ~ "not-implemented",
-      exception == "UnexpectedElementException" ~ "unexpected-element",
-      exception == "UnsupportedElementException" ~ "unsupported-element",
-      exception == "UnExtractableCallSiteException" & cause == "SymbolNotFoundException" ~ "unextractable-callsite-missing-term",
-      exception == "UnExtractableCallSiteException" & cause == "FunctionNotFoundException" ~ "unextractable-callsite-missing-function",
-      exception == "UnExtractableCallSiteException" ~ "unextractable-callsite-other",
-      exception == "ImplicitArgumentNotFoundException" ~ "missing-implicit-arguments",
-      exception == "Exception" & str_detect(message, "^Invalid call site argument") ~ "invalid-declaration",
-      TRUE ~ "unclassified"
-    )
-  )
-```
-
-#### Per project summary
-
-```{r}
-count(classified_exceptions, project_id) %>% 
-  left_join(select(corpus, project_id, metadata_scala_code, gh_stars), by="project_id") %>%
-  arrange(desc(n)) %>% 
-  my_datatable() 
-```
-
-#### Per error class summary
-
-```{r}
-count(classified_exceptions, class) %>% arrange(desc(n)) %>% my_datatable()
-```
-
-#### Per project and error class summary
-
-```{r}
-count(classified_exceptions, project_id, class) %>% arrange(desc(n)) %>% my_datatable()
-```
-
-#### Missing symbols
-
-Missing local symbols (symbols defined just a block - we do not need to worry about them).
-
-```{r}
-filter(classified_exceptions, class=="missing-local-symbol") %>% 
-  count(project_id) %>% 
-  arrange(desc(n)) %>% 
-  my_datatable()
-```
-
-Missing symbols from a range when aligning the two ASTs.
-
-```{r}
-filter(classified_exceptions, class=="missing-symbol-at-range") %>% 
-  count(project_id) %>% 
-  arrange(desc(n)) %>% 
-  my_datatable()
-```
-
-All other missing symbols.
-
-```{r}
-filter(classified_exceptions, class=="missing-symbol-other") %>% 
-  count(project_id) %>% 
-  arrange(desc(n)) %>% 
-  my_datatable()
-```
-
-The following is a list of the missing symbols.
-This might help us to identify is there are some patterns.
-
-```{r}
-filter(classified_exceptions, class=="missing-symbol-other") %>% 
-  transmute(project_id, symbol=str_replace_all(message, ".*symbol: (.*)$", "\\1")) %>%
-  count(project_id, symbol) %>% 
-  arrange(desc(n)) %>% 
-  my_datatable()
-```
-
-#### Unclassified
-
-These are all the other errors that occured
-
-```{r}
-filter(classified_exceptions, class=="unclassified") %>%
-  select(project_id, module_id, class, everything()) %>%
-  my_datatable()
-```
-
-### Callsites and implicit callsites
-
-A quick overview of the implicit call sites and implicit declarations.
-
-```{r}
-filter(corpus, implicits_exit_code==0, metadata_scala_code > 100) %>%
-  mutate(
-    outlier=is_outlier(callsites)|is_outlier(implicit_callsites),
-    label=if_else(outlier, str_glue("{project_id}"), as.character(NA))
-  ) %>%
-  ggplot(
-    aes(
-      x=callsites, 
-      y=implicit_callsites, 
-      label=label, 
-      color=if_else(scaladex, "Library", "Application")
-    )
-  ) +
-    geom_point(size=.5) +
-    geom_text(size=3, check_overlap = T, vjust=1.5, na.rm = TRUE) + 
-    scale_x_log10(labels = scales::comma) + 
-    scale_y_log10(labels = scales::comma) +
-    geom_vline(aes(xintercept=mean(callsites)), linetype=2, color="black", size=.2) + 
-    geom_hline(aes(yintercept=mean(implicit_callsites)), linetype=2, color="black", size=.2) +
-    labs(
-      title="Ratio of regular call sites and implicit call sites",
-      x="Number of callsites (log)", 
-      y="Number of implicit callsites (log)", 
-      color="Project type"
-    )
-```
-
-```{r}
-filter(corpus, implicits_exit_code==0, metadata_scala_code>0) %>%
-  mutate(
-    outlier=is_outlier(metadata_scala_code)|is_outlier(implicit_local_declarations),
-    label=if_else(outlier, str_glue("{project_id}"), as.character(NA))
-  ) %>%
-  ggplot(
-    aes(
-      x=metadata_scala_code, 
-      y=implicit_local_declarations, 
-      label=label, 
-      color=if_else(scaladex, "Library", "Application")
-    )
-  ) +
-    geom_point(size=.5) +
-    geom_text(size=3, check_overlap = T, vjust=1.5, na.rm = TRUE) + 
-    scale_x_log10(labels = scales::comma) + 
-    scale_y_log10(labels = scales::comma) +
-    geom_vline(aes(xintercept=mean(metadata_scala_code)), linetype=2, color="black", size=.2) + 
-    geom_hline(aes(yintercept=mean(implicit_local_declarations)), linetype=2, color="black", size=.2) +
-    labs(
-      title="Ratio of regular source code size and number of implicit decalarations",
-      x="Source lines of code (log)", 
-      y="Number of local declarations (log)", 
-      color="Project type"
-    )
-```
-
-### Time of the successfull projects
-
-Finally, we report the time each phase took for the successful projects.
-This gives a hint about how long rebuilding the repository of passing projects will take.
-
-```{r}
-make_stats(
-  add_num("Metadata extraction time", corpus$metadata_duration),
-  add_num("Compile time", corpus$compile_duration),
-  add_num("Semanticdb extraction time", corpus$semanticdb_duration),
-  add_num("Implicits extraction time", corpus$implicits_duration)
-) %>%
-  my_datatable()
-```
+TODO: run cloc from here

@@ -131,7 +131,8 @@ latex_command_name <- function(s) {
 latex_escape <- function(s) {
   s %>%
     stringr::str_replace_all("%", "\\%") %>%
-    stringr::str_replace_all("_", "\\_")
+    stringr::str_replace_all("_", "\\_") %>%
+    stringr::str_replace_all("-", "")
 }
 
 generate_latex_command <- function(name, value, prefix = "") {
