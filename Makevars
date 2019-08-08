@@ -139,8 +139,6 @@ IMPLICIT_PARAMETERS_PROBLEMS := implicit-parameters-problems.csv
 
 # the following files will be converted into feather format and compressed by gzip
 EXPORTED_IMPLICIT_FILES := $(GLOBAL_IMPLICITS_EXCEPTIONS) \
-  $(CORPUS_STAGE1) \
-  $(CORPUS_STAGE3) \
   $(IMPLICIT_CALLSITES) \
   $(IMPLICIT_DECLARATIONS) \
   $(IMPLICIT_CONVERSIONS) \
