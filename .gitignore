@@ -14,3 +14,4 @@ target
 /scripts/tools/sccpreprocessor/src/*.class
 /libs/example/.sbt-boot
 /scripts/analysis/.ipynb_checkpoints/
+/scripts/analysis/*.html
