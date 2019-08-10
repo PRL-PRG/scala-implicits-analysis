@@ -328,6 +328,8 @@ package object model {
         None
       }
 
+    def isTraitOrInterface: Boolean = this.isTrait | this.isInterface
+
     // TODO: also any MethodSignature that extends FunctionX
     def isFunctionLike: Boolean = that.isMethod
 

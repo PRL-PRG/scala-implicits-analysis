@@ -15,6 +15,61 @@ class ImplicitConversionSuite
   import ImplicitConversionExporter.export
 
   project(
+    "to extends trait",
+    """
+      | package p
+      | object o {
+      |   class C
+      |   trait T
+      |
+      |   implicit def c2t(x: C): T = new T {}
+      |   implicit class IC2t(x: C) extends T {}
+      |   implicit def c2runnable(x: C): java.lang.Runnable = new java.lang.Runnable {
+      |     def run = {}
+      |   }
+      |   implicit class IC2runnable(x: C) extends java.lang.Runnable {
+      |     def run = {}
+      |   }
+      |
+      |   implicit class IReg(x: C) {
+      |     def run = {}
+      |   }
+      |
+      |   class D { }
+      |
+      |   implicit def reg(x: C): D = new D
+      | }
+    """.stripMargin) { project =>
+    val exported = export(project).toList.collect { case Success(v) => v }
+
+    val c2t = exported.find(_.declaration.name == "c2t").get
+    c2t.toExtendsTrait shouldBe true
+    c2t.toIsTrait shouldBe true
+
+    val IC2t = exported.find(_.declaration.name == "IC2t").get
+    IC2t.toExtendsTrait shouldBe true
+    IC2t.toIsTrait shouldBe false
+
+    val c2runnable = exported.find(_.declaration.name == "c2runnable").get
+    c2runnable.toExtendsTrait shouldBe true
+    c2runnable.toIsTrait shouldBe true
+    c2runnable.toLanguage.isJava
+
+    val IC2runnable = exported.find(_.declaration.name == "IC2runnable").get
+    IC2runnable.toExtendsTrait shouldBe true
+    IC2runnable.toIsTrait shouldBe false
+    IC2runnable.toLanguage.isJava
+
+    val IReg = exported.find(_.declaration.name == "IReg").get
+    IReg.toExtendsTrait shouldBe false
+    IReg.toIsTrait shouldBe false
+
+    val reg = exported.find(_.declaration.name == "reg").get
+    reg.toExtendsTrait shouldBe false
+    reg.toIsTrait shouldBe false
+  }
+
+  project(
     "conversion export of json example",
     """
       | package p
