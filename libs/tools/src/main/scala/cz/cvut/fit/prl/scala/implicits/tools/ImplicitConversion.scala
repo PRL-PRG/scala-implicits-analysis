@@ -34,6 +34,10 @@ case class ImplicitConversion(
   def toScope: String = toDeclaration.locationScope
   def toCompilationUnit: Option[String] = toDeclaration.compilationUnit
   def toLanguage: Language = toDeclaration.language
+  def toIsTrait: Boolean = toDeclaration.isTraitOrInterface
+  def toExtendsTrait: Boolean =
+    toDeclaration.isTraitOrInterface |
+    toDeclaration.classSignature.parents.exists(_.declaration.isTraitOrInterface)
 }
 
 object ImplicitConversion {
@@ -58,7 +62,9 @@ object ImplicitConversion {
           "to_version",
           "to_scope",
           "to_compilation_unit",
-          "to_language"
+          "to_language",
+          "to_is_trait",
+          "to_extends_trait"
         )
       )
 
@@ -83,7 +89,9 @@ object ImplicitConversion {
             d.toVersion,
             d.toScope,
             d.toCompilationUnit,
-            d.toLanguage
+            d.toLanguage,
+            d.toIsTrait,
+            d.toExtendsTrait
           ).map(_.str)
         }
     }
