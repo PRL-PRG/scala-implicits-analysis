@@ -51,6 +51,7 @@ case class ImplicitParameter(parameter: Parameter, declaringType: Declaration)(i
     } else {
       "NA"
     }
+  def typeAnnotations: Option[Seq[String]] = resolvedReturnDeclaration.map(_.annotations.map(_.declarationId))
   def resolvedTypeId: Option[String] = resolvedReturnDeclaration.map(_.declarationId)
   def resolvedTypeKind: Option[Declaration.Kind] = resolvedReturnDeclaration.map(_.kind)
   def numTypeArguments: Int = returnType.typeArguments.size
@@ -93,6 +94,7 @@ object ImplicitParameter {
           "type_location_uri",
           "type_location_github",
           "type_local",
+          "type_annotations",
           "resolved_type_id",
           "resolved_type_kind",
           "num_type_arguments",
@@ -133,6 +135,7 @@ object ImplicitParameter {
             d.typeLocationUri,
             d.typeLocationGithub,
             d.typeLocal,
+            d.typeAnnotations,
             d.resolvedTypeId,
             d.resolvedTypeKind,
             d.numTypeArguments,
