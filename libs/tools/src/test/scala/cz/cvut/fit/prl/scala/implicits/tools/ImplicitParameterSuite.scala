@@ -11,6 +11,26 @@ class ImplicitParameterSuite extends ExtractionContextSuite
   import ImplicitParameterExporter.export
 
   project(
+    "@implicitNotFound",
+    s"""
+      | package p
+      | import scala.annotation.implicitNotFound
+      | object o {
+      |   @implicitNotFound("T is missing")
+      |   trait T[A]
+      |
+      |   type R = T[Int]
+      |
+      |   def f(x: Int)(implicit r: R) { }
+      | }
+    """.stripMargin) { implicit project =>
+    val parameters = export(project).map(_.get).toList
+
+    parameters.size shouldBe 1
+    parameters.head.typeAnnotations.get should contain("scala/annotation/implicitNotFound#")
+  }
+
+  project(
     "context / type-class",
     """
       | package p
@@ -38,7 +58,6 @@ class ImplicitParameterSuite extends ExtractionContextSuite
     r2.numTypeArguments shouldBe 1
     r2.numTypeArgumentRefs shouldBe 1
   }
-
 
   project(
     "type class",
