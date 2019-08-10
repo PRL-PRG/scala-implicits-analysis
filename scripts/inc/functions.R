@@ -10,6 +10,16 @@ library(readr)
 library(stringr)
 library(tidyr)
 
+load_if_not_present <- function(variable, fun) {
+  name <- as.character(substitute(variable))
+  if (!exists(name)) { 
+    message("Loading: ", name)
+    force(fun)
+  } else {
+    get(name)
+  }
+}
+
 # reads a file written by write_fst, converts it to a tibble
 read_data <- function(path) {
   read_fst(path) %>% 
@@ -18,7 +28,14 @@ read_data <- function(path) {
 
 # for the final corpus, we only consider projects that have some Scala code and for which the implicit extractor does run successfully
 filter_final_corpus <- function(corpus) {
-  filter(corpus, implicits_exit_code==0, metadata_scala_code > 0, callsites > 0)
+  filter(corpus, implicits_exit_code==0, metadata_scala_code > 0, callsites > 0) %>%
+  mutate(
+    explicit_callsites=callsites,
+    callsites=implicit_callsites+explicit_callsites
+  ) %>%
+  rename(
+    explicit_test_callsites=test_callsites
+  )
 }
 
 parse_sbt_version <- Vectorize(function(version) {
@@ -251,50 +268,6 @@ remove_version_from_module_id <- function(df) {
   mutate(df, module_id=str_replace(module_id, "([^:]+)::([^:]+):([^:]+):[^:]+:([^:]+)","\\1::\\2:\\3:\\4"))
 }
 
-expand_scope <- function(df) {
-  df %>%
-    mutate(
-      is_in_main=str_detect(location_scope, "compile"),
-      is_in_test=str_detect(location_scope, "test")
-    )
-}
-
-expand_location <- function(df) {
-  df %>%
-    mutate(
-      #is_transitive=str_detect(location_scope, "transitive"),
-      # this is to fix scala--scala which will define all as transitive, yet thanks to groupId and artifactId they will
-      # appear as part of the project
-      #is_external=is_transitive|str_detect(location_scope, "dependency"),
-      is_external=str_detect(location_scope, "dependency"),
-      is_local=!is_external,
-      is_managed=str_detect(location_scope, "managed"),
-
-      is_external_test=is_external & is_in_test,
-      is_local_test=is_local & is_in_test,
-      is_managed_test=is_managed & is_in_test
-    )
-}
-
-expand_access_info <- function(df) {
-  df %>%
-    mutate(
-      is_access_specified=access!="NOT_SPECIFIED",
-      is_public=access=="PUBLIC",
-      is_private=startsWith(access, "PRIVATE"),
-      is_protected=startsWith(access, "PROTECTED")
-    ) %>%
-    select(-access)
-}
-
-is_from_scala <- function(df) {
-  df %>%
-    mutate(
-      is_from_scala=is_external & startsWith(def_group_id, "org.scala-lang"),
-      is_from_scala_test=is_from_scala & is_in_test
-    )
-}
-
 # stage 2 projects thresholds
 s2_min_commit_count <- 2
 s2_min_lifespan_months <- 2
@@ -316,18 +289,22 @@ filter_stage_2_projects <- function(projects) {
 
 overview_projects <- function(name, df, code_column=scala_code) {
   code_column <- enquo(code_column)
+  
   summary <- 
     summarise(
       df, 
-      `projects`=n(),
-      `projects code`=sum(!!code_column, na.rm=TRUE),
-      `projects stars`=sum(gh_stars, na.rm=TRUE),
-      `projects commits`=sum(commit_count, na.rm=TRUE)
-    ) %>%
-    mutate_all(fmt)
+      n=n(),
+      code=sum(!!code_column, na.rm=TRUE),
+      stars=sum(gh_stars, na.rm=TRUE),
+      commits=sum(commit_count, na.rm=TRUE)
+    )
   
-  colnames(summary) <- str_c(name, " ", colnames(summary))
-  summary %>% gather("name", "value")
+  overview(
+    r(str_c(name), summary$n),
+    r(str_c(name, " code"), summary$code),
+    r(str_c(name, " stars"), summary$stars),
+    r(str_c(name, " commits"), summary$commits)
+  )
 }
 
 view_corpus <- function(corpus, view=FALSE) {

@@ -22,6 +22,8 @@ source(file.path(params$lib_dir, "setup.R"))
 
 ```{r output, include=FALSE}
 OUT_TOP_PROJECTS_TEX <- path(output_dir, "top-projects.tex")
+OUT_CORPUS_BUILDING_TEX <- path(output_dir, "corpus-building.tex")
+OUT_SCALA_VERSIONS_TEX <- path(output_dir, "scala-version.tex")
 OUT_CORPUS_OVERVIEW_PDF <- path(output_dir, "corpus-overview.pdf")
 OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
 ```
@@ -119,20 +121,6 @@ The final corpus only contains projects for which the implicit extractor success
 corpus <- filter_final_corpus(stage2_corpus)
 ```
 
-Add total call sites:
-
-```{r}
-corpus <- mutate(
-  corpus,
-  explicit_callsites=callsites,
-  callsites=implicit_callsites+explicit_callsites
-) %>%
-  rename(
-    explitic_test_callsites=test_callsites
-  )
-```
-
-
 ### Checks
 
 In the final corpus, the metadata, semanticdb stages should have 0 exit code.
@@ -156,13 +144,13 @@ compatible_projects <- filter(stage1_corpus, compatible)
 duplicated_projects <- anti_join(compatible_projects, stage2_corpus, by="project_id")
 
 overview_table(
-  overview_projects("stage one",               stage1_corpus),
-  overview_projects("sbt projects",            filter(stage1_corpus, build_system=="sbt")),
-  overview_projects("maven projects",          filter(stage1_corpus, build_system=="maven")),
-  overview_projects("graddle projects",        filter(stage1_corpus, build_system=="graddle")),
-  overview_projects("compatible sbt projects", compatible_projects),
-  overview_projects("duplicated",              duplicated_projects),
-  overview_projects("stage two",               stage2_corpus)
+  overview_projects("downloaded projects (stage 1)", stage1_corpus),
+  overview_projects("sbt projects",                  filter(stage1_corpus, build_system=="sbt")),
+  overview_projects("maven projects",                filter(stage1_corpus, build_system=="maven")),
+  overview_projects("graddle projects",              filter(stage1_corpus, build_system=="graddle")),
+  overview_projects("compatible sbt projects",       compatible_projects),
+  overview_projects("duplicated",                    duplicated_projects),
+  overview_projects("selected projects (stage 2)",   stage2_corpus)
 )
 ```
 
@@ -212,11 +200,60 @@ overview_table(
   r("corpus without test", projects_without_tests),
   r("corpus with test pct", percent(projects_with_tests/nrow(corpus))),
   r("corpus code median", median(corpus$metadata_scala_code)),
+  r("corpus code mean", mean(corpus$metadata_scala_code)),
+  r("corpus stars mean", mean(corpus$gh_stars)),
+  r("corpus commits mean", mean(corpus$commit_count)),
   r("corpus big projects", filter(corpus, metadata_scala_code > 5e4)),
   r("corpus in scaladex", filter(corpus, scaladex)),
   r("corpus not in scaladex", filter(corpus, !scaladex)),
 )
 ```
+
+Versions
+
+```{r}
+corpus_scala_versions <- 
+  corpus %>%
+  mutate(scala_major_version=substr(updated_scala_version, 1, 4))
+
+corpus_2_11 <- filter(corpus_scala_versions, scala_major_version=="2.11")
+corpus_2_12 <- filter(corpus_scala_versions, scala_major_version=="2.12")
+
+overview_table(
+  overview_projects("corpus scala eleven", corpus_2_11, code_column=metadata_scala_code),
+  overview_projects("corpus scala twelve", corpus_2_12, code_column=metadata_scala_code),
+  r("corpus scala eleven pct", percent(nrow(corpus_2_11)/nrow(corpus))),
+  r("corpus scala eleven code pct", percent(sum(corpus_2_11$metadata_scala_code)/sum(corpus$metadata_scala_code))),
+  r("corpus scala eleven stars pct", percent(sum(corpus_2_11$gh_stars)/sum(corpus$gh_stars))),
+)
+
+corpus_scala_versions <- corpus_scala_versions %>%
+  select(scala_major_version, metadata_scala_code, gh_stars) %>%
+  group_by(scala_major_version) %>%
+  summarise(
+    `Projects`=n(), 
+    `Scala code`=oom(sum(metadata_scala_code)),
+    `GitHub stars`=oom(sum(gh_stars))
+  ) %>%
+  mutate_all(fmt) %>%
+  rename(
+    `Scala Version`=scala_major_version
+  )
+
+my_datatable(corpus_scala_versions)
+```
+
+```{r}
+corpus_scala_versions %>%
+  xtable::xtable(align="lcrrr") %>%
+  print(
+    floating=F,
+    file=OUT_SCALA_VERSIONS_TEX,
+    include.rowname=F,
+    sanitize.text.function=identity
+  )
+```
+
 
 Notes:
 
@@ -427,10 +464,8 @@ top_projects <-
     `Duplication`=dejavu_duplication,
     `Scaladex`=scaladex
   )
-```
 
-```{r show top projects}
-top_projects %>% my_datatable()
+my_datatable(top_projects)
 ```
 
 ```{r save top projects}
@@ -468,9 +503,8 @@ Since we are working with real-world projects it is possible that not all of the
 The following table shows how many projects (Scala code and GitHub stars) do we loose in each step.
 
 ```{r}
-phase_info <- function(phase, df, code_column=metadata_scala_code, size_column=size_repo) {
+phase_info <- function(phase, df, code_column=scala_code) {
   code_column <- enquo(code_column)
-  size_column <- enquo(size_column)
 
   df %>%
     summarise(
@@ -478,20 +512,117 @@ phase_info <- function(phase, df, code_column=metadata_scala_code, size_column=s
       `Number of projects`=n(),
       `Scala code`=sum(!!code_column, na.rm=T),
       `GitHub Stars`=sum(gh_stars),
-      `Project size`=size(sum(!!size_column, na.rm=T))
+      `Repository size`=size(sum(size_repo, na.rm=T))
     ) %>%
     mutate_all(fmt)
 }
 
-overview_table(
-  phase_info("downloaded projects",   stage1_corpus, code_column=scala_code),
-  phase_info("compatible projects",   filter(stage1_corpus, compatible), code_column=scala_code),
-  phase_info("removed duplicates",    anti_join(filter(stage1_corpus, compatible), stage2_corpus, by="project_id"), code_column=scala_code),
-  phase_info("all projects",          stage2_corpus),
-  phase_info("metadata extraction",   filter(stage2_corpus, metadata_exit_code==0), size_column=size),
-  phase_info("semanticdb generation", filter(stage2_corpus, semanticdb_exit_code==0), size_column=size),
-  phase_info("implicits extraction",  filter(stage2_corpus, implicits_exit_code==0), size_column=size)
+corpus_building <- overview(
+  phase_info("Downloaded projects", stage1_corpus),
+  phase_info("\\SBT projects",      filter(stage1_corpus, build_system=="sbt")),
+  phase_info("Compatible \\SBT projects",   filter(stage1_corpus, compatible)),
+  phase_info("Duplicates",          anti_join(filter(stage1_corpus, compatible), stage2_corpus, by="project_id")),
+  phase_info("Selected projects",        stage2_corpus),
+  phase_info("After metadata extraction", filter(stage2_corpus, metadata_exit_code==0), code_column=metadata_scala_code),
+  phase_info("After \\SDB generation",    filter(stage2_corpus, metadata_exit_code==0, semanticdb_exit_code==0), code_column=metadata_scala_code),
+  phase_info("After implicit extraction", corpus, code_column=metadata_scala_code)
 )
+
+my_datatable(corpus_building)
+```
+
+```{r}
+corpus_building %>%
+  xtable::xtable(align="llrrrr") %>%
+  print(
+    floating=F,
+    file=OUT_CORPUS_BUILDING_TEX,
+    include.rowname=F,
+    sanitize.text.function=identity
+  )
+```
+
+
+For the figure
+
+```{r}
+phase_info <- function(phase, df, code_column=scala_code) {
+  code_column <- enquo(code_column)
+
+  df %>%
+    summarise(
+      `Phase`=phase,
+      `Number of projects`=n(),
+      `Scala code`=oom(sum(!!code_column, na.rm=T)),
+      `GitHub Stars`=oom(sum(gh_stars)),
+      `Repository size`=size(sum(size_repo, na.rm=T))
+    ) %>%
+    mutate_all(fmt)
+}
+
+corpus_building <- overview(
+  phase_info("Downloaded projects", stage1_corpus),
+  phase_info("Compatible \\SBT projects",   filter(stage1_corpus, compatible)),
+  phase_info("Selected projects",        stage2_corpus),
+  phase_info("After \\SDB generation",    filter(stage2_corpus, metadata_exit_code==0, semanticdb_exit_code==0), code_column=metadata_scala_code),
+  phase_info("After implicit extraction", corpus, code_column=metadata_scala_code)
+)
+
+my_datatable(corpus_building)
+```
+
+### How much Spark do we have
+
+It seems that people like to have their own version of Spark.
+The problem is that Spark is big (the biggest Scala project excluding the JS stuff) so it will potetially skew the data.
+
+The simple heuristics is that the name contains `spark` and the project has over 100K lines of code.
+```{r}
+filter_spark <- function(df) {
+  df %>%
+    filter(
+      str_detect(tolower(project_id), "spark"), 
+      scala_code > 1e5 # spark has over 100K SLOC
+    )
+}
+```
+
+In the corpus we have approximatelly:
+
+```{r stage 1 spark overview}
+spark_in_stage1 <- filter_spark(compatible_projects)
+
+overview_table(
+  overview_projects("spark projects before", spark_in_stage1),
+  r("spark projects before code pct", percent(sum(spark_in_stage1$scala_code)/sum(compatible_projects$scala_code, na.rm=T)))
+)
+```
+
+Who are they:
+
+```{r spark projects in stage 1}
+spark_in_stage1 %>%
+  arrange(desc(gh_stars)) %>%
+  my_datatable()
+```
+
+After filtering we get
+
+```{r stage 2 spark overview}
+spark_in_stage2 <- filter_spark(stage2_corpus)
+
+overview_table(
+  overview_projects("spark projects after", spark_in_stage2),
+  r("spark projects after code pct", percent(sum(spark_in_stage2$scala_code)/sum(stage2_corpus$scala_code, na.rm=T)))
+)
+```
+
+Who are they:
+
+```{r spark projects in stage 2}
+spark_in_stage2 %>% 
+  arrange(desc(gh_stars)) %>%
+  my_datatable()
 ```
 
 ### Errors

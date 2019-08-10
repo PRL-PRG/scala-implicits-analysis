@@ -12,7 +12,12 @@ r <- function(name, value, ...) {
 }
 
 r.numeric <- function(name, value, ...) {
-  tag(str_c(name, " rnd"), fmt(oom(value), ...))
+  raw_str <- fmt(value, ...)
+  rnd_str <- fmt(oom(value), ...)
+  
+  if (raw_str != rnd_str) {
+    tag(str_c(name, " rnd"), rnd_str)
+  }
   
   NextMethod("r", value)
 }
@@ -122,15 +127,15 @@ fmt_tag <- function(name, value, ...) {
 }
 
 latex_command_name <- function(s) {
-  s <- stringr::str_split_fixed(s, "\\(", 2)[, 1]
-  s <- stringr::str_to_title(s)
-  stringr::str_replace_all(s, "\\s", "")
+  stringr::str_replace_all(s, "\\(.*\\)", "") %>%
+  stringr::str_to_title() %>%
+  stringr::str_replace_all("\\s", "")
 }
 
 # TODO: test on latex_escape
 latex_escape <- function(s) {
   s %>%
-    stringr::str_replace_all("%", "\\%") %>%
+    stringr::str_replace_all("\\%", "\\\\%") %>%
     stringr::str_replace_all("_", "\\_") %>%
     stringr::str_replace_all("-", "")
 }

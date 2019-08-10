@@ -267,28 +267,6 @@ The final set of projects that will go to the next stage is composed based on th
 - be in scaladex or have more than `r s2_min_gh_stars2` or less than `r s2_max_duplication2` duplication
 
 ```{r}
-human_corpus <- function(corpus, view=FALSE, code_column=scala_code) {
-  code_column <- enquo(code_column)
-  df <- transmute(
-    corpus, 
-    origin, 
-    commit_count, 
-    !!code_column, 
-    dejavu_duplication=fmt(dejavu_duplication, digit=3), 
-    active=gh_pushed_at-gh_created_at, 
-    gh_stars, 
-    scaladex
-  )
-  
-  if (view) 
-    View(df)
-  else
-    df
-}
-```
-
-
-```{r}
 stage2_projects <- filter_stage_2_projects(projects)
 ```
 

@@ -3,21 +3,25 @@ title: Corpus Analysis
 authors: Filip Krikava, Heather Miller and Jan Vitek
 output:
   html_document:
+    code_folding: hide
+    theme: united
     toc: true
     toc_float: true
-    theme: united
-    code_folding: hide
 params:
   corpus_dir: /var/lib/scala/corpora/github
   corpus_url: http://prl1.ele.fit.cvut.cz:8149
   lib_dir: ../inc
-  report_name: implicit-analysis
+  report_name: implicits-analysis
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 source(file.path(params$lib_dir, "setup.R"))
+```
+
+```{r}
+JOIN_BY <- c("mid", "declaration_id")
 ```
 
 ## Introduction
@@ -181,802 +185,551 @@ They were extracted using [ImplicitParameterExporter.scala](https://github.com/P
 
 ## Loading data
 
-The `corpus` variable contains prject metadata information.
-We only consider projects for which the extractor run successfully (which transitively implies that the project was compiled and semanticdb was generated) and that contains some compile Scala code (there are projects that do contain Scala code, but none is being compile).
-
-```{r loading corpus}
-corpus <- read_data(CORPUS_STAGE3_F) %>% filter_final_corpus()
-```
+First, we load the corpus and raw data that came from the `export-implicit` task.
 
 ```{r loading declarations}
-all_declarations <- read_data(IMPLICIT_DECLARATIONS_F) %>%
-  remove_version_from_module_id()
+raw_corpus <- load_if_not_present(raw_corpus, read_csv(CORPUS_STAGE3) %>% filter_final_corpus())
+raw_all_declarations <- load_if_not_present(raw_all_declarations, read_data(IMPLICIT_DECLARATIONS_F))
+raw_all_callsites <- load_if_not_present(raw_all_callsites, read_data(IMPLICIT_CALLSITES_F))
+raw_all_conversions <- load_if_not_present(raw_all_conversions, read_data(IMPLICIT_CONVERSIONS_F))
+raw_all_parameters <- load_if_not_present(raw_all_parameters, read_data(IMPLICIT_PARAMETERS_F))
 ```
 
-TODO: make some indexes with project_id and module_id
-- use _id for numbers
-- use _name for the names in external data frames
-TODO: all locations that are transitive, but are not a dependency are not a dependency.
-The sbt.librarymanagement.ModuleID.isTransitive is not super precise and in some cases inter-project dependencies will mark as transitive.
+Double check there are no duplicates!
 
-
-```{r loading callsites}
-
-all_callsites <- read_feather(IMPLICIT_CALLSITES_F) %>%
-  remove_version_from_module_id()
+```{r}
+stopifnot(!any(duplicated(raw_corpus$project_id)))
 ```
 
-```{r loading conversions}
-all_conversions <- read_feather(IMPLICIT_CONVERSIONS_F) %>%
-  remove_version_from_module_id()
+
+```{r, include=F}
+reset_environment <- function() {
+  vars <- ls(envir = globalenv())
+  vars <- vars[!startsWith(vars, "raw_all")]
+  message("Removing: ", str_c(vars, ", "))
+  rm(list=vars, envir=globalenv())
+}
 ```
 
-```{r loading parameters}
-all_parameters <- read_feather(IMPLICIT_PARAMETERS_F) %>%
-  remove_version_from_module_id()
+
+Note: 
+- The conditional load is for interactive development of this notebook.
+  Loading takes time and they these variables should only be used to derive the actual variables with which we work.
+
+```{r}
+index <- function(df) {
+  df %>% 
+    left_join(select(corpus, project_id, pid), by="project_id") %>% 
+    left_join(module_ids, by="module_id") %>% 
+    select(pid, mid, project_id, everything()) %>% 
+    # TODO -project_id?
+    select(-module_id)
+}
+
+expand_location <- function(df) {
+  df %>%
+    mutate(
+      is_in_test=str_detect(location_scope, "test"),
+      is_in_managed=str_detect(location_scope, "managed"),
+      is_in_dependency=str_detect(location_scope, "dependency"),
+      # all locations that are transitive, but are not a dependency are not a dependency.
+      # the sbt.librarymanagement.ModuleID.isTransitive is not super precise and in some cases 
+      # inter-project dependencies will mark as transitive.
+      is_in_transitive=str_detect(location_scope, "transitive") & is_in_dependency
+    ) %>%
+      select(-location_scope) %>%
+      select(-location_path, -location_path, -location_uri, -location_pos)
+}
+
+expand_access_info <- function(df) {
+  df %>%
+    mutate(
+      is_access_specified=access!="NOT_SPECIFIED",
+      is_public=access=="PUBLIC",
+      is_private=startsWith(access, "PRIVATE"),
+      is_protected=startsWith(access, "PROTECTED")
+    ) %>%
+      select(-access)
+}
+
+expand_is_from_scala <- function(df) {
+  df %>%
+    mutate(
+      is_from_scala=is_in_dependency & startsWith(def_group_id, "org.scala-lang")
+    )
+}
+
+expand_platform <- function(df) {
+  df %>%
+    mutate(
+      is_jvm=str_detect(module_id, ":jvm$"),
+      is_js=str_detect(module_id, ":js$"),
+      is_native=str_detect(module_id, ":native$"),
+    )
+}
+
+expand_module_name <- function(df) {
+  df %>%
+    mutate(
+      module_name=str_replace(module_id, "^[^:]+::(.*):[^:]+:[^:]+$", "\\1")
+    )
+}
+
+remove_scala_version_from_id <- function(df, column) {
+  column <- enquo(column)
+  df %>%
+    mutate(
+      !!column:=str_replace(!!column, "(.*)_2.\\d{2}$", "\\1")
+    )
+}
 ```
 
 ## Clean data
 
-We need to remove declarations for which we do not know the library they come from.
+There are couple of inaccuracies in the data gathering.
+This section tries to clean them up:
+
+1. In some cases, we are not able to resolve the library in which a declaration has been defined.
+   This usually happend when the classpath for the project is not properly configured.
+   We have seen this mostly with projects requiring some native packages with Java API.
+   
+2. There was some inference with parallel job execution and a few projects have in their module_id some undesired output from make.
+   
 How many are there:
 
 ```{r missing library info}
-make_stats(
-  add_nrow("Declarations missing library info", filter(all_declarations, is.na(def_group_id)))
-) %>% my_datatable()
+missing_declarations_library <- 
+  filter(raw_all_declarations, is.na(def_group_id)) %>%
+  select(project_id, module_id, declaration_id)
+
+missing_callsites_library <- 
+  semi_join(raw_all_callsites, missing_declarations_library, by=c("module_id", "declaration_id")) %>%
+  select(project_id, module_id, declaration_id)
+
+bad_module_id_declarations <- 
+  filter(raw_all_declarations, str_detect(module_id, "make\\[")) %>%
+  distinct(module_id)
+
+bad_module_id_callsites <- 
+  bind_rows(
+    filter(raw_all_callsites, str_detect(module_id, "make\\[")),
+    semi_join(raw_all_callsites, bad_module_id_declarations, by="module_id")
+  ) %>%
+  distinct(module_id)
 ```
 
-### Declarations
+```{r}
+overview_table(
+  r("clean declarations missing library info", missing_declarations_library),
+  r("clean declarations missing library info projects", count(missing_declarations_library, project_id)),
+  r("clean callsites missing library info", missing_callsites_library),
+  r("clean callsites missing library info projects", count(missing_callsites_library, project_id)),
+  r("clean missing library info affected projects", 
+    length(unique(c(missing_declarations_library$project_id, missing_callsites_library$project_id)))),
+  r("clean bad module ids", distinct(bind_rows(bad_module_id_declarations, bad_module_id_callsites)))
+)
+```
 
-Remove implicit parameters - they are already in implicit def (they kind of promote a non-implicit def with implicit parameters into an implicit one).
-Still this one will contain for each used implicit class a companion def.
-We keep it so we can join it with callsites.
+```{r clean}
+clean_declarations <- 
+  raw_all_declarations %>%
+  anti_join(missing_declarations_library, by=c("module_id", "declaration_id")) %>%
+  anti_join(bad_module_id_declarations, by="module_id")
+
+clean_callsites <- 
+  raw_all_callsites %>%
+  anti_join(missing_callsites_library, by=c("module_id", "declaration_id")) %>%
+  anti_join(bad_module_id_callsites, by="module_id")
+
+clean_conversions <-
+  raw_all_conversions %>%
+  semi_join(clean_declarations, by=c("module_id", "declaration_id"))  
+
+clean_parameters <-
+  raw_all_parameters %>%
+  semi_join(clean_declarations, by=c("module_id", "declaration_id"))
+
+clean_corpus <-
+  raw_corpus %>%
+  semi_join(clean_declarations, by="project_id")
+```
 
 
-```{r process all declarations}
-declarations_with_companions <- 
-  filter(
-    all_declarations, 
-    kind!="PARAMETER", 
-    !is.na(def_group_id)
+```{r clean data set overview}
+lost_rows_pct <- function(orig, curr) {
+  percent(1-nrow(curr)/nrow(orig))
+}
+
+overview_table(
+  overview_projects("Clean corpus", clean_corpus, code_column=metadata_scala_code),
+  r("Lost declarations", lost_rows_pct(raw_all_declarations, clean_declarations)),
+  r("Lost callsites",    lost_rows_pct(raw_all_callsites, clean_callsites)),
+  r("Lost conversion ",  lost_rows_pct(raw_all_conversions, clean_conversions)),
+  r("Lost parameters",   lost_rows_pct(raw_all_parameters, clean_parameters))
+)
+```
+
+## Preprocessing
+
+The `corpus` variable contains project metadata information.
+We only consider projects for which the extractor run successfully (which transitively implies that the project was compiled and semanticdb was generated) and that contains some compile Scala code (there are projects that do contain Scala code, but none is being compile).
+
+### Indexing
+
+We build the index using declarations modules which should always include all.
+There should not be a call site from a module which does not
+appear in declaration.
+
+```{r}
+declarations_module_ids <- count(clean_declarations, module_id)
+callsites_modules_ids <- count(clean_callsites, module_id)
+
+stopifnot(nrow(anti_join(callsites_modules_ids, declarations_module_ids, by="module_id")) == 0)
+```
+
+```{r}
+corpus <- 
+  clean_corpus %>%
+  mutate(
+    pid=1:length(project_id)
   ) %>%
-  expand_scope() %>%
+  select(pid, everything())
+
+module_ids <-
+  declarations_module_ids %>%
+  transmute(
+    mid=1:length(module_id),
+    module_id
+  )
+
+project_libraries <-
+  clean_declarations %>%
+  expand_module_name() %>%
+  select(def_project=project_id, def_library_full=module_name) %>%
+  distinct(def_project, def_library_full)
+```
+
+```{r all declarations}
+all_declarations <- 
+  clean_declarations %>%
+  expand_module_name() %>%
+  expand_platform() %>%
   expand_location() %>%
-  is_from_scala() %>%
   expand_access_info() %>%
-  mutate(
-    def_library=str_c(def_group_id, ":", def_artifact_id)
-  ) %>%
-  select(-location_scope)
+  expand_is_from_scala() %>%
+  index()
 ```
 
-Mark which declarations correspond to implicit conversion.
+Check the mutually exclusive flags:
 
-```{r}
-declarations <-
-  filter(declarations_with_companions, !is_companion) %>%
-  select(-is_companion)
-
-declarations_conversions <-
-  declarations %>%
-  semi_join(all_conversions, by="declaration_id") %>%
-  transmute(
-    project_id,
-    module_id,
-    declaration_id,
-    is_conversion=TRUE
-  )
-
-declarations <-
-  declarations %>%
-  left_join(declarations_conversions, by=c("project_id", "module_id", "declaration_id")) %>%
-  mutate(is_conversion=replace_na(is_conversion, FALSE))
-```
-
-Compute project leve summaries
-
-```{r}
-projects_declarations <- 
-  declarations %>%
-  mutate(is_all=TRUE) %>%
-  group_by(project_id) %>%
-  summarise_at(vars(starts_with("is_")), sum) %>%
-  right_join(
-    select(
-      corpus, 
-      project_id, 
-      scaladex, 
-      metadata_scala_code,  
-      metadata_scala_code_compile,  
-      metadata_scala_code_compile_managed,
-      metadata_scala_code_test,  
-      metadata_scala_code_test_managed,  
-      gh_stars,
-      callsites,
-      test_callsites
-    ),
-    by="project_id"
-  ) %>%
-  mutate_at(vars(starts_with("is_")), replace_na, replace=0)
-```
-
-### Call sites
-
-Expand some of the variables to make the dataset easier to work with.
-
-```{r process all call sites}
-callsites <- 
-  all_callsites %>%
-  select(-code, -local) %>%
-  mutate(
-    nested_calls_count=replace_na(nested_calls_count, 0),
-    nested_values_count=replace_na(nested_values_count, 0),
-    nested_declarations_length=replace_na(nested_declarations_length, 0)
-  ) %>%
-  expand_scope() %>%
-  left_join(
-    select(
-      declarations_with_companions, 
-      module_id, 
-      declaration_id, 
-      kind, 
-      annotations,
-      def_library,
-      def_is_in_test=is_in_test,
-      def_is_in_main=is_in_main,
-      is_implicit, 
-      is_companion,
-      is_local,
-      is_external,
-      is_managed,
-      is_from_scala
-    ),
-    by=c("module_id", "declaration_id")
-  ) %>%
-  mutate(
-    is_external_test=is_external & is_in_test,
-    is_local_test=is_local & is_in_test,
-    is_managed_test=is_managed & is_in_test,
-    is_from_scala_test=is_from_scala & is_in_test
-  )%>%
-  left_join(
-    select(declarations_conversions, module_id, declaration_id, is_conversion),
-    by=c("module_id", "declaration_id")
-  ) %>%
-  mutate(is_conversion=replace_na(is_conversion, FALSE))
-```
-
-These are the known ones that are from macros / manifest:
-The main ones we know about:
-- handle `scala/reflect/ManifestFactory.classType().` and `scala/reflect/ManifestFactory.classType(+1).` like
-- handle `org/scalactic/source/Position.apply().`
-- handle `scala/Option.apply().`, `minitest/api/SourceLocation.apply().`
-
-```{r callsites from macros and manifest}
-callsites_manifest <- 
-  filter(
-    callsites, 
-    is.na(def_library), 
-    startsWith(declaration_id, "scala/reflect/ClassManifestFactory") | startsWith(declaration_id, "scala/reflect/ManifestFactory")
-  )
-
-callsites_from_macros <- 
-  filter(callsites, is.na(def_library)) %>% 
-  anti_join(callsites_manifest, by="declaration_id")
-```
-
-Remove callsites that we cannot identify where do they belong
-
-```{r}
-callsites <- 
-  filter(callsites, !is.na(def_library))
-```
-
-Compute project-level summaries.
-
-```{r}
-projects_callsites <- 
-  callsites %>%
-  mutate(
-    is_all=TRUE
-  ) %>%
-  group_by(project_id) %>%
-  summarise_at(vars(starts_with("is_")), sum) %>%
-  right_join(
-    select(
-      corpus, 
-      project_id, 
-      scaladex, 
-      metadata_scala_code,  
-      metadata_scala_code_compile,  
-      metadata_scala_code_compile_managed,
-      metadata_scala_code_test,  
-      metadata_scala_code_test_managed,  
-      gh_stars,
-      callsites,
-      test_callsites
-    ),
-    by="project_id"
-  ) %>% mutate_at(vars(starts_with("is_")), replace_na, replace=0)
-```
-
-### Conversions
-
-```{r}
-conversion_callsites <- 
-  callsites %>%
-  semi_join(all_conversions, by=c("module_id", "declaration_id"))
-```
-
-```{r}
-ic_conversions <-
-  all_conversions %>%
-  filter(project_id!="shadaj--slinky") %>%
-  mutate(
-    is_from_in_main=str_detect(from_scope, "compile"),
-    is_from_in_test=str_detect(from_scope, "test"),
-    
-    is_to_in_main=str_detect(to_scope, "compile"),
-    is_to_in_test=str_detect(to_scope, "test"),
-
-    is_from_external=str_detect(from_scope, "dependency"),
-    is_from_local=!is_from_external,
-    is_from_scala=is_from_external & startsWith(from_groupId, "org.scala-lang"),
-    
-    is_to_external=str_detect(to_scope, "dependency"),
-    is_to_local=!is_to_external,
-    is_to_scala=is_to_external & startsWith(to_groupId, "org.scala-lang")
-  ) %>%
-  select(-is_local)
-
-ic_declarations <-
-  left_join(
-    ic_conversions,
-    select(
-      declarations_with_companions,
-      module_id,
-      declaration_id,
-      kind, 
-      is_local, 
-      is_in_main,
-      is_in_test,
-      is_external,
-      is_from_scala,
-      is_companion,
-      compilation_unit,
-      name,
-      def_library
-    ),
-    by=c("module_id", "declaration_id")
-  )
-
-ic_projects_declarations <-
-  ic_declarations %>%
-  mutate(is_all=TRUE) %>%
-  group_by(project_id) %>%
-  summarise_at(vars(starts_with("is_")), sum) %>%
-  right_join(
-    select(
-      corpus, 
-      project_id, 
-      scaladex, 
-      metadata_scala_code,  
-      metadata_scala_code_compile,  
-      metadata_scala_code_compile_managed,
-      metadata_scala_code_test,  
-      metadata_scala_code_test_managed,  
-      gh_stars,
-      callsites,
-      test_callsites
-    ),
-    by="project_id"
-  ) %>%
-  mutate_at(vars(starts_with("is_")), replace_na, replace=0)
-```
-
-```{r}
-ic_callsites <- filter(conversion_callsites, project_id != "shadaj--slinky")
-ic_projects_callsites <- 
-  ic_callsites %>%
-  mutate(
-    is_all=TRUE
-  ) %>%
-  group_by(project_id) %>%
-  summarise_at(vars(starts_with("is_")), sum) %>%
-  right_join(
-    select(
-      corpus, 
-      project_id, 
-      scaladex, 
-      metadata_scala_code,  
-      metadata_scala_code_compile,  
-      metadata_scala_code_compile_managed,
-      metadata_scala_code_test,  
-      metadata_scala_code_test_managed,  
-      gh_stars,
-      callsites,
-      test_callsites
-    ),
-    by="project_id"
-  ) %>% mutate_at(vars(starts_with("is_")), replace_na, replace=0)
-```
-
-### Parameters
-
-```{r cleaning parameters}
-parameters <- all_parameters %>%
-  mutate(
-    def_in_compile=str_detect(def_location_scope, "compile"),
-    def_in_test=str_detect(def_location_scope, "test"),
-    def_in_dependency=str_detect(def_location_scope, "dependency"),
-    def_in_transitive=str_detect(def_location_scope, "transitive")
-  ) %>%
-  select(-def_location_scope)
-```
-
-## Overview
-
-### Implicit Call Sites
-
-```{r}
-make_stats(
-  add_nrow("Number of projects using implicits", filter(projects_callsites, is_all>0)),
-  add_num("Number of call sites", projects_callsites$callsites+projects_callsites$is_all),
-  add_num("Number of implicit call sites", projects_callsites$is_all),
-  add_num("Number of implicit conversion call sites", count(conversion_callsites, project_id)$n),
-  add_num("Number of implicit call sites in test", projects_callsites$is_in_test),
-  add_num("Number of implicit call sites in main", projects_callsites$is_in_main)
-) %>% my_datatable()
-```
-
-### Implicit Declarations
-
-```{r}
-make_stats(
-  add_nrow("Number of projects declaring implicits", filter(projects_declarations, is_local>0)),
-  add_num("Number of implicit declarations", projects_declarations$is_local),
-  add_num("Number of public implicit declarations", filter(declarations, is_local, is_public) %>% count(project_id) %>% .$n),
-  add_num("Number of implicit declarations in test", projects_declarations$is_local_test)
-) %>% my_datatable()
-```
-
-Projects defining the most implicits (TOP100):
-
-```{r}
-select(projects_declarations, project_id, n=is_local) %>%
-  top_n(100, n) %>%
-  arrange(desc(n)) %>%
-  my_datatable()
-```
-
-
-### Location
-
-### Figure - Ratio of implicit call sites
-
-Compute the ratio:
-
-```{r}
-callsites_ratio <-
-  projects_callsites %>%
-  select(
-    project_id, 
-    is_in_main, 
-    is_in_test, 
-    callsites, 
-    test_callsites, 
-    scaladex
-  ) %>%
-  transmute(
-    project_id,
-    scaladex,
-    implicit=is_in_main+is_in_test,
-    test_implicit=is_in_test,
-    all=implicit+callsites,
-    test_all=test_implicit+test_callsites,
-    r=ratio(implicit, all),
-    t_r=ratio(test_implicit, test_all)
-  ) %>%
-  select(scaladex, r, t_r) %>%
-  gather("key", "value", r, t_r)
-```
-
-Plot:
-
-```{r}
-callsites_ratio %>%
-  ggplot(aes(x=key, y=value, fill=if_else(scaladex, "Yes", "No"))) + 
-  geom_boxplot(width=.9, alpha=.7) +
-  scale_fill_gdocs() +
-  scale_x_discrete(labels=c("r"="main", "t_r"="test")) +
-  theme(aspect.ratio = 2.5/1) +
-  theme(
-    legend.position=c(0.1, 0.85),
-    legend.box="horizontal",
-    axis.title.x=element_blank()
-  ) + 
-  labs(
-    fill="In Scaladex",
-    y="Ratio of implicit call sites"
-  )
-```
-
-### Figure - Locations of implicit declarations
-
-Compute scopes:
-
-```{r}
-callsites_projects_scoped <- 
-  projects_callsites %>%
-    select(project_id, is_in_main, is_in_test, is_local, is_from_scala, is_external, is_local_test, is_from_scala_test, is_external_test, scaladex) %>%
+```{r all declarations check, eval=F}
+check_all_declarations <-
+  all_declarations %>%
+    rowwise() %>%
     mutate(
-      is_local=is_local-is_local_test, 
-      is_from_scala=is_from_scala-is_from_scala_test, 
-      is_external=is_external-is_external_test,
-      is_external=is_external-is_from_scala,
-      is_external_test=is_external_test-is_from_scala_test
+      check_platform=sum(is_jvm, is_js, is_native),
+      check_access=if (is_access_specified) sum(is_public, is_private, is_protected) else 1
     ) %>%
-    mutate(
-      is_local=ratio(is_local, is_in_main), 
-      is_from_scala=ratio(is_from_scala, is_in_main), 
-      is_external=ratio(is_external, is_in_main),
-      is_local_test=ratio(is_local_test, is_in_test), 
-      is_from_scala_test=ratio(is_from_scala_test, is_in_test), 
-      is_external_test=ratio(is_external_test, is_in_test)
+    filter(
+      check_platform != 1,
+      check_access != 1
     )
+
+stopifnot(nrow(check_all_declarations) == 0)
 ```
 
-Plot:
+```{r callsites}
+all_callsites <- 
+  clean_callsites %>%
+  expand_module_name() %>%
+  expand_location() %>%
+  index()
+```
+
+```{r conversions}
+all_conversions <- 
+  clean_conversions %>%
+  expand_module_name() %>%
+  index()
+```
+
+```{r parameters}
+all_parameters <- 
+  clean_parameters %>%
+  expand_module_name() %>%
+  index()
+```
+
+## Joining data
 
 ```{r}
-callsites_projects_scoped %>%
-  select(-project_id, -is_in_main, -is_in_test) %>%
-  gather("key", "value", -scaladex) %>%
+declarations <-
+  all_declarations %>%
+  remove_scala_version_from_id(def_artifact_id) %>%
   mutate(
-    scope=if_else(str_detect(key, "_test"), "test", "main"),
-    key=str_replace(key, "_test", "")
+    def_library=def_group_id,
+    def_library_full=str_c(def_group_id, ":", def_artifact_id),
+    num_implicit_parameters=replace_na(num_implicit_parameters, 0)
+  )
+```
+
+```{r}
+callsites <-
+  left_join(
+    all_callsites,
+    select(
+      declarations, 
+      mid, 
+      declaration_id, 
+      is_access_specified,
+      is_public,
+      is_from_scala,
+      def_library,
+      def_library_full
+    ),
+    by=c("mid", "declaration_id")
+  )
+```
+
+```{r}
+conversions <-
+  all_conversions %>%
+  remove_scala_version_from_id(from_artifactId) %>%
+  remove_scala_version_from_id(to_artifactId) %>%
+  transmute(
+    mid,
+    declaration_id,
+    from,
+    from_group_id=from_groupId,
+    from_artifact_id=from_artifactId,
+    from_library=str_c(from_group_id, ":", from_artifact_id),
+    from_compilation_unit,
+    to,
+    to_group_id=to_groupId,
+    to_artifact_id=to_artifactId,
+    to_library=str_c(to_group_id, ":", to_artifact_id),
+    to_compilation_unit,
   ) %>%
-  ggplot(
-    aes(
-      x=factor(key, levels=c("is_local", "is_external", "is_from_scala"), ordered=T), 
-      y=value, 
-      fill=if_else(scaladex, "Yes", "No")
-    )
-  ) + 
-  geom_boxplot(width=.9, alpha=.7) +
-  scale_x_discrete(labels=c("is_local"="Project local", "is_external"="External\ndependencies", "is_from_scala"="Scala\nstandard library")) + 
-  scale_fill_gdocs() +
-  theme(axis.title.x=element_blank(), axis.text.x = element_text(angle=65, hjust=1, vjust=1.2)) +
-  theme(aspect.ratio = 2/1) +
-  facet_wrap( ~ scope) +
-  labs(
-    title="Locations of implicits declarations",
-    y="Ratio of implicit calls", 
-    fill="In Scaladex"
-  ) +
-  theme(
-    legend.position=c(-.05, 0.85),
-    legend.box="horizontal",
-    strip.text.x = element_text(face="bold")
+  left_join(
+    select_at(
+      declarations,
+      vars(
+        mid,
+        declaration_id, 
+        kind,
+        def_library,
+        def_library_full,
+        num_type_parameters,
+        num_parameters,
+        num_implicit_parameters,
+        github_url,
+        starts_with("is_")
+      )
+    ),
+    by=c("mid", "declaration_id")
+  ) %>%
+  distinct(def_library_full, declaration_id, .keep_all=TRUE) %>%
+  select(-mid)
+```
+
+```{r}
+stopifnot(nrow(clean_declarations) == nrow(all_declarations))
+stopifnot(nrow(clean_declarations) == nrow(declarations))
+stopifnot(nrow(clean_callsites) == nrow(all_callsites))
+stopifnot(nrow(clean_callsites) == nrow(callsites))
+```
+
+### Implicit conversions
+
+```{r}
+conversions_callsites <- semi_join(callsites, conversions, by=c("def_library", "declaration_id"))
+conversions_test_callsites <- filter(conversions_callsites, is_in_test)
+```
+
+```{r}
+projects_using_implicit_conversion <- count(conversions_callsites, pid)
+projects_using_implicit_conversion_non_scala <- filter(conversions_callsites, !is_from_scala) %>% count(pid)
+projects_using_implicit_conversion_non_test <- filter(conversions_callsites, !is_in_test) %>% count(pid)
+
+implicit_test_callsites <- nrow(filter(callsites, is_in_test))
+all_test_callsites <- implicit_test_callsites + sum(corpus$explicit_test_callsites)
+
+conversion_from_scala <- filter(conversions_callsites, is_from_scala)
+
+test_libraries <- tibble(
+  def_library=c(
+    "org.scalatest",
+    "org.spec2",
+    "org.scalastic"
   )
+)
+
+conversion_from_testlib <- filter(conversions_callsites)
 ```
 
-## Conversions
-
-### Callsites
-
 ```{r}
-make_stats(
-  add_nrow("Projects using implicit conversion", count(ic_callsites, project_id)),
-  add_nrow("Number of implicit conversion call sites", ic_callsites),
-  add_nrow("Number of implicit conversion calll sites from test", filter(ic_callsites, is_in_test))
-) %>% my_datatable()
-```
-
-### Declarations
-
-```{r}
-ic_projects_defining_conversions <- filter(ic_projects_declarations, is_local > 0)
-
-make_stats(
-  add_nrow("Projects defining implicit conversion", ic_projects_defining_conversions),
-  add_num("Number of implicit conversions", ic_projects_defining_conversions$is_local),
-  add_num("Number of implicit conversions in scalatest", filter(ic_projects_declarations, project_id=="scalatest--scalatest")$is_local),
-  add_num("Number of implicit conversions in specs2", filter(ic_projects_declarations, project_id=="etorreborre--specs2")$is_local),
-  add_num("Number of implicit conversions in scala", filter(ic_projects_declarations, project_id=="scala--scala")$is_local),
-  add_num("Number of implicit conversions in lichess", filter(ic_projects_declarations, project_id=="ornicar--lila")$is_local)
-) %>% my_datatable()
-```
-
-### Forms of implicit conversions
-
-```{r}
-ic_local_declarations <- filter(ic_declarations, is_local)
-ic_extension_methods <- filter(ic_local_declarations, is_companion)
-ic_defs <- filter(ic_local_declarations, !is_companion)
-syntax_pattern <- 
-  filter(all_parameters, num_type_argument_refs >= 1, resolved_type_kind != "TYPE_PARAMETER") %>% 
-  select(project_id, module_id, declaration_id) %>% 
-  semi_join(ic_local_declarations, by = c("project_id", "module_id", "declaration_id")) %>% 
-  count(declaration_id)
-
-make_stats(
-  add_nrow("Number of declared implicit conversions", ic_local_declarations),
-  add_nrow("Number of declared extension methods", ic_extension_methods),
-  add_nrow("Syntax method pattern", syntax_pattern),
-  add_nrow("Number of declared implicit conversions using val/var/object", filter(ic_local_declarations, kind %in% c("VAL", "VAR", "OBJECT")))
-) %>% my_datatable()
-```
-
-### Primitive conversions
-
-```{r}
-SCALA_PRIMITIVES <- c(
-  "scala/Any#",
-  "scala/AnyRef#",
-  "scala/AnyVal#",
-  "scala/Boolean#",
-  "scala/Byte#",
-  "scala/Char#",
-  "scala/Double#",
-  "scala/Float#",
-  "scala/Int#",
-  "scala/Long#",
-  "scala/Short#",
-  "scala/StringContext#",
-  "scala/Unit#",
-  "java/lang/String#"
+overview_table(
+  r("projects using implicit conversion", projects_using_implicit_conversion),
+  r("projects using implicit conversion pct", percent(nrow(projects_using_implicit_conversion)/nrow(corpus))),
+  
+  r("conversion callsites", conversions_callsites),
+  r("conversion callsites in all implicit callsites pct", percent(nrow(conversions_callsites)/nrow(callsites))),
+  r("conversion callsites in all callsites pct", percent(nrow(conversions_callsites)/sum(corpus$callsites))),
+  
+  r("conversion test callsites", conversions_test_callsites),
+  r("conversion test callsites in all conversion pct", percent(nrow(conversions_test_callsites)/nrow(conversions_callsites))),
+  r("conversion test callsites in all implicit test callsites pct", percent(nrow(conversions_test_callsites)/implicit_test_callsites)),
+  r("conversion test callsites in all test callsites pct", percent(nrow(conversions_test_callsites)/all_test_callsites)),
+  
+  r("conversion callsites from scala pct", percent(nrow(conversion_from_scala)/nrow(conversions_callsites)))
+  r("conversion callsites from scala test libraries", percent(nrow(conversion_from_testlib)/nrow(conversions_callsites)))
 )
 ```
 
+
+
 ```{r}
-ic_primitive <- bind_rows(
-  filter(ic_local_declarations, from %in% SCALA_PRIMITIVES),
-  filter(ic_local_declarations, to %in% SCALA_PRIMITIVES)
-) %>% distinct(project_id, module_id, declaration_id, .keep_all = TRUE)
+my_top_count <- function(df, wt, N=50) {
+  count(df, !!enquo(wt)) %>% arrange(desc(n)) %>% print(n=N)
+}
 ```
 
 ```{r}
-make_stats(
-  add_nrow("Number of primitive conversions", ic_primitive),
-  add_nrow("Number of projects defining primitive conversions", count(ic_primitive, project_id))
-) %>% my_datatable()
+my_top_count(conversions_callsites, def_library)
+my_top_count(filter(conversions_callsites, !is_in_test), def_library)
+my_top_count(filter(conversions_callsites, !is_in_test, !is_from_scala), def_library)
 ```
 
-To 100 projects defining the implicit conversion to/from primitive types:
 
 ```{r}
-ic_primitive %>% count(project_id) %>% top_n(100, n) %>% arrange(desc(n)) %>% my_datatable()
-```
+conversions_callsites_per_project <- 
+  conversions_callsites %>%
+  count(project_id, def_library, declaration_id)
 
-### Unrelated conversions
+conversions_callsites_cumul_per_projects <-
+  conversions_callsites %>%
+  count(project_id)
 
-First, we need to normilize object (ending with `.`) and class (ending with `#`) names by removing the last character to just get the fully qualified path of a compilation unit.
-The `.` and `#` is a scalameta convention, but the compilation unit is the same for a class and its companion object.
- 
-```{r}
-unrelated_conversions <-
-  ic_local_declarations %>%
+converions_popularity <-
+  left_join(
+    conversions_callsites_per_project,
+    rename(conversions_callsites_cumul_per_projects, all=n),
+    by="project_id"
+  ) %>%
   mutate(
-    from_compilation_unit=substr(from_compilation_unit, 1, nchar(from_compilation_unit)-1),
-    to_compilation_unit=substr(to_compilation_unit, 1, nchar(to_compilation_unit)-1),
-    compilation_unit=substr(compilation_unit, 1, nchar(compilation_unit)-1)
+    r=n/all
   )
 ```
 
-Next, we find conversions whose from or to types are defined in diferent compilation units:
-
 ```{r}
-unrelated_conversions <-
-  unrelated_conversions %>%
-  filter(
-    compilation_unit != from_compilation_unit, 
-    compilation_unit != to_compilation_unit
-  )
+count(conversions_callsites, def_library, def_library_full) %>%
+  left_join(project_libraries, by="def_library_full") %>%
+  mutate(def_project=ifelse(is.na(def_project), def_library, def_project)) %>%
+  select(def_project, n) %>%
+  group_by(def_project) %>%
+  summarise(n=sum(n)) %>%
+  arrange(desc(n))
+
 ```
 
-Finally, we only keep the publicly available ones (block-local are not part of the dataset):
 
 ```{r}
-unrelated_conversions <-
-  unrelated_conversions %>%
-  semi_join(filter(declarations, is_public), by = c("project_id", "module_id", "declaration_id"))
+  conversions_callsites %>%
+  count(def_library, declaration_id, project_id) %>%
+  count(def_library, declaration_id) %>%
+  arrange(desc(n)) %>%
+  View()
 ```
 
-```{r}
-make_stats(
-  add_nrow("Number of unrelated conversions", unrelated_conversions),
-  add_nrow("Number of projects defining unrelated conversions", count(unrelated_conversions, project_id))
-) %>% my_datatable()
-```
-
-### Implicit conversions with type parameters
 
 ```{r}
-ic_with_type_param_info <-
-  ic_local_declarations %>%
-  left_join(select(declarations, project_id, module_id, declaration_id, num_type_parameters, num_implicit_parameters), by = c("project_id", "module_id", "declaration_id"))
-```
+local({
+  threshold <- .03
+  all_main <- nrow(conversions_callsites)-nrow(conversions_test_callsites)
+  all_test <- nrow(conversions_test_callsites)
+  
+  main_vs_test <- all_main/(all_main + all_test)
 
-```{r}
-ic_with_type_param_info %>%
-  ggplot(aes(num_type_parameters)) + 
-    geom_histogram(binwidth = 1) +
-    labs(
-      title="Histogram of number of type parameters used in implicit conversion declarations",
-      x="Number of type parameters",
-      y="Number of implicit conversion"
+  conversion_callsites_summaries <- 
+    conversions_callsites %>%
+    group_by(def_library) %>%
+    summarise(main=sum(!is_in_test)/all_main, test=sum(is_in_test)/all_test) %>%
+    gather("key", "value", main, test)
+
+  top_libraries <- 
+    filter(conversion_callsites_summaries, value >= threshold)
+ 
+  df <- 
+    top_libraries %>%
+    add_row(
+      def_library="rest",
+      key="main",
+      value=1-sum(filter(top_libraries, key=="main")$value)
+    ) %>%
+    add_row(
+      def_library="rest",
+      key="test",
+      value=1-sum(filter(top_libraries, key=="test")$value)
+    ) %>%
+    group_by(key) %>%
+    arrange(value) %>%
+    mutate(
+      ymax=cumsum(value),
+      ymin=ymax-value,
+      xmin=if_else(key=="main", 0, main_vs_test),
+      xmax=if_else(key=="main", main_vs_test, 1),
+      x=xmin+(xmax-xmin)/2,
+      y=ymin+(ymax-ymin)/2
+    ) %>%
+    arrange(key, value)
+
+  stopifnot(sum(filter(df, key=="main")$value)==1)
+  stopifnot(sum(filter(df, key=="test")$value)==1)
+    
+  df %>%
+    ggplot(aes(x=x, y=y, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, fill=def_library, label=def_library)) + 
+    geom_rect() +
+    geom_text(aes(color=ifelse(value > .2, "light", "dark"))) +
+    scale_fill_brewer("Greens") +
+    scale_x_continuous(
+      breaks=c(main_vs_test/2, main_vs_test+(1-main_vs_test)/2),
+      labels=c("Main code", "Test code")
+    ) +
+    scale_color_manual(
+      values=c("light"="white", "dark"="black"),
+    ) +
+    guides(
+      color=F,
+      fill=F
+    ) +
+    theme(
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      axis.text.y = element_blank(),
+      axis.text.x = element_text(size=12)
     )
+})
+```
+
+
+```{r}
+count(conversion_callsites, project_id) %>% arrange(desc(n))
+count(all_conversions, project_id) %>% arrange(desc(n))
 ```
 
 ```{r}
-ic_with_type_param_info %>%
-  ggplot(aes(num_implicit_parameters)) + 
-    geom_histogram(binwidth = 1) +
-    labs(
-      title="Histogram of number of implicit parameters used in implicit conversion declarations",
-      x="Number of type parameters",
-      y="Number of implicit conversion"
-    )
-```
-
-## Implicit parameters
-
-```{r}
-projects_using_implicit_parameters <- parameters %>% count(project_id) %>% nrow()
-projects_declaring_implicit_parameters <- parameters %>% filter(!def_in_dependency) %>% count(project_id) %>% nrow()
-```
-
-There are `r projects_using_implicit_parameters` projects using implicit parameters and `r projects_declaring_implicit_parameters` declaring implicit parameters.
-
-## Type classes
-
-Essentially, an instance of a type class is injected by a compiler as an implicit argument.
-The important thing, which differentiate it from an ordinary implicit argument is that it that the type of the implicit parameter has type arguments that are linked to type parameters available in the parent context.
-For example, the following won't be considered:
-
-```{scala eval=FALSE}
-def fun(x: Int)(implicit y: A[Int])
-```
-
-```{scala eval=FALSE}
-def fun[T](x: T)(implicit y: T)
-```
-
-while the following two will:
-
-```{scala eval=FALSE}
-def fun[T](x: T)(implicit y: A[T])
-```
-
-```{scala eval=FALSE}
-implicit class C[T](x: T)(implicit y: A[T])
-```
-
-We are therefore looking for implicit parameters that do have at least one type argument that references a type parameter:
-
-```{r}
-type_classes <-
-  parameters %>%
-  filter(num_type_argument_refs >= 1, resolved_type_kind != "TYPE_PARAMETER")
-```
-
-And compute frequency, i.e. in how many projects do the individual types occur:
-
-```{r}
-type_classes_count_by_type <-
-  type_classes %>%
-  count(resolved_type_id, project_id) %>%
-  count(resolved_type_id)
-```
-
-Based on the above, we can find which types occur the most frequently (TOP100):
-
-```{r}
-type_classes_count_by_type %>%
-  top_n(100, n) %>%
-  arrange(desc(n)) %>%
-  my_datatable(colnames = c("Type", "Number of projects"))
-```
-
-The _number of projects_ indicates how many projects use the given type as an implicit parameter.
-
-Next we look at the declarations where these types are used (TOP100):
-
-```{r}
-type_classes_declarations <-
-  type_classes %>%
-  count(declaration_id, project_id) %>%
-  count(declaration_id)
+projects_not_using_implicit_conversion <- anti_join(corpus, projects_using_implicit_conversion, by="pid")
 ```
 
 ```{r}
-type_classes_declarations %>%
-  top_n(100, n) %>%
-  arrange(desc(n)) %>%
-  my_datatable()
-```
 
-Finally, a table summary.
-
-```{r}
-make_stats(
-  add_nrow("Number of type classes", type_classes_count_by_type),
-  add_nrow("Number of declarations using type classes", type_classes_declarations)
-) %>% my_datatable()
 ```
 
 
-## Context
+- from java / scala
+- both ways
+- scala collections
+- primitives
+- unrelated
 
-Whether or not an implicit argument is an instance of the context pattern is hard to quantify, since it depends on the intention of the author and is structurally unrecognizable.
-Here we look at implicit parameters that are defined without any type arguments.
-
-```{r}
-contexts <-
-  parameters %>%
-  filter(num_type_argument_refs == 0, resolved_type_kind != "TYPE_PARAMETER")
-```
-
-```{r}
-contexts_type <-
-  contexts %>%
-  count(resolved_type_id, project_id) %>%
-  count(resolved_type_id)
-```
-
-There are `r nrow(contexts_type)` context types used in the corpus.
-Following are the ones used the most frequently (TOP100):
-
-```{r}
-contexts_type %>%
-  top_n(100, n) %>%
-  arrange(desc(n)) %>%
-  my_datatable()
-```
-
-Looking at the most used types, they indeed look like instances of contexts.
-One type that looks suspicious is the `org/scalactic/Prettifier` that comes from [Scala Test](http://www.scalatest.org/).
-The name suggest that it provides a functionality similar to `Show` type class, i.e. an alternative to `toString` method (cf. [cat's version](https://typelevel.org/cats/typeclasses/show.html)).
-The scaladoc [page](http://doc.scalactic.org/3.0.0/index.html#org.scalactic.Prettifier) describes it as:
-
-> A function that given any object will produce a “pretty” string representation of that object, where “pretty” is in the eye of the implementer.
-
-which is exactly like a `Show` type class. However, the documentation later adds the following note:
-
-> Note: Prettifier is not parameterized (i.e., Prettifier[T], where T is the type to prettify) because assertions (including matcher expressions) in ScalaTest would then need to look up Prettifiers implicitly by type. This would slow compilation even though most (let's guess 99.9%) of the time in practice assertions do not fail, and thus 99.9% of the time no error messages need to be generated. If no error messages are needed 99.9% of the time, no prettification is needed 99.9% of the time, so the slow down in compile time for the implicit look ups is unlikely to be worth the benefit. Only a few types in practice usually need prettification for testing error message purposes, and those will be covered by the default Prettifier. A future version of ScalaTest will provide a simple mechanism to replace the default Prettifier with a custom one when a test actually fails.
-
-This well explaines why it is not modelled as a type class. An explaination which is well aligned with our findings about compilation time overhead.
-
-
-## Type proofs
-
-Querying on the common generalized type constraints, i.e. equality (`=:=`) and subset (`<:<`).
-
-```{r}
-TYPE_CONSTRAINTS <- c(
-  "scala/Predef.`=:=`#",  
-  "scala/Predef.`<:<`#"
-)
-```
-
-```{r}
-type_proofs <-
-  parameters %>%
-  filter(resolved_type_id %in% TYPE_CONSTRAINTS, !def_in_dependency)
-```
-
-```{r}
-type_proofs_projects <- type_proofs %>% count(project_id)
-```
-
-There are `r nrow(type_proofs_projects)` projects that use generalized type constraintsm including projects related to Scala itself.
-
-The TOP100 based on the number of declarations using the generalized type constraints:
-```{r}
-type_proofs_projects %>%
-  top_n(100, n) %>%
-  arrange(desc(n)) %>%
-  my_datatable()
-```
