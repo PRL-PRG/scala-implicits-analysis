@@ -14,6 +14,51 @@ class ImplicitConversionSuite
   import ModelDSL._
   import ImplicitConversionExporter.export
 
+  project("implicit class vs implicit def", {
+    """
+      | package p
+      | object o {
+      |   class C
+      |   trait T
+      |
+      |   implicit class C2T(x: C) extends T {
+      |   }
+      |
+      |   implicit def c2t(x: C): T = new T {}
+      | }
+      |""".stripMargin
+  }) { project =>
+    implicit val m = project.modules.values.head
+
+    val exported = export(project).toList.collect { case Success(v) => v }
+
+    val C2T = exported.find(_.declaration.name == "C2T").get
+    C2T.declaration.isImplicitClassCompanionDef shouldBe true
+
+    val c2t = exported.find(_.declaration.name == "c2t").get
+    c2t.declaration.isImplicitClassCompanionDef shouldBe false
+  }
+
+  project("companion", {
+    """
+      | package p
+      | object o {
+      |   import scala.concurrent.duration._
+      |
+      |   trait DurationPostfixConverters {
+      |     implicit def durationInt(int: Int): DurationInt = new DurationInt(int)
+      |   }
+      | }
+      |""".stripMargin
+  }) { project =>
+    implicit val m = project.modules.values.head
+
+    val exported = export(project).toList.collect { case Success(v) => v }
+
+    val durationInt = exported.find(_.declaration.name == "durationInt").get
+    durationInt.declaration.isImplicitClassCompanionDef shouldBe false
+  }
+
   project(
     "to extends trait",
     """
