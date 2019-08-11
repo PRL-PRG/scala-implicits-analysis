@@ -30,6 +30,8 @@ case class ImplicitConversion(
   def fromScope: String = fromDeclaration.locationScope
   def fromCompilationUnit: Option[String] = fromDeclaration.compilationUnit
   def fromLanguage: Language = fromDeclaration.language
+  def fromLocationPath: String = fromDeclaration.location.patchedPath
+  def fromLocationUri: String = fromDeclaration.location.relativeUri
   def toType: String = to.resolveFullType.asCode
   def toGroupId: String = toLibrary.groupId
   def toArtifactId: String = toLibrary.artifactId
@@ -37,6 +39,8 @@ case class ImplicitConversion(
   def toScope: String = toDeclaration.locationScope
   def toCompilationUnit: Option[String] = toDeclaration.compilationUnit
   def toLanguage: Language = toDeclaration.language
+  def toLocationPath: String = toDeclaration.location.patchedPath
+  def toLocationUri: String = toDeclaration.location.relativeUri
   def toIsTrait: Boolean = toDeclaration.isTraitOrInterface
   def toExtendsTrait: Boolean =
     toDeclaration.isTraitOrInterface |
@@ -62,6 +66,8 @@ object ImplicitConversion {
           "from_scope",
           "from_compilation_unit",
           "from_language",
+          "from_location_path",
+          "from_location_uri",
           "to",
           "to_group_id",
           "to_artifact_id",
@@ -69,6 +75,8 @@ object ImplicitConversion {
           "to_scope",
           "to_compilation_unit",
           "to_language",
+          "to_path",
+          "to_uri",
           "to_is_trait",
           "to_extends_trait"
         )
@@ -92,6 +100,8 @@ object ImplicitConversion {
             d.fromScope,
             d.fromCompilationUnit,
             d.fromLanguage,
+            d.fromLocationPath,
+            d.fromLocationUri,
             d.toType,
             d.toGroupId,
             d.toArtifactId,
@@ -99,6 +109,8 @@ object ImplicitConversion {
             d.toScope,
             d.toCompilationUnit,
             d.toLanguage,
+            d.toLocationPath,
+            d.toLocationUri,
             d.toIsTrait,
             d.toExtendsTrait
           ).map(_.str)
