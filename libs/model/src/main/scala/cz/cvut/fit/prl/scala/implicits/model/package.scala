@@ -320,9 +320,13 @@ package object model {
       if (that.isMethod) {
         that.signature match {
           case MethodSignature(_, ImplicitConversionParameters(_, _), declaration(ret))
-              if ret.isImplicit && ret.isClass =>
+              if ret.isImplicit &&
+                ret.isClass &&
+                ret.name == that.name &&
+                ret.declarationId.owner == that.declarationId.owner =>
             Some(ret)
-          case _ => None
+          case _ =>
+            None
         }
       } else {
         None
