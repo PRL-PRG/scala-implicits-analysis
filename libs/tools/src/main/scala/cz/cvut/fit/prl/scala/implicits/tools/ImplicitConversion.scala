@@ -75,8 +75,8 @@ object ImplicitConversion {
           "to_scope",
           "to_compilation_unit",
           "to_language",
-          "to_path",
-          "to_uri",
+          "to_location_path",
+          "to_location_uri",
           "to_is_trait",
           "to_extends_trait"
         )
