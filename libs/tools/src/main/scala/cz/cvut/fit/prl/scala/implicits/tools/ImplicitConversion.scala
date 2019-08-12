@@ -44,7 +44,16 @@ case class ImplicitConversion(
   def toIsTrait: Boolean = toDeclaration.isTraitOrInterface
   def toExtendsTrait: Boolean =
     toDeclaration.isTraitOrInterface |
-    toDeclaration.classSignature.parents.exists(_.declaration.isTraitOrInterface)
+      toDeclaration.classSignature.parents.exists(_.declaration.isTraitOrInterface)
+  def toExtendedTraits: Option[String] =
+    if (!toExtendsTrait) {
+      None
+    } else {
+      toDeclaration.classSignature.parents.filter(_.declaration.isTraitOrInterface) match {
+        case Seq() => None
+        case xs => Some(xs.map(_.asCode).mkString(";"))
+      }
+    }
 }
 
 object ImplicitConversion {
@@ -78,7 +87,8 @@ object ImplicitConversion {
           "to_location_path",
           "to_location_uri",
           "to_is_trait",
-          "to_extends_trait"
+          "to_extends_trait",
+          "to_extended_traits"
         )
       )
 
@@ -112,7 +122,8 @@ object ImplicitConversion {
             d.toLocationPath,
             d.toLocationUri,
             d.toIsTrait,
-            d.toExtendsTrait
+            d.toExtendsTrait,
+            d.toExtendedTraits
           ).map(_.str)
         }
     }
