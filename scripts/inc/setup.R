@@ -25,7 +25,11 @@ source(file.path(params$lib_dir, "latextags.R"))
 report_name <- params$report_name
 stopifnot(!is.null(report_name))
 tags_path <- path(output_dir, str_c(report_name, ".tex"))
-create_tags(tags_path, prefix="tg", default=TRUE)
+create_tags(
+  tags_path, 
+  prefix=str_c("tg", if (is.null(params$report_tag_prefix)) "" else str_c(" ", params$report_tag_prefix)), 
+  default=TRUE
+)
 
 message("Tags will go into: ", path_real(tags_path))
 

@@ -1,0 +1,208 @@
+---
+title: Data Cleanup
+authors: Filip Krikava, Heather Miller and Jan Vitek
+output:
+  html_document:
+    code_folding: hide
+    theme: united
+    toc: true
+    toc_float: true
+params:
+  corpus_dir: /var/lib/scala/corpora/github
+  corpus_url: http://prl1.ele.fit.cvut.cz:8149
+  lib_dir: ../inc
+  report_tag_prefix: data cleanup
+  report_name: data-cleanup
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+source(file.path(params$lib_dir, "setup.R"))
+```
+
+## Introduction
+
+In this notebook we preprocess the data for further analysis.
+
+## Loading data
+
+First, we load the corpus and raw data that came from the `export-implicit` task.
+
+```{r loading data}
+raw_corpus <- read_csv(CORPUS_STAGE3) %>% filter_stage3_corpus()
+raw_all_declarations <- read_data(IMPLICIT_DECLARATIONS_F)
+raw_all_callsites <- read_data(IMPLICIT_CALLSITES_F)
+raw_all_conversions <- read_data(IMPLICIT_CONVERSIONS_F)
+raw_all_parameters <- read_data(IMPLICIT_PARAMETERS_F)
+```
+
+Double check there are no duplicates!
+
+```{r}
+stopifnot(!any(duplicated(raw_corpus$project_id)))
+```
+
+## Cleanup
+
+There are couple of inaccuracies in the data gathering.
+This section tries to clean them up:
+
+
+### Missing library
+
+In some cases, we are not able to resolve the library in which a declaration has been defined.
+This usually happend when the classpath for the project is not properly configured.
+We have seen this mostly with projects requiring some native packages with Java API.
+   
+```{r missing library info}
+missing_library_from_declarations <- 
+  filter(raw_all_declarations, is.na(def_group_id)) %>%
+  select(project_id, module_id, declaration_id)
+
+missing_library_from_callsites <- 
+  semi_join(raw_all_callsites, missing_library_from_declarations, by=c("module_id", "declaration_id")) %>%
+  select(project_id, module_id, declaration_id)
+
+missing_library_projects <-
+  bind_rows(
+    missing_library_from_declarations,
+    missing_library_from_callsites
+  ) %>%
+  distinct(project_id)
+```
+
+### Bad module id
+
+There was some inference with parallel job execution and a few projects have in their module_id some undesired output from make.
+
+```{r bad module id}
+bad_module_id_from_declarations <- 
+  filter(raw_all_declarations, str_detect(module_id, "make\\[")) %>%
+  distinct(project_id)
+
+bad_module_id_from_callsites <- 
+  filter(raw_all_callsites, str_detect(module_id, "make\\[")) %>%
+  distinct(project_id)
+
+bad_module_id_projects <- 
+  bind_rows(
+    bad_module_id_from_declarations,
+    bad_module_id_from_callsites
+  ) %>% 
+  distinct()
+```
+
+### Grand total
+
+```{r}
+projects_to_remove <-
+  raw_corpus %>%
+  semi_join(
+    bind_rows(
+      missing_library_projects,
+      bad_module_id_projects
+    ),
+    by="project_id"
+  )
+```
+
+```{r}
+overview_table(
+  r("missing library declarations", missing_library_from_declarations),
+  r("missing library callsites", missing_library_from_callsites),
+  r("missing library projects", missing_library_projects),
+  r("bad module declarations", bad_module_id_from_declarations),
+  r("bad module callsites", bad_module_id_from_callsites),
+  r("bad module callsites", bad_module_id_projects),
+  overview_projects("removed projects", projects_to_remove),
+  r("projects lost projects pct", percent(nrow(projects_to_remove)/nrow(raw_corpus))),
+  r("projects lost code pct", percent(sum(projects_to_remove$metadata_scala_code)/sum(raw_corpus$metadata_scala_code)))
+)
+```
+
+```{r clean}
+clean_corpus <-
+  raw_corpus %>%
+  anti_join(projects_to_remove, by="project_id")
+
+clean_declarations <- 
+  raw_all_declarations %>%
+  semi_join(clean_corpus, by="project_id")
+
+clean_callsites <- 
+  raw_all_callsites %>%
+  semi_join(clean_corpus, by="project_id")
+
+clean_conversions <-
+  raw_all_conversions %>%
+  semi_join(clean_corpus, by="project_id")
+
+clean_parameters <-
+  raw_all_parameters %>%
+  semi_join(clean_corpus, by="project_id")
+```
+
+```{r clean data set overview}
+lost_rows_pct <- function(orig, curr) {
+  percent(1-nrow(curr)/nrow(orig))
+}
+
+overview_table(
+  r("removed declarations pct", lost_rows_pct(raw_all_declarations, clean_declarations)),
+  r("removed callsites pct",    lost_rows_pct(raw_all_callsites, clean_callsites)),
+  r("removed conversion pct",   lost_rows_pct(raw_all_conversions, clean_conversions)),
+  r("removed parameters pct",   lost_rows_pct(raw_all_parameters, clean_parameters))
+)
+```
+
+```{r update corpus}
+corpus_declarations <-
+  clean_declarations %>%
+  group_by(project_id) %>%
+  summarise(
+    implicit_declarations=n(),
+    implicit_local_declarations=sum(endsWith(location_uri, ".scala"))
+  )
+
+corpus_callsites <-
+  clean_callsites %>%
+  group_by(project_id) %>%
+  summarise(
+    implicit_callsites=n(),
+    implicit_test_callsites=sum(str_detect(location_scope, "test"))
+  )
+
+updated_clean_corpus <- 
+  clean_corpus %>%
+  select(
+    # these are no longer accurate
+    -implicit_declarations, -implicit_local_declarations, -implicit_callsites
+  ) %>%
+  left_join(
+    corpus_declarations,
+    by="project_id"
+  ) %>%
+  left_join(
+    corpus_callsites,
+    by="project_id"
+  ) %>%
+  mutate(
+    implicit_declarations=replace_na(implicit_declarations, 0),
+    implicit_local_declarations=replace_na(implicit_local_declarations, 0),
+    implicit_callsites=replace_na(implicit_callsites, 0)
+  ) 
+```
+
+```{r}
+print(nrow(clean_callsites))
+```
+
+
+```{r save results}
+write_csv(updated_clean_corpus, CLEAN_CORPUS)
+write_data(clean_declarations, CLEAN_IMPLICIT_DECLARATIONS)
+write_data(clean_callsites, CLEAN_IMPLICIT_CALLSITES)
+write_data(clean_conversions, CLEAN_IMPLICIT_CONVERSIONS)
+write_data(clean_parameters, CLEAN_IMPLICIT_PARAMETERS)
+```

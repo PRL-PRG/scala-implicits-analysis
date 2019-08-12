@@ -21,11 +21,10 @@ source(file.path(params$lib_dir, "setup.R"))
 ```
 
 ```{r output, include=FALSE}
-OUT_TOP_PROJECTS_TEX <- path(output_dir, "top-projects.tex")
 OUT_CORPUS_BUILDING_TEX <- path(output_dir, "corpus-building.tex")
-OUT_SCALA_VERSIONS_TEX <- path(output_dir, "scala-version.tex")
 OUT_CORPUS_OVERVIEW_PDF <- path(output_dir, "corpus-overview.pdf")
-OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
+OUT_SCALA_VERSIONS_TEX <- path(output_dir, "scala-version.tex")
+OUT_TOP_PROJECTS_TEX <- path(output_dir, "top-projects.tex")
 ```
 
 ## Overview
@@ -39,8 +38,9 @@ The pipeline runs in three stages:
 The ``r CORPUS_STAGE1`` contains information about projects that finished stage 1 and indicates which can go to stage 2 before de-duplication.
 The ``r CORPUS_STAGE3`` contains information about projects that went to stage 2 and indicates which managed to pass stage 3.
 So `stage1_corpus` contains all Scala projects we could get, `stage2_corpus` contains all compatible de-duplicated projects and `corpus` is the final corpus containing only the projects we could extract implicits from.
+The ``r CLEAN_CORPUS`` contains informaton about the projects after data cleaning. This is the final corpus.
 
-The ``r CORPUS_STAGE3`` file contains the following columns:
+The ``r CLEAN_CORPUS`` file contains the following columns:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
 - `origin` (chr): the URL to github 
@@ -113,12 +113,13 @@ Exit code:
 ```{r loading data}
 stage1_corpus <- read_csv(CORPUS_STAGE1)
 stage2_corpus <- read_csv(CORPUS_STAGE3)
+stage3_corpus <- filter_stage3_corpus(stage2_corpus)
 ```
 
 The final corpus only contains projects for which the implicit extractor successfully ran and that have some compiled Scala code.
 
 ```{r final corpus}
-corpus <- filter_final_corpus(stage2_corpus)
+corpus <- read_csv(CLEAN_CORPUS)
 ```
 
 ### Checks
@@ -150,7 +151,8 @@ overview_table(
   overview_projects("graddle projects",              filter(stage1_corpus, build_system=="graddle")),
   overview_projects("compatible sbt projects",       compatible_projects),
   overview_projects("duplicated",                    duplicated_projects),
-  overview_projects("selected projects (stage 2)",   stage2_corpus)
+  overview_projects("selected projects (stage 2)",   stage2_corpus),
+  overview_projects("extracted projects (stage 3)",  stage3_corpus, code_column=metadata_scala_code)
 )
 ```
 
@@ -209,7 +211,7 @@ overview_table(
 )
 ```
 
-Versions
+## Scala versions
 
 ```{r}
 corpus_scala_versions <- 
@@ -254,7 +256,6 @@ corpus_scala_versions %>%
   )
 ```
 
-
 Notes:
 
 ```{r compiler benchmakr, include=FALSE}
@@ -297,7 +298,7 @@ corpus %>%
     #geom_text(size=2.5, check_overlap = F, vjust=-1, na.rm = TRUE, color="black") + 
     scale_x_log10(labels = scales::comma) + 
     scale_y_log10(labels = scales::comma) +
-    scale_size_continuous(range = c(.1, 8)) +
+    scale_size_continuous(range = c(.1, 8), labels = scales::comma) +
     scale_color_gdocs() +
   
     geom_hline(aes(yintercept=corpus_commit_mean, linetype="dashed"), color="black", size=0.2) +
@@ -311,8 +312,9 @@ corpus %>%
     #annotate("text", x=corpus_code_median, y=1, label=floor(corpus_code_median), hjust=-.3, vjust=2.4, size=3) + 
     scale_linetype_manual(labels=c("mean", "median"), values=c("dashed", "solid")) +
     theme(
-      legend.position=c(0.25, 0.89),
-      legend.box="horizontal"
+      legend.position=c(0.2, 0.85),
+      legend.box="horizontal",
+      legend.box.background = element_rect(fill="white", size=0.05)
     ) +
     labs(
       x="Souce lines of code (log)", 
@@ -320,122 +322,16 @@ corpus %>%
       color="In Scaladex",
       size="Github stars",
       linetype=""
+    ) +
+    guides(
+      size=guide_legend(order=1),
+      color=guide_legend(order=2),
+      linetype=guide_legend(order=3)
     )
 ```
 
 ```{r save corpus overview plot}
 ggsave(OUT_CORPUS_OVERVIEW_PDF)
-```
-
-### Implicits
-
-```{r implicits overview}
-explicit_callsites <- sum(corpus$explicit_callsites)
-implicit_callsites <- sum(corpus$implicit_callsites)
-explicit_test_callsites <- sum(corpus$explitic_test_callsites, na.rm = T)
-callsites <- sum(corpus$callsites)
-
-projects_using_implicits <- nrow(filter(corpus, implicit_callsites > 0))
-projects_defining_implicits <- nrow(filter(corpus, implicit_local_declarations> 0))
-
-overview_table(
-  r("implicit extraction errors", sum(corpus$implicit_extraction_errors)),
-  r("Implicit extraction failures", filter(corpus, !is.na(implicit_failure))),
-  r("implicit declarations", sum(corpus$implicit_declarations)),
-  r("local implicit declarations", sum(corpus$implicit_local_declarations)),
-  r("call sites", callsites),
-  r("explicit call sites", explicit_callsites),
-  r("implicit call sites", implicit_callsites),
-  r("implicit call sites pct", percent(implicit_callsites/callsites)),
-  r("test call sites", explicit_test_callsites),
-  r("test call sites pct", percent(explicit_test_callsites/explicit_callsites)),
-  r("projects using implicits", projects_using_implicits),
-  r("projects defining implicits", projects_defining_implicits),
-  r("projects using implicits pct", percent(projects_using_implicits/nrow(corpus))),
-  r("projects defining implicits pct", percent(projects_defining_implicits/nrow(corpus)))
-)
-```
-
-#### Graph
-
-```{r implicit overview}
-local({
-
-callsite_color <- "darkblue" #"#ED6559"
-declaration_color <-"darkgoldenrod1"    #"#4C5D7C"
-  
-# the trick with superposition is to do the log10 scaling manually
-corpus_implicitness_overview <- 
-  corpus %>%
-  mutate(
-    implicit_local_declarations=if_else(implicit_local_declarations > 0, log10(implicit_local_declarations), 0)
-  )
-
-# up to which part of the implicit local declarations can this graph overlap
-cs_ds_opverlap <- 1
-cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
-# this is the height of the overlap which is equal to 100% of implicit callsites ration
-cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
-
-# the implicit callsites ratio will be plotted using segments
-# for this we need to compute y and yend (x and xend are the same - project_id)
-corpus_implicitness_overview <- 
-  corpus_implicitness_overview %>%
-  transmute(
-    project_id,
-    ds=implicit_local_declarations,
-    cs=implicit_callsites/callsites,
-    cs_start=cs_end - cs_height * cs
-  ) %>%
-  mutate(
-    project_id=forcats::fct_reorder(project_id, ds)
-  )
-
-pri_breaks <- seq(cs_end, cs_end*(1-cs_ds_opverlap), length.out = 5)
-pri_labels <- seq(0, 100, length.out = length(pri_breaks)) %>% str_c("%")
-sec_breaks <- c(0:as.integer(cs_end), cs_end)
-sec_labels <- c("0", fmt(10^sec_breaks[-1]))
-
-corpus_implicitness_overview %>%
-  ggplot(
-    aes(
-      x=project_id,
-      y=ds
-    )
-  ) + 
-  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end),
-               color=callsite_color, alpha=.5) +
-  geom_bar(width=1, stat="identity",
-           fill=declaration_color, alpha=.7) +
-  theme(
-    axis.ticks.x=element_blank(),
-    axis.ticks.y=element_line(),
-    panel.grid.major.x=element_blank(), 
-    panel.grid.minor.x=element_blank(),
-    panel.grid.major.y=element_line(),
-    panel.grid.minor.y=element_blank(),
-    axis.text.x = element_blank(),
-    axis.text.y = element_text(color = "grey20", size = 10),
-    axis.title.x = element_text( size = 11),
-    axis.title.y = element_text( size = 11)
-  ) + 
-  scale_y_continuous(
-    breaks=pri_breaks,
-    labels=pri_labels,
-    name="Ratio of implicit calls",
-    sec.axis=sec_axis(
-      trans=~.,
-      name="Number of implicit declarations (log)",
-      breaks=sec_breaks, 
-      labels=sec_labels
-    ) 
-  ) +
-  labs(x="Projects")
-})
-```
-
-```{r save implicits overview plot}
-ggsave(OUT_IMPLICITS_OVERVIEW_PDF)
 ```
 
 ### TOP projects
@@ -451,6 +347,7 @@ top_projects <-
     metadata_scala_code,
     commit_count,
     dejavu_duplication,
+    scala_version,
     scaladex=if_else(scaladex, "Y", "N")
   ) %>%
   top_n(40, gh_stars) %>%
@@ -462,6 +359,7 @@ top_projects <-
     `Code size`=metadata_scala_code,
     `Commits`=commit_count,
     `Duplication`=dejavu_duplication,
+    `Scala version`=scala_version,
     `Scaladex`=scaladex
   )
 
@@ -470,7 +368,7 @@ my_datatable(top_projects)
 
 ```{r save top projects}
 top_projects %>%
-  xtable::xtable(align="llrrrrc") %>%
+  xtable::xtable(align="llrrrrcc") %>%
   print(
     floating=F,
     file=OUT_TOP_PROJECTS_TEX,
@@ -702,7 +600,7 @@ count(failed_projects, cause) %>%
 
 ```{r}
 overview_table(
-  r("failed projects - all",                  filter(stage2_corpus, implicits_exit_code != 0)),
+  r("failed projects - all",                  anti_join(stage2_corpus, stage3_corpus, by="project_id")),
   r("failed projects - metadata",             filter(stage2_corpus, metadata_exit_code != 0)),
   r("failed projects - semanticdb",           filter(stage2_corpus, metadata_exit_code == 0, semanticdb_exit_code > 0)),
   r("failed projects - missing dependencies", filter(failed_projects, cause=="missing-dependencies")),

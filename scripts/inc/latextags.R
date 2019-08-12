@@ -32,6 +32,17 @@ r.data.frame <- function(name, value, ...) {
   r(name, nrow(value))
 }
 
+ratio <- function(x, y) {
+  percent(to_ratio_num(x)/to_ratio_num(y))
+}
+
+to_ratio_num <- function(x) {
+  UseMethod("to_ratio_num")
+}
+
+to_ratio_num.numeric <- identity
+
+to_ratio_num.data.frame <- function(x) nrow(x)
 
 ## Tags
 

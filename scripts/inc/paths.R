@@ -69,6 +69,12 @@ IMPLICIT_CALLSITES_F <- get_corpus_path("implicit-callsites.fst")
 IMPLICIT_PARAMETERS_F <- get_corpus_path("implicit-parameters.fst")
 IMPLICIT_CONVERSIONS_F <- get_corpus_path("implicit-conversions.fst")
 
+CLEAN_CORPUS <- get_corpus_path("clean-corpus.csv")
+CLEAN_IMPLICIT_DECLARATIONS <- get_corpus_path("clean-implicit-declarations.fst")
+CLEAN_IMPLICIT_CALLSITES <- get_corpus_path("clean-implicit-callsites.fst")
+CLEAN_IMPLICIT_PARAMETERS <- get_corpus_path("clean-implicit-parameters.fst")
+CLEAN_IMPLICIT_CONVERSIONS <- get_corpus_path("clean-implicit-conversions.fst")
+
 projects_file <- Vectorize(function(project, filename) {
   path(PROJECTS_DIR, project, ANALYSIS_DIR, filename)
 }, USE.NAMES = FALSE, vectorize.args = "project")

@@ -1,5 +1,5 @@
 ---
-title: Corpus Analysis
+title: Implicit Analysis
 authors: Filip Krikava, Heather Miller and Jan Vitek
 output:
   html_document:
@@ -21,7 +21,7 @@ source(file.path(params$lib_dir, "setup.R"))
 ```
 
 ```{r}
-JOIN_BY <- c("mid", "declaration_id")
+OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
 ```
 
 ## Introduction
@@ -35,7 +35,7 @@ The following is the summary of the data exported from the corpus.
 
 ### Implicit Declarations
 
-The `r IMPLICIT_DECLARATIONS_F` file contains all the implicit declarations, including all defs with implicit parameters.
+The `r CLEAN_IMPLICIT_DECLARATIONS` file contains all the implicit declarations, including all defs with implicit parameters.
 It contains the following columns:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
@@ -73,7 +73,7 @@ It was created by [ImplicitDeclarationExporter.scala](https://github.com/PRL-PRG
 
 ### Implicit Call Sites
 
-The `r IMPLICIT_CALLSITES_F` file contains all the callsites involving implicits.
+The `r CLEAN_IMPLICIT_CALLSITES` file contains all the callsites involving implicits.
 It contains the following columns:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
@@ -105,7 +105,7 @@ It was created by [ImplicitCallSitesExporter.scala](https://github.com/PRL-PRG/s
 
 ### Implicit Conversions
 
-The `r IMPLICIT_CONVERSIONS_F` file contains all the callsites involving implicits.
+The `r CLEAN_IMPLICIT_CONVERSIONS` file contains all the callsites involving implicits.
 It contains the following columns:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
@@ -140,7 +140,7 @@ It was created by [ImplicitConversionExporter.scala](https://github.com/PRL-PRG/
 
 ### Implicit parameters
 
-The data frame in `r IMPLICIT_PARAMETERS_F` represents implicit parameter declarations.
+The data frame in `r CLEAN_IMPLICIT_PARAMETERS` represents implicit parameter declarations.
 For each declaration that carries implicit argument list it contains the following information:
 
 - `project_id` (chr): project name as `github-user-name--github-repository-name`
@@ -183,22 +183,46 @@ For each declaration that carries implicit argument list it contains the followi
 
 They were extracted using [ImplicitParameterExporter.scala](https://github.com/PRL-PRG/scala-implicits-analysis/blob/oopsla19/libs/tools/src/main/scala/cz/cvut/fit/prl/scala/implicits/tools/ImplicitParameterExporter.scala).
 
+## Tests
+
+```{r}
+testthat::expect_equal(
+  remove_scala_version_suffix(
+    c("name_scala_6.2", "name_scala-ng_3.2", "name-scala_2-5", "name-scala_2.11", "name-scala_sjs0.6", "name_scala_native0.3", "name-scala_6.2_sjs0.6_2.12")
+  ), 
+    c("name_scala",     "name_scala-ng",     "name-scala",     "name-scala",      "name-scala",        "name_scala",           "name-scala")
+)
+```
+
 ## Loading data
 
 First, we load the corpus and raw data that came from the `export-implicit` task.
 
 ```{r loading declarations}
-raw_corpus <- load_if_not_present(raw_corpus, read_csv(CORPUS_STAGE3) %>% filter_final_corpus())
-raw_all_declarations <- load_if_not_present(raw_all_declarations, read_data(IMPLICIT_DECLARATIONS_F))
-raw_all_callsites <- load_if_not_present(raw_all_callsites, read_data(IMPLICIT_CALLSITES_F))
-raw_all_conversions <- load_if_not_present(raw_all_conversions, read_data(IMPLICIT_CONVERSIONS_F))
-raw_all_parameters <- load_if_not_present(raw_all_parameters, read_data(IMPLICIT_PARAMETERS_F))
+raw_corpus <- load_if_not_present(raw_corpus, read_csv(CLEAN_CORPUS))
+raw_all_declarations <- load_if_not_present(raw_all_declarations, read_data(CLEAN_IMPLICIT_DECLARATIONS))
+raw_all_callsites <- load_if_not_present(raw_all_callsites, read_data(CLEAN_IMPLICIT_CALLSITES))
+raw_all_conversions <- load_if_not_present(raw_all_conversions, read_data(CLEAN_IMPLICIT_CONVERSIONS))
+raw_all_parameters <- load_if_not_present(raw_all_parameters, read_data(CLEAN_IMPLICIT_PARAMETERS))
 ```
 
 Double check there are no duplicates!
 
 ```{r}
 stopifnot(!any(duplicated(raw_corpus$project_id)))
+```
+
+Double check we agree on projects
+
+```{r}
+stopifnot(raw_all_declarations %>% anti_join(raw_corpus, by="project_id") %>% nrow() == 0)
+stopifnot(raw_all_callsites %>% anti_join(raw_corpus, by="project_id") %>% nrow() == 0)
+stopifnot(raw_all_conversions %>% anti_join(raw_corpus, by="project_id") %>% nrow() == 0)
+stopifnot(raw_all_parameters %>% anti_join(raw_corpus, by="project_id") %>% nrow() == 0)
+```
+
+```{r}
+JOIN_BY <- c("module_id", "declaration_id")
 ```
 
 
@@ -211,213 +235,30 @@ reset_environment <- function() {
 }
 ```
 
-
 Note: 
 - The conditional load is for interactive development of this notebook.
   Loading takes time and they these variables should only be used to derive the actual variables with which we work.
 
-```{r}
-index <- function(df) {
-  df %>% 
-    left_join(select(corpus, project_id, pid), by="project_id") %>% 
-    left_join(module_ids, by="module_id") %>% 
-    select(pid, mid, project_id, everything()) %>% 
-    # TODO -project_id?
-    select(-module_id)
-}
-
-expand_location <- function(df) {
-  df %>%
-    mutate(
-      is_in_test=str_detect(location_scope, "test"),
-      is_in_managed=str_detect(location_scope, "managed"),
-      is_in_dependency=str_detect(location_scope, "dependency"),
-      # all locations that are transitive, but are not a dependency are not a dependency.
-      # the sbt.librarymanagement.ModuleID.isTransitive is not super precise and in some cases 
-      # inter-project dependencies will mark as transitive.
-      is_in_transitive=str_detect(location_scope, "transitive") & is_in_dependency
-    ) %>%
-      select(-location_scope) %>%
-      select(-location_path, -location_path, -location_uri, -location_pos)
-}
-
-expand_access_info <- function(df) {
-  df %>%
-    mutate(
-      is_access_specified=access!="NOT_SPECIFIED",
-      is_public=access=="PUBLIC",
-      is_private=startsWith(access, "PRIVATE"),
-      is_protected=startsWith(access, "PROTECTED")
-    ) %>%
-      select(-access)
-}
-
-expand_is_from_scala <- function(df) {
-  df %>%
-    mutate(
-      is_from_scala=is_in_dependency & startsWith(def_group_id, "org.scala-lang")
-    )
-}
-
-expand_platform <- function(df) {
-  df %>%
-    mutate(
-      is_jvm=str_detect(module_id, ":jvm$"),
-      is_js=str_detect(module_id, ":js$"),
-      is_native=str_detect(module_id, ":native$"),
-    )
-}
-
-expand_module_name <- function(df) {
-  df %>%
-    mutate(
-      module_name=str_replace(module_id, "^[^:]+::(.*):[^:]+:[^:]+$", "\\1")
-    )
-}
-
-remove_scala_version_from_id <- function(df, column) {
-  column <- enquo(column)
-  df %>%
-    mutate(
-      !!column:=str_replace(!!column, "(.*)_2.\\d{2}$", "\\1")
-    )
-}
-```
-
-## Clean data
-
-There are couple of inaccuracies in the data gathering.
-This section tries to clean them up:
-
-1. In some cases, we are not able to resolve the library in which a declaration has been defined.
-   This usually happend when the classpath for the project is not properly configured.
-   We have seen this mostly with projects requiring some native packages with Java API.
-   
-2. There was some inference with parallel job execution and a few projects have in their module_id some undesired output from make.
-   
-How many are there:
-
-```{r missing library info}
-missing_declarations_library <- 
-  filter(raw_all_declarations, is.na(def_group_id)) %>%
-  select(project_id, module_id, declaration_id)
-
-missing_callsites_library <- 
-  semi_join(raw_all_callsites, missing_declarations_library, by=c("module_id", "declaration_id")) %>%
-  select(project_id, module_id, declaration_id)
-
-bad_module_id_declarations <- 
-  filter(raw_all_declarations, str_detect(module_id, "make\\[")) %>%
-  distinct(module_id)
-
-bad_module_id_callsites <- 
-  bind_rows(
-    filter(raw_all_callsites, str_detect(module_id, "make\\[")),
-    semi_join(raw_all_callsites, bad_module_id_declarations, by="module_id")
-  ) %>%
-  distinct(module_id)
-```
-
-```{r}
-overview_table(
-  r("clean declarations missing library info", missing_declarations_library),
-  r("clean declarations missing library info projects", count(missing_declarations_library, project_id)),
-  r("clean callsites missing library info", missing_callsites_library),
-  r("clean callsites missing library info projects", count(missing_callsites_library, project_id)),
-  r("clean missing library info affected projects", 
-    length(unique(c(missing_declarations_library$project_id, missing_callsites_library$project_id)))),
-  r("clean bad module ids", distinct(bind_rows(bad_module_id_declarations, bad_module_id_callsites)))
-)
-```
-
-```{r clean}
-clean_declarations <- 
-  raw_all_declarations %>%
-  anti_join(missing_declarations_library, by=c("module_id", "declaration_id")) %>%
-  anti_join(bad_module_id_declarations, by="module_id")
-
-clean_callsites <- 
-  raw_all_callsites %>%
-  anti_join(missing_callsites_library, by=c("module_id", "declaration_id")) %>%
-  anti_join(bad_module_id_callsites, by="module_id")
-
-clean_conversions <-
-  raw_all_conversions %>%
-  semi_join(clean_declarations, by=c("module_id", "declaration_id"))  
-
-clean_parameters <-
-  raw_all_parameters %>%
-  semi_join(clean_declarations, by=c("module_id", "declaration_id"))
-
-clean_corpus <-
-  raw_corpus %>%
-  semi_join(clean_declarations, by="project_id")
-```
-
-
-```{r clean data set overview}
-lost_rows_pct <- function(orig, curr) {
-  percent(1-nrow(curr)/nrow(orig))
-}
-
-overview_table(
-  overview_projects("Clean corpus", clean_corpus, code_column=metadata_scala_code),
-  r("Lost declarations", lost_rows_pct(raw_all_declarations, clean_declarations)),
-  r("Lost callsites",    lost_rows_pct(raw_all_callsites, clean_callsites)),
-  r("Lost conversion ",  lost_rows_pct(raw_all_conversions, clean_conversions)),
-  r("Lost parameters",   lost_rows_pct(raw_all_parameters, clean_parameters))
-)
-```
-
 ## Preprocessing
 
-The `corpus` variable contains project metadata information.
-We only consider projects for which the extractor run successfully (which transitively implies that the project was compiled and semanticdb was generated) and that contains some compile Scala code (there are projects that do contain Scala code, but none is being compile).
-
-### Indexing
-
-We build the index using declarations modules which should always include all.
-There should not be a call site from a module which does not
-appear in declaration.
-
-```{r}
-declarations_module_ids <- count(clean_declarations, module_id)
-callsites_modules_ids <- count(clean_callsites, module_id)
-
-stopifnot(nrow(anti_join(callsites_modules_ids, declarations_module_ids, by="module_id")) == 0)
-```
-
-```{r}
-corpus <- 
-  clean_corpus %>%
-  mutate(
-    pid=1:length(project_id)
-  ) %>%
-  select(pid, everything())
-
-module_ids <-
-  declarations_module_ids %>%
-  transmute(
-    mid=1:length(module_id),
-    module_id
-  )
-
-project_libraries <-
-  clean_declarations %>%
-  expand_module_name() %>%
-  select(def_project=project_id, def_library_full=module_name) %>%
-  distinct(def_project, def_library_full)
-```
+TODO: do we need the `expand_module_name`?
 
 ```{r all declarations}
 all_declarations <- 
-  clean_declarations %>%
+  raw_all_declarations %>%
   expand_module_name() %>%
   expand_platform() %>%
   expand_location() %>%
   expand_access_info() %>%
   expand_is_from_scala() %>%
-  index()
+  mark_block_locals() %>%
+  clean_block_locals()
+```
+
+```{r check declarations}
+stopifnot(all(count(all_declarations, platform)$platform %in% c("jvm", "js", "native")))
+stopifnot(nrow(filter(all_declarations, startsWith(declaration_id, "_local_"), !is_block_local)) == 0)
+stopifnot(nrow(raw_all_declarations) == nrow(all_declarations))
 ```
 
 Check the mutually exclusive flags:
@@ -436,40 +277,51 @@ check_all_declarations <-
     )
 
 stopifnot(nrow(check_all_declarations) == 0)
+rm(check_all_declarations)
 ```
 
 ```{r callsites}
 all_callsites <- 
-  clean_callsites %>%
+  raw_all_callsites %>%
   expand_module_name() %>%
   expand_location() %>%
-  index()
+  mark_block_locals() %>%
+  clean_block_locals()
+```
+
+```{r}
+stopifnot(nrow(raw_all_callsites) == nrow(all_callsites))
 ```
 
 ```{r conversions}
 all_conversions <- 
-  clean_conversions %>%
+  raw_all_conversions %>%
   expand_module_name() %>%
-  index()
+  mark_block_locals() %>%
+  clean_block_locals()
 ```
 
 ```{r parameters}
 all_parameters <- 
-  clean_parameters %>%
+  raw_all_parameters %>%
   expand_module_name() %>%
-  index()
+  mark_block_locals() %>%
+  clean_block_locals()
 ```
 
-## Joining data
+### Joining data
 
 ```{r}
 declarations <-
   all_declarations %>%
-  remove_scala_version_from_id(def_artifact_id) %>%
   mutate(
-    def_library=def_group_id,
-    def_library_full=str_c(def_group_id, ":", def_artifact_id),
+    def_artifact_id=remove_scala_version_suffix(def_artifact_id),
+    def_library=str_c(def_group_id, ":", def_artifact_id),
     num_implicit_parameters=replace_na(num_implicit_parameters, 0)
+  ) %>%
+  filter(
+    kind != "CLASS",    # remove implicit class as it is there already in the desugared version
+    kind != "PARAMETER" # remove parameters since they are also in defs
   )
 ```
 
@@ -479,46 +331,47 @@ callsites <-
     all_callsites,
     select(
       declarations, 
-      mid, 
+      module_id,
       declaration_id, 
       is_access_specified,
       is_public,
       is_from_scala,
-      def_library,
-      def_library_full
+      def_group_id,
+      def_library
     ),
-    by=c("mid", "declaration_id")
+    by=c("module_id", "declaration_id")
   )
 ```
 
 ```{r}
+stopifnot(nrow(callsites) == nrow(raw_all_callsites))
+```
+
+TODO: rename from_artifactId in exporter 
+TODO: rename to_artifactId in exporter
+
+```{r}
 conversions <-
   all_conversions %>%
-  remove_scala_version_from_id(from_artifactId) %>%
-  remove_scala_version_from_id(to_artifactId) %>%
-  transmute(
-    mid,
-    declaration_id,
-    from,
-    from_group_id=from_groupId,
-    from_artifact_id=from_artifactId,
+  mutate(
+    from_artifact_id=remove_scala_version_suffix(from_artifact_id),
     from_library=str_c(from_group_id, ":", from_artifact_id),
-    from_compilation_unit,
-    to,
-    to_group_id=to_groupId,
-    to_artifact_id=to_artifactId,
+    to_artifact_id=remove_scala_version_suffix(to_artifact_id),
     to_library=str_c(to_group_id, ":", to_artifact_id),
-    to_compilation_unit,
   ) %>%
   left_join(
     select_at(
       declarations,
       vars(
-        mid,
+        module_id,
         declaration_id, 
         kind,
+        name,
+        compilation_unit,
+        def_group_id,
         def_library,
-        def_library_full,
+        def_location_path=location_path,
+        def_location_uri=location_uri,
         num_type_parameters,
         num_parameters,
         num_implicit_parameters,
@@ -526,18 +379,327 @@ conversions <-
         starts_with("is_")
       )
     ),
-    by=c("mid", "declaration_id")
+    by=c("module_id", "declaration_id")
   ) %>%
-  distinct(def_library_full, declaration_id, .keep_all=TRUE) %>%
-  select(-mid)
+  distinct(def_library, declaration_id, .keep_all=TRUE) %>%
+  select(-module_id, -module_name, -group_id, -artifact_id, -project_id) %>%
+  filter(!is.na(kind))
+```
+
+TODO: check the filter(conversions, is.na(kind))
+
+## Implicits overview
+
+### Local implicits declarations
+
+```{r}
+local_declarations <- 
+  declarations %>%
+  filter(is_module_local)
+```
+
+All local declarations should have a path (otherwise, how could they be local)
+
+```{r}
+stopifnot(all(!is.na(local_declarations$path)))
+```
+
+Duplication in module local declarations
+
+```{r}
+stopifnot(
+  local_declarations %>% 
+  semi_join(
+    count(filter(local_declarations, !is_block_local), path, module_id, declaration_id) %>% filter(n > 1), 
+    by = c("module_id", "path")
+  ) %>%
+  nrow() == 0)
+```
+
+There are duplicates in the corpus. They do not need to be full project clones, just few files.
+Since we do not have any reliable way of telling which one is original and the overall level is low, we keep them.
+
+```{r}
+local_declarations_duplication <-
+  local_declarations %>% 
+  semi_join(
+    count(local_declarations, def_library, declaration_id) %>% filter(n > 1), 
+    by=c("declaration_id", "def_library")
+  )
+
+overview_table(
+  r("Duplicate local declarations", local_declarations_duplication),
+  r("Duplicate local declarations pct", ratio(local_declarations_duplication, local_declarations)),
+  r("Corpus dejavu duplication mean pct", percent(mean(raw_corpus$dejavu_duplication, na.rm=T)))
+)
+```
+
+### External implicit declarations
+
+```{r}
+external_declarations <-
+  declarations %>% 
+  anti_join(local_declarations, by=c("module_id", "declaration_id")) %>%
+  anti_join(local_declarations, by=c("def_library", "declaration_id"))
+```
+
+#### Find unique ones
+
+External implicit declarations can be uniquely identified using their fully qualified name (`declaration_id`) and the artifact in which they were declared (`def_library_full`). 
+We disregard library version.
+
+```{r compute unique implicit declarations}
+filter_unique_declarations <- function(df) {
+  df %>%
+  distinct(def_library, declaration_id, .keep_all=T) %>%
+  # these no longer applies - in which project/module it has been seen
+  select(-project_id, -module_id, -group_id, -artifact_id, -version, -def_version, -is_module_local) %>%
+  select(declaration_id, def_library, def_group_id, def_artifact_id, everything())
+}
 ```
 
 ```{r}
-stopifnot(nrow(clean_declarations) == nrow(all_declarations))
-stopifnot(nrow(clean_declarations) == nrow(declarations))
-stopifnot(nrow(clean_callsites) == nrow(all_callsites))
-stopifnot(nrow(clean_callsites) == nrow(callsites))
+unique_external_declarations <- 
+  external_declarations %>%
+  filter_unique_declarations()
 ```
+
+Internal and external should not overlap
+
+```{r}
+stopifnot(nrow(semi_join(local_declarations, unique_external_declarations, by=c("def_library", "declaration_id"))) == 0)
+```
+
+#### Combined local and external
+
+```{r}
+unique_declarations <-
+  bind_rows(
+    select(local_declarations, -project_id, -module_id, -artifact_id, -group_id, version),
+    unique_external_declarations
+  )
+```
+
+### Block local declarations
+
+```{r}
+block_local_declarations <- filter(unique_declarations, is_block_local)
+overview_table(
+  r("block local implicit declarations", block_local_declarations),
+  r("block local implicit declarations pct", ratio(block_local_declarations, unique_declarations))
+)
+```
+
+```{r}
+add_corpus_column_count <- function(df, from, column) {
+  column <- enquo(column)
+  
+  df %>%
+    left_join(count(from, project_id), by="project_id") %>% 
+    mutate(n=replace_na(n, 0)) %>% 
+    rename(!!column:=n)
+}
+
+corpus <- 
+  raw_corpus %>%
+  # drop the approximations from implicit-stats.csv
+  select(
+    -implicit_declarations,
+    -implicit_local_declarations,
+    -implicit_callsites,
+    -implicit_test_callsites
+  ) %>%
+  add_corpus_column_count(declarations,                          implicit_declarations) %>%
+  add_corpus_column_count(filter(declarations, is_module_local), implicit_local_declarations) %>%
+  add_corpus_column_count(callsites,                             implicit_callsites) %>%
+  add_corpus_column_count(filter(callsites, is_in_test),         implicit_test_callsites) %>%
+  mutate(
+    callsites=explicit_callsites + implicit_callsites,
+    test_callsites=explicit_test_callsites + implicit_callsites
+  )
+```
+
+```{r implicits overview}
+n_callsites          <- sum(corpus$callsites)
+n_explicit_callsites <- sum(corpus$explicit_callsites)
+n_implicit_callsites <- sum(corpus$implicit_callsites)
+
+stopifnot(n_callsites == n_explicit_callsites + n_implicit_callsites)
+```
+
+```{r}
+n_explicit_test_callsites <- sum(corpus$explicit_test_callsites)
+n_implicit_test_callsites <- sum(corpus$implicit_test_callsites)
+n_test_callsites          <- n_explicit_test_callsites + n_implicit_test_callsites  
+
+stopifnot(n_test_callsites == n_explicit_test_callsites + n_implicit_test_callsites)
+```
+
+```{r}
+projects_using_implicits <- filter(corpus, implicit_callsites > 0)
+projects_defining_implicits <- filter(corpus, implicit_local_declarations > 0)
+
+overview_table(
+  r("implicit extraction errors", sum(corpus$implicit_extraction_errors)),
+  r("implicit extraction failures", filter(corpus, !is.na(implicit_failure))),
+  r("implicit declarations", unique_declarations),
+  r("local implicit declarations", local_declarations),
+  r("local implicit declarations pct", ratio(local_declarations, unique_declarations)),
+  
+  r("call sites", n_callsites),
+  r("explicit call sites", n_explicit_callsites),
+  r("implicit call sites", n_implicit_callsites),
+  r("implicit call sites pct", percent(n_implicit_callsites/n_callsites)),
+  
+  r("test call sites", n_explicit_test_callsites),
+  r("test call sites pct", percent(n_explicit_test_callsites/n_explicit_callsites)),
+  r("implicit test call sites", n_implicit_test_callsites),
+  r("implicit test call sites pct", percent(n_implicit_test_callsites/n_test_callsites)),
+  
+  r("projects using implicits", projects_using_implicits),
+  r("projects defining implicits", projects_defining_implicits),
+  r("projects using implicits pct", ratio(projects_using_implicits, corpus)),
+  r("projects defining implicits pct", ratio(projects_defining_implicits, corpus))
+)
+```
+
+#### Graph
+
+```{r implicit overview}
+local({
+
+callsite_color <- "darkblue" #"#ED6559"
+declaration_color <-"darkgoldenrod1"    #"#4C5D7C"
+  
+# the trick with superposition is to do the log10 scaling manually
+corpus_implicitness_overview <- 
+  corpus %>%
+  mutate(
+    implicit_local_declarations=if_else(implicit_local_declarations > 0, log10(implicit_local_declarations), 0)
+  )
+
+# up to which part of the implicit local declarations can this graph overlap
+cs_ds_opverlap <- 1
+cs_end <- max(corpus_implicitness_overview$implicit_local_declarations)
+# this is the height of the overlap which is equal to 100% of implicit callsites ration
+cs_height <- cs_end - 10^(log10(cs_end) - log10(cs_end) * cs_ds_opverlap)
+
+# the implicit callsites ratio will be plotted using segments
+# for this we need to compute y and yend (x and xend are the same - project_id)
+corpus_implicitness_overview <- 
+  corpus_implicitness_overview %>%
+  transmute(
+    project_id,
+    ds=implicit_local_declarations,
+    cs=implicit_callsites/callsites,
+    cs_start=cs_end - cs_height * cs
+  ) %>%
+  mutate(
+    project_id=forcats::fct_reorder(project_id, ds)
+  )
+
+pri_breaks <- seq(cs_end, cs_end*(1-cs_ds_opverlap), length.out = 5)
+pri_labels <- seq(0, 100, length.out = length(pri_breaks)) %>% str_c("%")
+sec_breaks <- c(0:as.integer(cs_end), cs_end)
+sec_labels <- c("0", fmt(10^sec_breaks[-1]))
+
+corpus_implicitness_overview %>%
+  ggplot(
+    aes(
+      x=project_id,
+      y=ds
+    )
+  ) + 
+  geom_segment(aes(xend=project_id, y=cs_start, yend=cs_end),
+               color=callsite_color, alpha=.5) +
+  geom_bar(width=1, stat="identity",
+           fill=declaration_color, alpha=.7) +
+  theme(
+    axis.ticks.x=element_blank(),
+    axis.ticks.y=element_line(),
+    panel.grid.major.x=element_blank(), 
+    panel.grid.minor.x=element_blank(),
+    panel.grid.major.y=element_line(),
+    panel.grid.minor.y=element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(color = "grey20", size = 10),
+    axis.title.x = element_text( size = 11),
+    axis.title.y = element_text( size = 11)
+  ) + 
+  scale_y_continuous(
+    breaks=pri_breaks,
+    labels=pri_labels,
+    name="Ratio of implicit calls",
+    sec.axis=sec_axis(
+      trans=~.,
+      name="Number of implicit declarations (log)",
+      breaks=sec_breaks, 
+      labels=sec_labels
+    ) 
+  ) +
+  labs(x="Projects")
+})
+```
+
+```{r save implicits overview plot}
+ggsave(OUT_IMPLICITS_OVERVIEW_PDF)
+```
+
+## Other platforms
+
+```{r}
+projects_other_platform <- 
+  count(filter(declarations, is_js | is_native), project_id) %>% 
+  select(project_id) %>%
+  semi_join(corpus, ., by="project_id")
+
+overview_table(
+  overview_projects("projects targeting other platform", projects_other_platform ),
+  r("projects targeting JVM", count(filter(declarations, is_jvm), project_id)),
+  r("projects targeting JS", count(filter(declarations, is_js), project_id)),
+  r("projects targeting native", count(filter(declarations, is_native), project_id))
+)
+```
+
+## Analyzing Implicits Usage
+
+### Overview Table
+
+```{r}
+stat_row <- function(name, code, ds, cs) {
+  ds_unique <- distinct(ds, def_library, declaration_id)
+  if (missing(cs)) {
+    cs <- semi_join(callsites, ds, by=c("def_library", "declaration_id"))
+  }
+  
+  tibble(
+    name=                   name,
+    code=                   code,
+    
+    declarations_all=       nrow(ds_unique),
+    declarations_all_pct=   declarations_all/nrow(declarations_unique),
+    
+    declarations_local=     nrow(filter(ds, is_module_local)),
+    declarations_local_pct= declarations_local/nrow(declarations_unique),
+    
+    callsites=              nrow(cs),
+    callsites_pct=          callsites/nrow(all_callsites),
+    
+    callsites_test=         nrow(filter(cs, is_in_test)),
+    callsites_test=         nrow(filter(cs, is_in_test)),
+  )
+}
+
+#ds_def_with_iparams <- filter(declarations_unique, kind=="DEF", num_implicit_parameters > 1)
+
+stats <- bind_rows(
+  stat_row("Overall",              "ALL", declarations),
+  stat_row("Implicit conversions", "IC",  conversions)
+)
+
+my_datatable(stats)
+```
+
 
 ### Implicit conversions
 
@@ -547,24 +709,24 @@ conversions_test_callsites <- filter(conversions_callsites, is_in_test)
 ```
 
 ```{r}
-projects_using_implicit_conversion <- count(conversions_callsites, pid)
-projects_using_implicit_conversion_non_scala <- filter(conversions_callsites, !is_from_scala) %>% count(pid)
-projects_using_implicit_conversion_non_test <- filter(conversions_callsites, !is_in_test) %>% count(pid)
+projects_using_implicit_conversion <- count(conversions_callsites, project_id)
+projects_using_implicit_conversion_non_scala <- filter(conversions_callsites, !is_from_scala) %>% count(project_id)
+projects_using_implicit_conversion_non_test <- filter(conversions_callsites, !is_in_test) %>% count(project_id)
 
-implicit_test_callsites <- nrow(filter(callsites, is_in_test))
-all_test_callsites <- implicit_test_callsites + sum(corpus$explicit_test_callsites)
+n_implicit_test_callsites <- nrow(filter(callsites, is_in_test))
+n_all_test_callsites <- n_implicit_test_callsites + sum(corpus$explicit_test_callsites)
 
 conversion_from_scala <- filter(conversions_callsites, is_from_scala)
 
-test_libraries <- tibble(
-  def_library=c(
-    "org.scalatest",
-    "org.spec2",
-    "org.scalastic"
-  )
+test_libraries_patterns <- c(
+  "^org.scalatest:.*",
+  "^org.spec2:.*",
+  "^org.scalastic:.*",
+  "^com.lihaoyi:utest.*"
 )
 
-conversion_from_testlib <- filter(conversions_callsites)
+conversion_from_testlib <- 
+    map_dfr(test_libraries_patterns, ~filter(conversions_callsites, str_detect(def_library, .)))
 ```
 
 ```{r}
@@ -578,15 +740,100 @@ overview_table(
   
   r("conversion test callsites", conversions_test_callsites),
   r("conversion test callsites in all conversion pct", percent(nrow(conversions_test_callsites)/nrow(conversions_callsites))),
-  r("conversion test callsites in all implicit test callsites pct", percent(nrow(conversions_test_callsites)/implicit_test_callsites)),
-  r("conversion test callsites in all test callsites pct", percent(nrow(conversions_test_callsites)/all_test_callsites)),
+  r("conversion test callsites in all implicit test callsites pct", percent(nrow(conversions_test_callsites)/n_implicit_test_callsites)),
+  r("conversion test callsites in all test callsites pct", percent(nrow(conversions_test_callsites)/n_all_test_callsites)),
   
-  r("conversion callsites from scala pct", percent(nrow(conversion_from_scala)/nrow(conversions_callsites)))
+  r("conversion callsites from scala pct", percent(nrow(conversion_from_scala)/nrow(conversions_callsites))),
   r("conversion callsites from scala test libraries", percent(nrow(conversion_from_testlib)/nrow(conversions_callsites)))
 )
 ```
 
+- all declarations
+- local declarations
+- main call sites
+- test call sites
+- projects using it
+- projects declarng it
 
+```{r}
+stat_row <- function(name, code, ds, cs) {
+  ds_unique <- distinct(ds, def_library, declaration_id)
+  if (missing(cs)) {
+    cs <- semi_join(callsites, ds, by=c("def_library", "declaration_id"))
+  }
+  
+  tibble(
+    name=                   name,
+    code=                   code,
+    
+    declarations_all=       nrow(ds_unique),
+    declarations_all_pct=   declarations_all/nrow(declarations_unique),
+    
+    declarations_local=     nrow(filter(ds, is_module_local)),
+    declarations_local_pct= declarations_local/nrow(declarations_unique),
+    
+    callsites=              nrow(cs),
+    callsites_pct=          callsites/nrow(all_callsites),
+    
+    callsites_test=         nrow(filter(cs, is_in_test)),
+    callsites_test=         nrow(filter(cs, is_in_test)),
+  )
+}
+
+#ds_def_with_iparams <- filter(declarations_unique, kind=="DEF", num_implicit_parameters > 1)
+
+stats <- bind_rows(
+  stat_row("Overall",              "ALL", declarations),
+  stat_row("Implicit conversions", "IC",  conversions)
+)
+
+my_datatable(stats)
+```
+
+### Late trait implementation
+
+#### Using implicit class
+
+```{r}
+
+```
+
+
+```{r}
+implicit_classes_from_raw_declarations <- filter(declarations, kind=="CLASS") %>% distinct(def_library, declaration_id)
+implicit_classes <- filter(conversions, is_companion)
+implicit_classes_extending_traits <- filter(conversions, is_companion, to_extends_trait)
+implicit_classes_extending_traits_def_libraries <- count(implicit_classes_extending_traits , def_library)
+
+arrange(implicit_classes_extending_traits_def_libraries, desc(n))
+
+overview_table(
+  r("Implicit classes", implicit_classes),
+  r("Implicit classes extending traits", implicit_classes_extending_traits),
+  r("Implicit classes extending traits in all implicit classes pct", ratio(implicit_classes_extending_traits, implicit_classes))
+)
+```
+
+
+
+## Implicit parameters
+
+## Patterns
+
+### Extension methods
+
+```{r}
+filter(conversions, !is_companion) %>% View()
+filter(conversions, is_companion)
+```
+
+
+
+
+
+
+
+## Other
 
 ```{r}
 my_top_count <- function(df, wt, N=50) {
@@ -733,3 +980,28 @@ projects_not_using_implicit_conversion <- anti_join(corpus, projects_using_impli
 - primitives
 - unrelated
 
+```{r}
+x <- count(conversion_from_testlib, project_id) %>% left_join(select(corpus, project_id, metadata_scala_code, gh_stars))
+x <-
+  x %>%
+  select(-project_id) %>%
+  mutate(
+    gh_stars=if_else(gh_stars==0, 0, log10(gh_stars)),
+    metadata_scala_code=if_else(metadata_scala_code==0, 0, log10(metadata_scala_code)),
+    n=if_else(n==0, 0, log10(n))
+  )
+  
+y_bins <- seq(0, max(x$gh_stars), length.out = 23)
+y_size <- max(x$gh_stars)/22
+x_bins <- seq(0, max(x$metadata_scala_code), length.out = 23)
+x_size <- max(x$metadata_scala_code)/22
+
+x %>%
+  transmute(
+    n,
+    x=cut(metadata_scala_code, breaks = x_bins),
+    y=cut(gh_stars, breaks = y_bins)
+  ) %>%
+  ggplot(aes(x=x, y=y, fill=n, width=x_size*4, height=y_size*4))  + geom_tile() + coord_fixed()
+#x %>% ggplot(aes(x=metadata_scala_code, y=gh_stars, fill=n))  + geom_tile()
+```
