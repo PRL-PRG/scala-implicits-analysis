@@ -335,6 +335,10 @@ view_corpus <- function(corpus, view=FALSE) {
 #     declaration_id
 #   )
 
+normalize_compilation_unit <- function(x) str_replace(x, "[.#]$", "")
+normalize_library <- function(group_id, artifact_id, platform) str_c(group_id, ":", artifact_id, ":", platform)
+normalize_path <- function(location_path, location_uri) str_c(location_path, location_uri)
+is_module_local <- function(location_uri) endsWith(location_uri, ".scala")
 
 expand_scope <- function(df, scope_column=location_scope, prefix="") {
   scope_column <- enquo(scope_column)

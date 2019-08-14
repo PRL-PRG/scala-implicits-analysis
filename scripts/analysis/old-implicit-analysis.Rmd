@@ -980,3 +980,324 @@ type_proofs_projects %>%
   arrange(desc(n)) %>%
   my_datatable()
 ```
+
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+########
+
+### Implicit conversions
+
+```{r}
+conversions_callsites <- semi_join(callsites, conversions, by=c("def_library", "declaration_id"))
+conversions_test_callsites <- filter(conversions_callsites, is_in_test)
+```
+
+```{r}
+projects_using_implicit_conversion <- count(conversions_callsites, project_id)
+projects_using_implicit_conversion_non_scala <- filter(conversions_callsites, !is_from_scala) %>% count(project_id)
+projects_using_implicit_conversion_non_test <- filter(conversions_callsites, !is_in_test) %>% count(project_id)
+
+n_implicit_test_callsites <- nrow(filter(callsites, is_in_test))
+n_all_test_callsites <- n_implicit_test_callsites + sum(corpus$explicit_test_callsites)
+
+conversion_from_scala <- filter(conversions_callsites, is_from_scala)
+
+test_libraries_patterns <- c(
+  "^org.scalatest:.*",
+  "^org.spec2:.*",
+  "^org.scalastic:.*",
+  "^com.lihaoyi:utest.*"
+)
+
+conversion_from_testlib <- 
+    map_dfr(test_libraries_patterns, ~filter(conversions_callsites, str_detect(def_library, .)))
+```
+
+```{r}
+overview_table(
+  r("projects using implicit conversion", projects_using_implicit_conversion),
+  r("projects using implicit conversion pct", percent(nrow(projects_using_implicit_conversion)/nrow(corpus))),
+  
+  r("conversion callsites", conversions_callsites),
+  r("conversion callsites in all implicit callsites pct", percent(nrow(conversions_callsites)/nrow(callsites))),
+  r("conversion callsites in all callsites pct", percent(nrow(conversions_callsites)/sum(corpus$callsites))),
+  
+  r("conversion test callsites", conversions_test_callsites),
+  r("conversion test callsites in all conversion pct", percent(nrow(conversions_test_callsites)/nrow(conversions_callsites))),
+  r("conversion test callsites in all implicit test callsites pct", percent(nrow(conversions_test_callsites)/n_implicit_test_callsites)),
+  r("conversion test callsites in all test callsites pct", percent(nrow(conversions_test_callsites)/n_all_test_callsites)),
+  
+  r("conversion callsites from scala pct", percent(nrow(conversion_from_scala)/nrow(conversions_callsites))),
+  r("conversion callsites from scala test libraries", percent(nrow(conversion_from_testlib)/nrow(conversions_callsites)))
+)
+```
+
+- all declarations
+- local declarations
+- main call sites
+- test call sites
+- projects using it
+- projects declarng it
+
+```{r}
+stat_row <- function(name, code, ds, cs) {
+  ds_unique <- distinct(ds, def_library, declaration_id)
+  if (missing(cs)) {
+    cs <- semi_join(callsites, ds, by=c("def_library", "declaration_id"))
+  }
+  
+  tibble(
+    name=                   name,
+    code=                   code,
+    
+    declarations_all=       nrow(ds_unique),
+    declarations_all_pct=   declarations_all/nrow(declarations_unique),
+    
+    declarations_local=     nrow(filter(ds, is_module_local)),
+    declarations_local_pct= declarations_local/nrow(declarations_unique),
+    
+    callsites=              nrow(cs),
+    callsites_pct=          callsites/nrow(all_callsites),
+    
+    callsites_test=         nrow(filter(cs, is_in_test)),
+    callsites_test=         nrow(filter(cs, is_in_test)),
+  )
+}
+
+#ds_def_with_iparams <- filter(declarations_unique, kind=="DEF", num_implicit_parameters > 1)
+
+stats <- bind_rows(
+  stat_row("Overall",              "ALL", declarations),
+  stat_row("Implicit conversions", "IC",  conversions)
+)
+
+my_datatable(stats)
+```
+
+### Late trait implementation
+
+#### Using implicit class
+
+```{r}
+
+```
+
+
+```{r}
+implicit_classes_from_raw_declarations <- filter(declarations, kind=="CLASS") %>% distinct(def_library, declaration_id)
+implicit_classes <- filter(conversions, is_companion)
+implicit_classes_extending_traits <- filter(conversions, is_companion, to_extends_trait)
+implicit_classes_extending_traits_def_libraries <- count(implicit_classes_extending_traits , def_library)
+
+arrange(implicit_classes_extending_traits_def_libraries, desc(n))
+
+overview_table(
+  r("Implicit classes", implicit_classes),
+  r("Implicit classes extending traits", implicit_classes_extending_traits),
+  r("Implicit classes extending traits in all implicit classes pct", ratio(implicit_classes_extending_traits, implicit_classes))
+)
+```
+
+
+
+## Implicit parameters
+
+## Patterns
+
+### Extension methods
+
+```{r}
+filter(conversions, !is_companion) %>% View()
+filter(conversions, is_companion)
+```
+
+
+
+
+
+
+
+## Other
+
+```{r}
+my_top_count <- function(df, wt, N=50) {
+  count(df, !!enquo(wt)) %>% arrange(desc(n)) %>% print(n=N)
+}
+```
+
+```{r}
+my_top_count(conversions_callsites, def_library)
+my_top_count(filter(conversions_callsites, !is_in_test), def_library)
+my_top_count(filter(conversions_callsites, !is_in_test, !is_from_scala), def_library)
+```
+
+
+```{r}
+conversions_callsites_per_project <- 
+  conversions_callsites %>%
+  count(project_id, def_library, declaration_id)
+
+conversions_callsites_cumul_per_projects <-
+  conversions_callsites %>%
+  count(project_id)
+
+converions_popularity <-
+  left_join(
+    conversions_callsites_per_project,
+    rename(conversions_callsites_cumul_per_projects, all=n),
+    by="project_id"
+  ) %>%
+  mutate(
+    r=n/all
+  )
+```
+
+```{r}
+count(conversions_callsites, def_library, def_library_full) %>%
+  left_join(project_libraries, by="def_library_full") %>%
+  mutate(def_project=ifelse(is.na(def_project), def_library, def_project)) %>%
+  select(def_project, n) %>%
+  group_by(def_project) %>%
+  summarise(n=sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+
+```{r}
+  conversions_callsites %>%
+  count(def_library, declaration_id, project_id) %>%
+  count(def_library, declaration_id) %>%
+  arrange(desc(n)) %>%
+  View()
+```
+
+
+```{r}
+local({
+  threshold <- .03
+  all_main <- nrow(conversions_callsites)-nrow(conversions_test_callsites)
+  all_test <- nrow(conversions_test_callsites)
+  
+  main_vs_test <- all_main/(all_main + all_test)
+
+  conversion_callsites_summaries <- 
+    conversions_callsites %>%
+    group_by(def_library) %>%
+    summarise(main=sum(!is_in_test)/all_main, test=sum(is_in_test)/all_test) %>%
+    gather("key", "value", main, test)
+
+  top_libraries <- 
+    filter(conversion_callsites_summaries, value >= threshold)
+ 
+  df <- 
+    top_libraries %>%
+    add_row(
+      def_library="rest",
+      key="main",
+      value=1-sum(filter(top_libraries, key=="main")$value)
+    ) %>%
+    add_row(
+      def_library="rest",
+      key="test",
+      value=1-sum(filter(top_libraries, key=="test")$value)
+    ) %>%
+    group_by(key) %>%
+    arrange(value) %>%
+    mutate(
+      ymax=cumsum(value),
+      ymin=ymax-value,
+      xmin=if_else(key=="main", 0, main_vs_test),
+      xmax=if_else(key=="main", main_vs_test, 1),
+      x=xmin+(xmax-xmin)/2,
+      y=ymin+(ymax-ymin)/2
+    ) %>%
+    arrange(key, value)
+
+  stopifnot(sum(filter(df, key=="main")$value)==1)
+  stopifnot(sum(filter(df, key=="test")$value)==1)
+    
+  df %>%
+    ggplot(aes(x=x, y=y, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, fill=def_library, label=def_library)) + 
+    geom_rect() +
+    geom_text(aes(color=ifelse(value > .2, "light", "dark"))) +
+    scale_fill_brewer("Greens") +
+    scale_x_continuous(
+      breaks=c(main_vs_test/2, main_vs_test+(1-main_vs_test)/2),
+      labels=c("Main code", "Test code")
+    ) +
+    scale_color_manual(
+      values=c("light"="white", "dark"="black"),
+    ) +
+    guides(
+      color=F,
+      fill=F
+    ) +
+    theme(
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      axis.text.y = element_blank(),
+      axis.text.x = element_text(size=12)
+    )
+})
+```
+
+
+```{r}
+count(conversion_callsites, project_id) %>% arrange(desc(n))
+count(all_conversions, project_id) %>% arrange(desc(n))
+```
+
+```{r}
+projects_not_using_implicit_conversion <- anti_join(corpus, projects_using_implicit_conversion, by="pid")
+```
+
+```{r}
+
+```
+
+
+- from java / scala
+- both ways
+- scala collections
+- primitives
+- unrelated
+
+```{r}
+x <- count(conversion_from_testlib, project_id) %>% left_join(select(corpus, project_id, metadata_scala_code, gh_stars))
+x <-
+  x %>%
+  select(-project_id) %>%
+  mutate(
+    gh_stars=if_else(gh_stars==0, 0, log10(gh_stars)),
+    metadata_scala_code=if_else(metadata_scala_code==0, 0, log10(metadata_scala_code)),
+    n=if_else(n==0, 0, log10(n))
+  )
+  
+y_bins <- seq(0, max(x$gh_stars), length.out = 23)
+y_size <- max(x$gh_stars)/22
+x_bins <- seq(0, max(x$metadata_scala_code), length.out = 23)
+x_size <- max(x$metadata_scala_code)/22
+
+x %>%
+  transmute(
+    n,
+    x=cut(metadata_scala_code, breaks = x_bins),
+    y=cut(gh_stars, breaks = y_bins)
+  ) %>%
+  ggplot(aes(x=x, y=y, fill=n, width=x_size*4, height=y_size*4))  + geom_tile() + coord_fixed()
+#x %>% ggplot(aes(x=metadata_scala_code, y=gh_stars, fill=n))  + geom_tile()
+```
+

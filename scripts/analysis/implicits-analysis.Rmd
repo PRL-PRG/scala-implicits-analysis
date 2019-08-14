@@ -22,6 +22,9 @@ source(file.path(params$lib_dir, "setup.R"))
 
 ```{r}
 OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
+OUT_PATTERNS_DECLARATIONS_TEX <- path(output_dir, "patterns-declarations.tex")
+OUT_PATTERNS_CALLSITES_TEX <- path(output_dir, "patterns-callsites.tex")
+OUT_PATTERNS_CSV <- path(output_dir, "patterns.csv")
 ```
 
 ## Introduction
@@ -318,7 +321,7 @@ rm(fix_missing_declarations)
 
 ```{r fix locations in implicit companions}
 fix_implicit_classes <- 
-  filter(patched_all_declarations, kind=="CLASS", endsWith(location_uri, ".scala")) %>%
+  filter(patched_all_declarations, kind=="CLASS", is_module_local(location_uri)) %>%
   select(module_id, declaration_id, location_path, location_uri, location_pos) %>%
   mutate(
     # this will convert a type id into a def id
@@ -326,7 +329,7 @@ fix_implicit_classes <-
   )
 
 fix_implicit_companions <- 
-  filter(patched_all_declarations, kind=="DEF", is_companion, location_scope %in% c("compile","test"))
+  filter(patched_all_declarations, kind=="DEF", is_companion, location_scope %in% c("compile", "test"))
 
 # it is ok to have a few due to js/jvm/native thing
 # this actually prevents duplicates
@@ -436,6 +439,8 @@ declarations_all <-
   mutate(
     # fix NA, here 0 is perfectly sensible
     num_implicit_parameters=replace_na(num_implicit_parameters, 0),
+    # fix compilation unit
+    compilation_unit=normalize_compilation_unit(compilation_unit),
     # access info
     def_is_access_specified=access!="NOT_SPECIFIED",
     def_is_public=access=="PUBLIC",
@@ -447,12 +452,14 @@ declarations_all <-
     def_is_native=str_detect(module_id, ":native$"),
     def_platform=str_replace(module_id, ".*:(jvm|js|native)$", "\\1"),
     # add def_library
-    def_library=str_c(def_group_id, ":", remove_scala_version_suffix(def_artifact_id), ":", def_platform),
+    def_library=normalize_library(def_group_id, remove_scala_version_suffix(def_artifact_id), def_platform),
     # local definitons must be in scala file
-    def_is_module_local=endsWith(location_uri, ".scala")
+    def_is_module_local=is_module_local(location_uri),
+    def_path=normalize_path(location_path, location_uri)
   ) %>%
   # so we can match easily column names with starts_with
   rename(
+    def_compilation_unit=compilation_unit,
     def_kind=kind,
     def_is_companion=is_companion,
     def_is_implicit=is_implicit,
@@ -505,7 +512,7 @@ stopifnot(all(declarations_local$def_is_module_local))
 # all local declarations should have a path (otherwise, how could they be local)
 stopifnot(all(!is.na(declarations_local$def_location_uri)))
 # all local declarations should be in a .scala file
-stopifnot(nrow(filter(declarations_local, !endsWith(def_location_uri, ".scala"))) == 0)
+stopifnot(nrow(filter(declarations_local, !is_module_local(def_location_uri))) == 0)
 ```
 
 There are duplicates in the corpus. They do not need to be full project clones, just few files.
@@ -589,10 +596,15 @@ conversions_all <-
     by=c("mid", "declaration_id")
   ) %>%
   mutate(
+    # remove version suffix
     from_artifact_id=remove_scala_version_suffix(from_artifact_id),
     to_artifact_id=remove_scala_version_suffix(to_artifact_id),
-    from_library=str_c(from_group_id, ":", from_artifact_id),
-    to_library=str_c(to_group_id, ":", to_artifact_id),
+    # fix compilation unit
+    from_compilation_unit=normalize_compilation_unit(from_compilation_unit),
+    to_compilation_unit=normalize_compilation_unit(to_compilation_unit),
+    # paths
+    from_path=normalize_path(from_location_path, from_location_uri),
+    to_path=normalize_path(to_location_path, to_location_uri)
   )
 ```
 
@@ -658,10 +670,13 @@ parameters_all <-
       )
     ), 
     by=c("mid", "declaration_id")
+  ) %>%
+  mutate(
+    type_library=normalize_library(type_group_id, remove_scala_version_suffix(type_artifact_id), def_platform),
   )
 ```
 
-```{r check callsites}
+```{r check parameters}
 # the number of parameters should be the same
 stopifnot(nrow(patched_all_parameters) == nrow(parameters_all))
 # check we have a declaration in the declaration_all for all parameters
@@ -915,7 +930,26 @@ match_callsites <- function(ds) {
 match_methods_using_parameter <- function(ds, ps) {
   semi_join(ds, ps, by=c("mid", "declaration_id"))
 }
+
+patterns_human_name <- function(x) {
+  case_when(
+    x=="ALL"  ~ "Overview",
+    x=="BIC"  ~ "Bidirectional Conversion",
+    x=="CTXM" ~ "Context",
+    x=="EM"   ~ "Extension Methods",
+    x=="ESM"  ~ "Extension Syntax Methos",
+    x=="IC"   ~ "Implicit Conversions",
+    x=="IP"   ~ "Implicit Parameters",
+    x=="LTI"  ~ "Late Trait Implementation",
+    x=="TCM"  ~ "Type Classess - Methods",
+    x=="TCT"  ~ "Type Classess - Types",
+    x=="TP"   ~ "Type Proofs",
+    x=="UIC"  ~ "Unrelated Conversions"
+  )
+}
 ```
+
+#### Overview (ALL)
 
 ```{r pattern all}
 pattern_all_ds <- declarations_local
@@ -923,11 +957,15 @@ pattern_all_cs <- callsites_all
 pattern_all <- pattern_summary("ALL", declarations_local, callsites_all)
 ```
 
+#### Implicit Parameters (IP)
+
 ```{r pattern implicit parameters}
 pattern_implicit_parameters_ds <- filter(declarations_local, def_kind=="DEF", num_implicit_parameters > 0)
 pattern_implicit_parameters_cs <- filter(callsites_all, def_kind=="DEF", num_implicit_arguments > 0)
 pattern_implicit_parameters <- pattern_summary("IP", pattern_implicit_parameters_ds, pattern_implicit_parameters_cs)
 ```
+
+#### Implicit Conversions (IC)
 
 ```{r pattern implicit conversions}
 pattern_implicit_conversions_ds <- conversions_local
@@ -935,7 +973,9 @@ pattern_implicit_conversions_cs <- match_callsites(conversions_all)
 pattern_implicit_conversions <- pattern_summary("IC", pattern_implicit_conversions_ds, pattern_implicit_conversions_cs)
 ```
 
-```{r pattern late trait}
+#### Late Trait Implementation (LTI)
+
+```{r pattern late trait implementation}
 match_late_trait <- function(df) {
   filter(df, def_kind=="DEF", to_is_trait)
 }
@@ -944,6 +984,8 @@ pattern_late_trait_ds <- match_late_trait(conversions_local)
 pattern_late_trait_cs <- match_late_trait(conversions_all) %>% match_callsites()
 pattern_late_trait <- pattern_summary("LTI", pattern_late_trait_ds, pattern_late_trait_cs)
 ```
+
+#### Extension Methods (EM)
 
 ```{r pattern extensions methods}
 match_extension_methods <- function(df) {
@@ -962,6 +1004,8 @@ pattern_extension_methods_cs <- match_extension_methods(conversions_all) %>% mat
 pattern_extension_methods <- pattern_summary("EM", pattern_extension_methods_ds, pattern_extension_methods_cs)
 ```
 
+#### Type Classes
+
 ```{r type class parameters}
 match_type_class_parameter <- function(ps) {
   filter(ps, num_type_argument_refs >= 1, resolved_type_kind != "TYPE_PARAMETER")
@@ -971,11 +1015,15 @@ parameters_all_type_classes   <- match_type_class_parameter(parameters_all)
 parameters_local_type_classes <- match_type_class_parameter(parameters_local)
 ```
 
+##### Type Classes - Methods (TCM)
+
 ```{r pattern type class methods}
 pattern_type_class_m_ds <- match_methods_using_parameter(declarations_local, parameters_local_type_classes)
 pattern_type_class_m_cs <- match_methods_using_parameter(declarations_all, parameters_all_type_classes) %>% match_callsites()
-pattern_type_class_m <- pattern_summary("TC-M", pattern_type_class_m_ds, pattern_type_class_m_cs)
+pattern_type_class_m <- pattern_summary("TCM", pattern_type_class_m_ds, pattern_type_class_m_cs)
 ```
+
+##### Type Classes - Types (TCT)
 
 ```{r pattern type classes types}
 type_class_types_all <- 
@@ -996,11 +1044,13 @@ type_class_types_all <-
 type_class_types_local <-
   type_class_types_all %>% 
   filter(
-    endsWith(type_location_uri, ".scala"),
+    is_module_local(type_location_uri),
   )
 
-pattern_type_class_t <- pattern_summary("TC-T", type_class_types_local, type_class_types_all)
+pattern_type_class_t <- pattern_summary("TCT", type_class_types_local, type_class_types_all)
 ```
+
+##### Bidirectional Implicit Conversion (BIC)
 
 ```{r pattern bi-directional implicit conversion}
 match_bi_directional_conversions <- function(df) {
@@ -1021,6 +1071,9 @@ match_bi_directional_conversions <- function(df) {
         from, to, starts_with("to_"), 
         def_group_id, def_artifact_id, def_location_path, def_location_uri, def_is_in_test, def_github_url)
       )
+  
+  # TODO: use paths
+  # TODO: use compilation units
   
   left_join(
     from, 
@@ -1044,8 +1097,10 @@ match_bi_directional_conversions <- function(df) {
 
 pattern_bi_directional_ds <- match_bi_directional_conversions(conversions_local)
 pattern_bi_directional_cs <- match_bi_directional_conversions(conversions_all) %>% match_callsites()
-pattern_bi_directional <- pattern_summary("ABIC", pattern_bi_directional_ds, pattern_bi_directional_cs)
+pattern_bi_directional <- pattern_summary("BIC", pattern_bi_directional_ds, pattern_bi_directional_cs)
 ```
+
+##### Type Proofs (TP)
 
 ```{r pattern type proofs}
 TYPE_PROOFS_TYPE_IDS = c("=:=", "<:<", "=>")
@@ -1061,9 +1116,11 @@ pattern_type_proofs_cs <- match_methods_using_parameter(declarations_all, parame
 pattern_type_proofs <- pattern_summary("TP", pattern_type_proofs_ds, pattern_type_proofs_cs)
 ```
 
+##### Extension Syntax Methods (ESM)
+
 ```{r pattern extension syntax methods}
 match_syntax <- function(ds, ps) {
-  match_type_class_methods(ds, ps) %>%
+  match_methods_using_parameter(ds, ps) %>%
     filter(def_is_implicit)
 }
 
@@ -1075,6 +1132,8 @@ pattern_syntax_cs <- match_syntax(declarations_all, parameters_all_non_type_proo
 pattern_syntax <- pattern_summary("ESM", pattern_syntax_ds, pattern_syntax_cs)
 ```
 
+##### Context - Methods (CTXM)
+
 ```{r pattern context}
 match_context_parameter <- function(ps) {
   filter(ps, num_type_argument_refs == 0, resolved_type_kind != "TYPE_PARAMETER")
@@ -1085,29 +1144,57 @@ parameters_all_context   <- match_context_parameter(parameters_all)
 
 pattern_context_m_ds <- match_methods_using_parameter(declarations_local, parameters_local_context)
 pattern_context_m_cs <- match_methods_using_parameter(declarations_all, parameters_all_context) %>% match_callsites()
-pattern_context_m <- pattern_summary("CTX-M", pattern_context_m_ds, pattern_context_m_cs)
+pattern_context_m <- pattern_summary("CTXM", pattern_context_m_ds, pattern_context_m_cs)
 ```
 
-```{r pattern custom error}
-match_implicit_not_found <- function(df) {
-  filter(df, str_detect(type_annotations, "scala/annotation/implicitNotFound#"))
+Unrelated conversions are public, top-level definitions (reachable from outside
+of the compilation unit) defined outside either from or to compilation units.
+
+##### Unrelated Conversions (UIC)
+
+```{r pattern unrelated conversions}
+match_unrelated_conversion <- function(df, compilation_units) {
+  top_level_public_defs <-
+    df %>%
+    filter(
+      def_kind == "DEF",
+      !def_is_companion,
+      !is_block_local, 
+      !def_is_access_specified | def_is_public
+    )
+  
+  if (compilation_units) {
+    top_level_public_defs %>%
+    filter(
+      def_compilation_unit != from_compilation_unit,
+      def_compilation_unit != to_compilation_unit
+    )
+  } else {
+    top_level_public_defs %>%
+    filter(
+      def_group_id != from_group_id,
+      def_group_id != to_group_id,
+      def_artifact_id != from_artifact_id,
+      def_artifact_id != to_artifact_id
+    )
+  }
 }
 
-parameters_local_annot <- match_implicit_not_found(parameters_local)
-parameters_all_annot <- match_implicit_not_found(parameters_all)
+unrelated_conversions_cu_ds  <- match_unrelated_conversion(conversions_local, TRUE)
+unrelated_conversions_lib_ds <- match_unrelated_conversion(conversions_local, FALSE)
 
-pattern_custom_error_ds <- match_methods_using_parameter(declarations_local, parameters_local_annot)
-pattern_custom_error_cs <- match_methods_using_parameter(declarations_all, parameters_all_annot) %>% match_callsites()
-
-pattern_custom_error <- pattern_summary("CE", pattern_custom_error_ds, pattern_custom_error_cs)
+pattern_unrelated_conversions_ds <- unrelated_conversions_cu_ds
+pattern_unrelated_conversions_cs <- match_unrelated_conversion(conversions_all, TRUE) %>% match_callsites()
+pattern_unrelated_conversions <- pattern_summary("UIC", pattern_unrelated_conversions_ds, pattern_unrelated_conversions_cs)
 ```
 
-```{r}
+#### Summary
+
+```{r patterns together}
 patterns <- bind_rows(
   pattern_all,
   pattern_bi_directional,
   pattern_context_m,
-  pattern_custom_error,
   pattern_extension_methods,
   pattern_implicit_conversions,
   pattern_implicit_parameters,
@@ -1116,10 +1203,11 @@ patterns <- bind_rows(
   pattern_type_class_m,
   pattern_type_class_t,
   pattern_type_proofs,
+  pattern_unrelated_conversions
 )
 ```
 
-```{r}
+```{r patterns overview}
 corpus_cat_overview <-
   corpus_cat %>%
   group_by(cat) %>%
@@ -1131,7 +1219,7 @@ corpus_cat_overview <-
     all_implicit_declarations=sum(implicit_declarations)
   )
 
-stopifnot(mutate(corpus_cat_overview, check=callsites-explicit_callsites-implicit_callsites) %>% filter(check!=0) %>% nrow() == 0)
+stopifnot(mutate(corpus_cat_overview, check=all_callsites - all_explicit_callsites - all_implicit_callsites) %>% filter(check!=0) %>% nrow() == 0)
 
 patterns_overview <-
   patterns %>%
@@ -1150,381 +1238,118 @@ patterns_overview <-
   mutate(
     projects_declaring_pct=projects_declaring/projects,
     projects_using_pct=projects_using/projects
-  )
+  ) %>%
+  select(-projects)
 
-patterns_overview %>%
+patterns_overview_sums <-
+  patterns_overview %>%
   group_by(pattern) %>%
   summarise_at(vars(declarations, callsites), sum) %>%
-  mutate(cat="all")
-
-
-my_datatable(patterns_overview)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Overview Table
-
-```{r}
-stat_row <- function(name, code, ds, cs) {
-  unique_ds <- distinct(ds, def_library, declaration_id)
-  unique_local_ds <- semi_join(local_declarations, unique_ds, by=c("def_library", "declaration_id"))
-  
-  if (missing(cs)) {
-    cs <- semi_join(callsites, ds, by=c("def_library", "declaration_id"))
-  }
-  
-  tibble(
-    name=                   name,
-    code=                   code,
-    
-    declarations_all=       nrow(unique_ds),
-    declarations_all_pct=   declarations_all/nrow(unique_declarations),
-    
-    declarations_local=     nrow(unique_local_ds),
-    declarations_local_pct= declarations_local/nrow(unique_ds),
-    
-    callsites=              nrow(cs),
-    callsites_pct=          callsites/n_implicit_callsites,
-    
-    #callsites_test=         nrow(filter(cs, is_in_test)),
-    #callsites_test=         nrow(filter(cs, is_in_test)),
-  )
-}
-
-#ds_def_with_iparams <- filter(declarations_unique, kind=="DEF", num_implicit_parameters > 1)
-
-ds_funs_iparams <- filter(unique_declarations, kind=="DEF", num_implicit_parameters > 0)
-cs_funs_iparams <- semi_join(callsites, ds_funs_iparams, by=c("def_library", "declaration_id"))
-
-ds_funs_iparams2 <- filter(declarations, kind=="DEF", num_implicit_parameters > 0)
-cs_funs_iparams2 <- semi_join(callsites, ds_funs_iparams2, by=c("module_id", "declaration_id"))
-
-cs1 <- semi_join(c1, ds_funs_iparams, by=c("def_library", "declaration_id"))
-cs2 <- semi_join(c1, ds_funs_iparams2, by=c("module_id", "declaration_id"))
-
-stats <- bind_rows(
-  stat_row("Overall",              "ALL", declarations),
-  stat_row("Implicit conversions", "IC",  conversions)
-)
-
-my_datatable(stats)
-```
-
-
-### Implicit conversions
-
-```{r}
-conversions_callsites <- semi_join(callsites, conversions, by=c("def_library", "declaration_id"))
-conversions_test_callsites <- filter(conversions_callsites, is_in_test)
-```
-
-```{r}
-projects_using_implicit_conversion <- count(conversions_callsites, project_id)
-projects_using_implicit_conversion_non_scala <- filter(conversions_callsites, !is_from_scala) %>% count(project_id)
-projects_using_implicit_conversion_non_test <- filter(conversions_callsites, !is_in_test) %>% count(project_id)
-
-n_implicit_test_callsites <- nrow(filter(callsites, is_in_test))
-n_all_test_callsites <- n_implicit_test_callsites + sum(corpus$explicit_test_callsites)
-
-conversion_from_scala <- filter(conversions_callsites, is_from_scala)
-
-test_libraries_patterns <- c(
-  "^org.scalatest:.*",
-  "^org.spec2:.*",
-  "^org.scalastic:.*",
-  "^com.lihaoyi:utest.*"
-)
-
-conversion_from_testlib <- 
-    map_dfr(test_libraries_patterns, ~filter(conversions_callsites, str_detect(def_library, .)))
-```
-
-```{r}
-overview_table(
-  r("projects using implicit conversion", projects_using_implicit_conversion),
-  r("projects using implicit conversion pct", percent(nrow(projects_using_implicit_conversion)/nrow(corpus))),
-  
-  r("conversion callsites", conversions_callsites),
-  r("conversion callsites in all implicit callsites pct", percent(nrow(conversions_callsites)/nrow(callsites))),
-  r("conversion callsites in all callsites pct", percent(nrow(conversions_callsites)/sum(corpus$callsites))),
-  
-  r("conversion test callsites", conversions_test_callsites),
-  r("conversion test callsites in all conversion pct", percent(nrow(conversions_test_callsites)/nrow(conversions_callsites))),
-  r("conversion test callsites in all implicit test callsites pct", percent(nrow(conversions_test_callsites)/n_implicit_test_callsites)),
-  r("conversion test callsites in all test callsites pct", percent(nrow(conversions_test_callsites)/n_all_test_callsites)),
-  
-  r("conversion callsites from scala pct", percent(nrow(conversion_from_scala)/nrow(conversions_callsites))),
-  r("conversion callsites from scala test libraries", percent(nrow(conversion_from_testlib)/nrow(conversions_callsites)))
-)
-```
-
-- all declarations
-- local declarations
-- main call sites
-- test call sites
-- projects using it
-- projects declarng it
-
-```{r}
-stat_row <- function(name, code, ds, cs) {
-  ds_unique <- distinct(ds, def_library, declaration_id)
-  if (missing(cs)) {
-    cs <- semi_join(callsites, ds, by=c("def_library", "declaration_id"))
-  }
-  
-  tibble(
-    name=                   name,
-    code=                   code,
-    
-    declarations_all=       nrow(ds_unique),
-    declarations_all_pct=   declarations_all/nrow(declarations_unique),
-    
-    declarations_local=     nrow(filter(ds, is_module_local)),
-    declarations_local_pct= declarations_local/nrow(declarations_unique),
-    
-    callsites=              nrow(cs),
-    callsites_pct=          callsites/nrow(all_callsites),
-    
-    callsites_test=         nrow(filter(cs, is_in_test)),
-    callsites_test=         nrow(filter(cs, is_in_test)),
-  )
-}
-
-#ds_def_with_iparams <- filter(declarations_unique, kind=="DEF", num_implicit_parameters > 1)
-
-stats <- bind_rows(
-  stat_row("Overall",              "ALL", declarations),
-  stat_row("Implicit conversions", "IC",  conversions)
-)
-
-my_datatable(stats)
-```
-
-### Late trait implementation
-
-#### Using implicit class
-
-```{r}
-
-```
-
-
-```{r}
-implicit_classes_from_raw_declarations <- filter(declarations, kind=="CLASS") %>% distinct(def_library, declaration_id)
-implicit_classes <- filter(conversions, is_companion)
-implicit_classes_extending_traits <- filter(conversions, is_companion, to_extends_trait)
-implicit_classes_extending_traits_def_libraries <- count(implicit_classes_extending_traits , def_library)
-
-arrange(implicit_classes_extending_traits_def_libraries, desc(n))
-
-overview_table(
-  r("Implicit classes", implicit_classes),
-  r("Implicit classes extending traits", implicit_classes_extending_traits),
-  r("Implicit classes extending traits in all implicit classes pct", ratio(implicit_classes_extending_traits, implicit_classes))
-)
-```
-
-
-
-## Implicit parameters
-
-## Patterns
-
-### Extension methods
-
-```{r}
-filter(conversions, !is_companion) %>% View()
-filter(conversions, is_companion)
-```
-
-
-
-
-
-
-
-## Other
-
-```{r}
-my_top_count <- function(df, wt, N=50) {
-  count(df, !!enquo(wt)) %>% arrange(desc(n)) %>% print(n=N)
-}
-```
-
-```{r}
-my_top_count(conversions_callsites, def_library)
-my_top_count(filter(conversions_callsites, !is_in_test), def_library)
-my_top_count(filter(conversions_callsites, !is_in_test, !is_from_scala), def_library)
-```
-
-
-```{r}
-conversions_callsites_per_project <- 
-  conversions_callsites %>%
-  count(project_id, def_library, declaration_id)
-
-conversions_callsites_cumul_per_projects <-
-  conversions_callsites %>%
-  count(project_id)
-
-converions_popularity <-
-  left_join(
-    conversions_callsites_per_project,
-    rename(conversions_callsites_cumul_per_projects, all=n),
-    by="project_id"
+  rename_at(vars(declarations, callsites), ~str_c("all_", .))
+
+patterns_overview_full <-
+  patterns_overview %>%
+  left_join(patterns_overview_sums, by="pattern") %>%
+  mutate(
+    declarations_pct=declarations/all_declarations,
+    callsites_pct=callsites/all_callsites
   ) %>%
-  mutate(
-    r=n/all
-  )
+  select(-all_declarations, -all_callsites)
+
+patterns_overview_full %>%
+  mutate_at(vars(ends_with("_pct")), percent) %>%
+  mutate_all(fmt) %>%
+  my_datatable()
+```
+
+```{r save to CSV}
+patterns_overview_full %>%
+  mutate(pattern=patterns_human_name(pattern)) %>%
+  write_csv(OUT_PATTERNS_CSV)
 ```
 
 ```{r}
-count(conversions_callsites, def_library, def_library_full) %>%
-  left_join(project_libraries, by="def_library_full") %>%
-  mutate(def_project=ifelse(is.na(def_project), def_library, def_project)) %>%
-  select(def_project, n) %>%
-  group_by(def_project) %>%
-  summarise(n=sum(n)) %>%
-  arrange(desc(n))
-
+patterns_overview_full %>%
+  mutate(pattern=patterns_human_name(pattern)) %>%
+  select_at(vars(pattern, cat, ends_with("_pct"))) %>%
+  gather(variable, value, -(pattern:cat)) %>% 
+  ggplot(aes(x=cat,y=value,fill=cat)) + geom_bar(stat="identity") + facet_grid(pattern~variable)
 ```
 
 
-```{r}
-  conversions_callsites %>%
-  count(def_library, declaration_id, project_id) %>%
-  count(def_library, declaration_id) %>%
-  arrange(desc(n)) %>%
-  View()
-```
-
-
-```{r}
-local({
-  threshold <- .03
-  all_main <- nrow(conversions_callsites)-nrow(conversions_test_callsites)
-  all_test <- nrow(conversions_test_callsites)
-  
-  main_vs_test <- all_main/(all_main + all_test)
-
-  conversion_callsites_summaries <- 
-    conversions_callsites %>%
-    group_by(def_library) %>%
-    summarise(main=sum(!is_in_test)/all_main, test=sum(is_in_test)/all_test) %>%
-    gather("key", "value", main, test)
-
-  top_libraries <- 
-    filter(conversion_callsites_summaries, value >= threshold)
- 
-  df <- 
-    top_libraries %>%
-    add_row(
-      def_library="rest",
-      key="main",
-      value=1-sum(filter(top_libraries, key=="main")$value)
-    ) %>%
-    add_row(
-      def_library="rest",
-      key="test",
-      value=1-sum(filter(top_libraries, key=="test")$value)
-    ) %>%
-    group_by(key) %>%
-    arrange(value) %>%
-    mutate(
-      ymax=cumsum(value),
-      ymin=ymax-value,
-      xmin=if_else(key=="main", 0, main_vs_test),
-      xmax=if_else(key=="main", main_vs_test, 1),
-      x=xmin+(xmax-xmin)/2,
-      y=ymin+(ymax-ymin)/2
-    ) %>%
-    arrange(key, value)
-
-  stopifnot(sum(filter(df, key=="main")$value)==1)
-  stopifnot(sum(filter(df, key=="test")$value)==1)
-    
-  df %>%
-    ggplot(aes(x=x, y=y, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, fill=def_library, label=def_library)) + 
-    geom_rect() +
-    geom_text(aes(color=ifelse(value > .2, "light", "dark"))) +
-    scale_fill_brewer("Greens") +
-    scale_x_continuous(
-      breaks=c(main_vs_test/2, main_vs_test+(1-main_vs_test)/2),
-      labels=c("Main code", "Test code")
-    ) +
-    scale_color_manual(
-      values=c("light"="white", "dark"="black"),
-    ) +
-    guides(
-      color=F,
-      fill=F
-    ) +
-    theme(
-      axis.title = element_blank(),
-      axis.ticks = element_blank(),
-      panel.grid = element_blank(),
-      axis.text.y = element_blank(),
-      axis.text.x = element_text(size=12)
-    )
-})
-```
-
-
-```{r}
-count(conversion_callsites, project_id) %>% arrange(desc(n))
-count(all_conversions, project_id) %>% arrange(desc(n))
-```
-
-```{r}
-projects_not_using_implicit_conversion <- anti_join(corpus, projects_using_implicit_conversion, by="pid")
-```
-
-```{r}
-
-```
-
-
-- from java / scala
-- both ways
-- scala collections
-- primitives
-- unrelated
-
-```{r}
-x <- count(conversion_from_testlib, project_id) %>% left_join(select(corpus, project_id, metadata_scala_code, gh_stars))
-x <-
-  x %>%
-  select(-project_id) %>%
-  mutate(
-    gh_stars=if_else(gh_stars==0, 0, log10(gh_stars)),
-    metadata_scala_code=if_else(metadata_scala_code==0, 0, log10(metadata_scala_code)),
-    n=if_else(n==0, 0, log10(n))
-  )
-  
-y_bins <- seq(0, max(x$gh_stars), length.out = 23)
-y_size <- max(x$gh_stars)/22
-x_bins <- seq(0, max(x$metadata_scala_code), length.out = 23)
-x_size <- max(x$metadata_scala_code)/22
-
-x %>%
+```{r formatting pattern table}
+patterns_overview_table <- 
+  patterns_overview_full %>%
+  mutate_if(is.numeric, oom) %>%
+  mutate_at(vars(ends_with("_pct")), percent) %>%
+  mutate_all(fmt) %>%
   transmute(
-    n,
-    x=cut(metadata_scala_code, breaks = x_bins),
-    y=cut(gh_stars, breaks = y_bins)
+    pattern,
+    cat,
+    callsites=str_c(callsites, " (", callsites_pct, "/", projects_using_pct, ")"),
+    declarations=str_c(declarations, " (", declarations_pct, "/", projects_declaring_pct, ")")
   ) %>%
-  ggplot(aes(x=x, y=y, fill=n, width=x_size*4, height=y_size*4))  + geom_tile() + coord_fixed()
-#x %>% ggplot(aes(x=metadata_scala_code, y=gh_stars, fill=n))  + geom_tile()
+  gather(variable, value, -(pattern:cat)) %>%
+  unite(temp, cat, variable) %>%
+  spread(temp, value) %>%
+  select(
+    pattern,
+    app_small_declarations,
+    app_big_declarations,
+    lib_declarations, 
+    test_declarations, 
+    app_small_callsites,  
+    app_big_callsites,
+    lib_callsites,           
+    test_callsites
+  )
+
+patterns_overview_declarations_table <- 
+  patterns_overview_table %>%
+  transmute(
+    `Pattern`=patterns_human_name(pattern),
+    `Small Apps`=app_small_declarations,
+    `Large Apps`=app_big_declarations,
+    `Libraries`=lib_declarations, 
+    `Tests`=test_declarations
+  )
+
+patterns_overview_callsites_table <- 
+  patterns_overview_table %>%
+  transmute(
+    `Pattern`=patterns_human_name(pattern),
+    `Small Apps`=app_small_callsites,
+    `Large Apps`=app_big_callsites,
+    `Libraries`=lib_callsites, 
+    `Tests`=test_callsites
+  )
+
+save_pattern_table <- function(df, fname) {
+  df %>%
+  xtable::xtable(align="llrrrr") %>%
+  print(
+    floating=F,
+    file=fname,
+    include.rownames=F
+  )
+}
+
+save_pattern_table(patterns_overview_declarations_table, OUT_PATTERNS_DECLARATIONS_TEX)
+save_pattern_table(patterns_overview_callsites_table,    OUT_PATTERNS_CALLSITES_TEX)
 ```
+
+
+
+#### Implicit Not Found
+
+```{r pattern custom error}
+match_implicit_not_found <- function(df) {
+  filter(df, str_detect(type_annotations, "scala/annotation/implicitNotFound#"))
+}
+
+match_implicit_not_found(type_class_types_local)
+match_implicit_not_found(type_class_types_all) %>% distinct(type_library, type_id)
+```
+
+
+
