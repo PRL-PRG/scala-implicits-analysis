@@ -93,6 +93,46 @@ bad_module_id_projects <-
   distinct()
 ```
 
+### Semanticdb reporting non-existing files
+
+```{r}
+sdb_missing_files <- 
+  bind_rows(
+    count(filter(raw_all_callsites, endsWith(location_uri, ".scala")), project_id, location_path, location_uri),
+    count(filter(raw_all_declarations, endsWith(location_uri, ".scala")), project_id, location_path, location_uri)
+  ) %>% 
+  group_by(project_id, location_path, location_uri) %>%
+  summarise(n=sum(n)) %>%
+  ungroup() %>%
+  transmute(
+    project_id,
+    path=path(corpus_dir, "projects", project_id, location_path, location_uri),
+    n,
+    exists=file_exists(path)
+  )
+         
+sdb_missing <- 
+  sdb_missing_files %>%
+  group_by(project_id) %>%
+  summarise(
+    all=n(),
+    n_all=sum(n),
+    existing=sum(exists),
+    nonexisting=sum(!exists),
+    n_existing=sum(n[exists]),
+    n_nonexisting=sum(n[!exists]),
+    r=existing/all,
+    n_r=n_existing/n_all
+  )
+
+sdb_missing_projects <- filter(sdb_missing, n_r < .9)
+```
+
+```{r eval=F}
+write_lines(bogus_projects$project_id, path(corpus_dir, "wrong-sdb-projects.txt"))
+corpus_noncat %>% semi_join(bogus_projects) %>% overview_projects(name="A")
+```
+
 ### Grand total
 
 ```{r}
@@ -101,7 +141,8 @@ projects_to_remove <-
   semi_join(
     bind_rows(
       missing_library_projects,
-      bad_module_id_projects
+      bad_module_id_projects,
+      sdb_missing_projects
     ),
     by="project_id"
   )

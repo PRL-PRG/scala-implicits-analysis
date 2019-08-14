@@ -37,7 +37,10 @@ message("Tags will go into: ", path_real(tags_path))
 pboptions(type="txt")
 
 # output code by default
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo=TRUE, 
+  error=FALSE # stop on errors!
+)
 
 # my favorite ggplot theme
 theme_set(theme_minimal())

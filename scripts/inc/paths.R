@@ -75,6 +75,8 @@ CLEAN_IMPLICIT_CALLSITES <- get_corpus_path("clean-implicit-callsites.fst")
 CLEAN_IMPLICIT_PARAMETERS <- get_corpus_path("clean-implicit-parameters.fst")
 CLEAN_IMPLICIT_CONVERSIONS <- get_corpus_path("clean-implicit-conversions.fst")
 
+CAT_CORPUS <- get_corpus_path("cat-corpus.csv")
+
 projects_file <- Vectorize(function(project, filename) {
   path(PROJECTS_DIR, project, ANALYSIS_DIR, filename)
 }, USE.NAMES = FALSE, vectorize.args = "project")

@@ -25,6 +25,7 @@ OUT_CORPUS_BUILDING_TEX <- path(output_dir, "corpus-building.tex")
 OUT_CORPUS_OVERVIEW_PDF <- path(output_dir, "corpus-overview.pdf")
 OUT_SCALA_VERSIONS_TEX <- path(output_dir, "scala-version.tex")
 OUT_TOP_PROJECTS_TEX <- path(output_dir, "top-projects.tex")
+OUT_CATEGORIES_TEX <- path(output_dir, "categories.tex")
 ```
 
 ## Overview
@@ -169,7 +170,7 @@ overview_table(
 )
 ```
 
-```{r projects stage 2 details}
+```{r corpus details}
 extracted_metadata <- filter(stage2_corpus, metadata_scala_code > 0, metadata_exit_code == 0)
 generated_semanticdb <- filter(extracted_metadata, semanticdb_exit_code == 0)
 
@@ -270,64 +271,194 @@ compiler_benchmark <- filter(corpus, project_id=="scala--compiler-benchmark")
   The good example is [compiler-benchmark](https://github.com/scala/compiler-benchmark) which has `r fmt(compiler_benchmark$scala_code)` lines of Scala code stored in git (`scala_code`), but only `r fmt(compiler_benchmark$metadata_scala_code)` is actually compiled (`metadata_scala_code`).
   The rest is code from various projects used for menchmarking scalac.
 
+### Split Corpus
+
+```{r}
+filter(corpus, !scaladex) %>%
+  ggplot(aes(x=forcats::fct_reorder(project_id, metadata_scala_code_compile), y=metadata_scala_code_compile)) +
+  geom_point() +
+  scale_y_log10(labels=scales::comma) +
+  theme(
+    axis.ticks.x = element_blank()
+  )
+```
+
+
+```{r}
+SMALL_BIG_APP_SEP <- 1000
+
+tag("SmallBigAppSep", SMALL_BIG_APP_SEP)
+
+split_corpus <- 
+  corpus %>%
+  select(
+    project_id,
+    origin,
+    commit_count,
+    dejavu_duplication,
+    gh_stars,
+    scaladex,
+    scala_code=metadata_scala_code_compile,
+    scala_test_code=metadata_scala_code_test,
+    scala_version,
+    updated_scala_version,
+    declarations,
+    explicit_callsites,
+    explicit_test_callsites
+  ) %>%
+  mutate(
+    explicit_callsites=explicit_callsites - explicit_test_callsites
+  )
+
+cat_tests <- 
+  filter(split_corpus, scala_test_code > 0) %>% 
+  mutate(
+    cat="test", 
+    scala_code=scala_test_code,
+    explicit_callsites=explicit_test_callsites,
+    commit_count=NA,
+    gh_stars=NA
+  )
+
+cat_libs <- 
+  filter(split_corpus, scaladex) %>% 
+  mutate(cat="lib")
+
+cat_apps_small <- 
+  filter(split_corpus, !scaladex, scala_code <= SMALL_BIG_APP_SEP) %>% 
+  mutate(cat="app_small")
+
+cat_apps_big <- filter(split_corpus, !scaladex, scala_code > SMALL_BIG_APP_SEP) %>% 
+  mutate(cat="app_big")
+
+split_corpus <- bind_rows(
+  cat_tests,
+  cat_libs,
+  cat_apps_small,
+  cat_apps_big
+) %>%
+  select(-scala_test_code, -explicit_test_callsites)
+
+overview_table(
+  overview_projects("tests", cat_tests),
+  overview_projects("libs", cat_libs),
+  overview_projects("small apps", cat_apps_small),
+  overview_projects("big apps", cat_apps_big),
+)
+
+stopifnot(nrow(anti_join(corpus, split_corpus, by="project_id")) == 0)
+```
+
+```{r add cat into corpus}
+corpus <- 
+  left_join(
+    corpus,
+    filter(split_corpus, cat != "test") %>% select(project_id, cat),
+    by="project_id"
+  )
+```
+
+```{r split overview}
+fmt_categories <- function(x) {
+  case_when(
+    x == "test"      ~ "Tests",
+    x == "lib"       ~ "Libraries",
+    x == "app_small" ~ "Small applications",
+    x == "app_big"   ~ "Large applications"
+  )
+}
+
+category_overview <-
+  split_corpus %>%
+  select(
+    cat, 
+    scala_code, 
+    gh_stars, 
+    commit_count, 
+#    explicit_callsites
+  ) %>%
+  group_by(cat) %>%
+  mutate(projects=1) %>%
+  summarise_all(list(sum=sum, median=median, mean=mean)) %>%
+  select(-projects_median, -projects_mean) %>%
+  mutate_at(vars(-cat), ~fmt(oom(.))) %>%
+  arrange(desc(projects_sum)) %>%
+  transmute(
+    `Category`=fmt_categories(cat),
+    `Projects`=projects_sum,
+    `Code size`=str_c(scala_code_sum, " (mean=", scala_code_mean, ")"),
+    `\\GH stars`=str_c(gh_stars_sum, " (mean=", gh_stars_mean, ")"),
+    `Commits`=str_c(commit_count_sum, " (mean=", commit_count_mean, ")"),
+#    `Explicit call sites`=str_c(explicit_callsites_sum, " (mean=", explicit_callsites_mean, ")")
+  ) %>%
+  mutate_all(~replace_na(., "-"))
+
+my_datatable(category_overview)
+```
+
+```{r save category overview}
+category_overview %>%
+  xtable::xtable(align="llllll") %>%
+  print(
+    floating=F,
+    file=OUT_CATEGORIES_TEX,
+    include.rowname=F,
+    sanitize.text.function=identity
+  )
+```
+
+```{r save categories into file}
+write_csv(split_corpus, CAT_CORPUS)
+```
+
 #### Graph
 
 ```{r corpus overview plot}
-corpus_code_mean <- mean(corpus$metadata_scala_code)
-corpus_code_median <- median(corpus$metadata_scala_code)
+corpus_code_mean <- mean(corpus$metadata_scala_code_compile)
+corpus_code_median <- median(corpus$metadata_scala_code_compile)
 corpus_commit_mean <- mean(corpus$commit_count)
 corpus_commit_median <- median(corpus$commit_count)
 
 corpus %>%
-  mutate(
-#    outlier=is_outlier(metadata_scala_code)|is_outlier(commit_count)|is_outlier(gh_stars),
-    outlier=gh_stars>=5000,
-#    outlier=FALSE,
-    label=if_else(outlier, str_glue("{project_id}"), as.character(NA))
-  ) %>%
   ggplot(
     aes(
-      x=metadata_scala_code, 
+      x=metadata_scala_code_compile, 
       y=commit_count, 
-      label=label, 
-      color=if_else(scaladex, "Yes", "No"),
+      color=cat,
       size=gh_stars
     )
   ) +
-    geom_point(alpha=.6) +
-    #geom_text(size=2.5, check_overlap = F, vjust=-1, na.rm = TRUE, color="black") + 
-    scale_x_log10(labels = scales::comma) + 
-    scale_y_log10(labels = scales::comma) +
-    scale_size_continuous(range = c(.1, 8), labels = scales::comma) +
-    scale_color_gdocs() +
-  
-    geom_hline(aes(yintercept=corpus_commit_mean, linetype="dashed"), color="black", size=0.2) +
-    geom_vline(aes(xintercept=corpus_code_mean, linetype="dashed"), color="black", size=0.2) +
-    #annotate("text", x=1, y=corpus_commit_mean, label=floor(corpus_commit_mean), hjust=2.4, vjust=-1.0, size=3) + 
-    #annotate("text", x=corpus_code_mean, y=1, label=floor(corpus_code_mean), hjust=-.3, vjust=2.4, size=3) + 
-  
-    geom_hline(aes(yintercept=corpus_commit_median, linetype="solid"), color="black", size=0.2) +
-    geom_vline(aes(xintercept=corpus_code_median, linetype="solid"), color="black", size=0.2) +
-    #annotate("text", x=1, y=corpus_commit_median, label=floor(corpus_commit_median), hjust=3.2, vjust=-1.0, size=3) + 
-    #annotate("text", x=corpus_code_median, y=1, label=floor(corpus_code_median), hjust=-.3, vjust=2.4, size=3) + 
-    scale_linetype_manual(labels=c("mean", "median"), values=c("dashed", "solid")) +
-    theme(
-      legend.position=c(0.2, 0.85),
-      legend.box="horizontal",
-      legend.box.background = element_rect(fill="white", size=0.05)
-    ) +
-    labs(
-      x="Souce lines of code (log)", 
-      y="Number of commits (log)", 
-      color="In Scaladex",
-      size="Github stars",
-      linetype=""
-    ) +
-    guides(
-      size=guide_legend(order=1),
-      color=guide_legend(order=2),
-      linetype=guide_legend(order=3)
-    )
+  geom_point(alpha=.6) +
+#  geom_hline(aes(yintercept=corpus_commit_median), linetype="dashed", color="black", size=0.2) +
+#  geom_vline(aes(xintercept=corpus_code_median), linetype="dashed", color="black", size=0.2) +
+  geom_hline(aes(yintercept=corpus_commit_mean), linetype="dashed", color="black", size=0.2) +
+  geom_vline(aes(xintercept=corpus_code_mean), linetype="dashed", color="black", size=0.2) +
+  geom_vline(aes(xintercept=SMALL_BIG_APP_SEP),linetype="solid", color="red", size=0.4) +
+
+  scale_x_log10(labels = scales::comma) + 
+  scale_y_log10(labels = scales::comma) +
+  scale_size_continuous(range = c(.1, 8), labels = scales::comma) +
+  # values=c("lib"="red", "app_big"="blue", "app_small"="lightblue"), 
+  scale_color_wsj(labels=fmt_categories) +
+  #scale_linetype_manual(labels=c("mean", "small/big separator"), values=c("dashed", "solid")) +
+
+  theme(
+    legend.position=c(0.2, 0.85),
+    legend.box="horizontal",
+    legend.box.background = element_rect(fill="white", size=0.1)
+  ) +
+  labs(
+    x="Source lines of code excluding tests (log)", 
+    y="Number of commits (log)", 
+    color="Category",
+    size="Github stars",
+    linetype=""
+  ) +
+  guides(
+    size=guide_legend(order=1),
+    color=guide_legend(order=2),
+    linetype=F
+  )
 ```
 
 ```{r save corpus overview plot}
@@ -339,12 +470,13 @@ ggsave(OUT_CORPUS_OVERVIEW_PDF)
 ```{r top projects table}
 top_projects <- 
   corpus %>%
+  filter(cat != "Test") %>%
   transmute(
     name=str_replace(project_id, "--", "/"),
     name=xtable::sanitize(name),
     name=str_c("\\href{https://github.com/", name, "/}{", name, "}"),
     gh_stars,
-    metadata_scala_code,
+    metadata_scala_code_compile,
     commit_count,
     dejavu_duplication,
     scala_version,
@@ -356,7 +488,7 @@ top_projects <-
   rename(
     `Project`=name,
     `GitHub stars`=gh_stars,
-    `Code size`=metadata_scala_code,
+    `Code size`=metadata_scala_code_compile,
     `Commits`=commit_count,
     `Duplication`=dejavu_duplication,
     `Scala version`=scala_version,
@@ -376,8 +508,6 @@ top_projects %>%
     sanitize.text.function=identity
   )
 ```
-
-## Heatmaps
 
 ## Pipeline
 
@@ -600,6 +730,8 @@ count(failed_projects, cause) %>%
 
 ```{r}
 overview_table(
+  r("implicit extraction errors",             sum(corpus$implicit_extraction_errors)),
+  r("implicit extraction failures",           filter(corpus, !is.na(implicit_failure))),
   r("failed projects - all",                  anti_join(stage2_corpus, stage3_corpus, by="project_id")),
   r("failed projects - metadata",             filter(stage2_corpus, metadata_exit_code != 0)),
   r("failed projects - semanticdb",           filter(stage2_corpus, metadata_exit_code == 0, semanticdb_exit_code > 0)),

@@ -328,69 +328,58 @@ view_corpus <- function(corpus, view=FALSE) {
 
 ### Functions for cleaning data for implicit-analysis
 
-mark_block_locals <- function(df) {
-  mutate(
-    df,
-    is_block_local=str_detect(declaration_id, "^local\\d+::\\d+"),
-  )
-}
+# declaration_id=
+#   if_else(
+#     is_block_local,
+#     str_c("_local_::", mid, "::", declaration_id),
+#     declaration_id
+#   )
 
-clean_block_locals <- function(df) {
-  stopifnot("is_block_local" %in% names(df))
+
+expand_scope <- function(df, scope_column=location_scope, prefix="") {
+  scope_column <- enquo(scope_column)
+
+  is_in_test_column       <- str_c(prefix, "is_in_test")
+  is_in_managed_column    <- str_c(prefix, "is_in_managed")
+  is_in_dependency_column <- as.name(str_c(prefix, "is_in_dependency"))
+  is_in_transitive_column <- as.name(str_c(prefix, "is_in_transitive"))
   
-  mutate(
-    df,
-    declaration_id=if_else(
-      is_block_local, 
-      str_c("_local_::", project_id, "::", group_id, "::", artifact_id, "::", declaration_id), 
-      declaration_id
-    )
-  )
-}
-
-expand_location <- function(df) {
   df %>%
     mutate(
-      is_in_test=str_detect(location_scope, "test"),
-      is_in_managed=str_detect(location_scope, "managed"),
-      is_in_dependency=str_detect(location_scope, "dependency"),
-      # all locations that are transitive, but are not a dependency are not a dependency.
-      # the sbt.librarymanagement.ModuleID.isTransitive is not super precise and in some cases 
-      # inter-project dependencies will mark as transitive.
-      is_in_transitive=str_detect(location_scope, "transitive") & is_in_dependency,
-      # if the declaration comes from a scala file than it is project local
-      # this is however just for a module
-      is_module_local=endsWith(location_uri, ".scala"),
-      path=str_c(location_path, location_uri, ifelse(is.na(location_pos), "", location_pos))
-    ) %>%
-    select(-location_scope)
-}
-
-expand_access_info <- function(df) {
-  df %>%
-    mutate(
-      is_access_specified=access!="NOT_SPECIFIED",
-      is_public=access=="PUBLIC",
-      is_private=startsWith(access, "PRIVATE"),
-      is_protected=startsWith(access, "PROTECTED")
-    ) %>%
-    select(-access)
-}
-
-expand_is_from_scala <- function(df) {
-  df %>%
-    mutate(
-      is_from_scala=is_in_dependency & startsWith(def_group_id, "org.scala-lang")
+      !!is_in_test_column       := str_detect(!!scope_column, "test"),
+      !!is_in_managed_column    := str_detect(!!scope_column, "managed"),
+      !!is_in_dependency_column := str_detect(!!scope_column, "dependency"),
+      # this does not mean a transitive dependency!
+      !!is_in_transitive_column := str_detect(!!scope_column, "transitive")
     )
 }
 
-expand_platform <- function(df) {
+# expand_path <- function(df, location_path_column=location_path, location_uri_column=location_uri, location_pos_column=location_pos, prefix="") {
+#   location_path_column <- enquo(location_path_column)
+#   location_uri_column <- enquo(location_uri_column)
+#   location_pos_column <- enquo(location_pos_column)
+#   
+#   is_module_local_column <- str_c(prefix, "is_module_local")
+#   path_column <- str_c(prefix, "path")
+#   
+#   df %>%
+#     mutate(
+#       # if the declaration comes from a scala file than it is project local
+#       # this is however just for a module
+#       !!is_module_local_column := endsWith(location_uri, ".scala"),
+#       !!path_column            := str_c(!!location_path_column, location_uri, ifelse(is.na(!!location_pos_column), "", !!location_pos_column))
+#     )
+# }
+
+expand_is_from_scala <- function(df, dependency_column=def_is_in_dependency, group_id_column=def_group_id, prefix="") {
+  dependency_column <- enquo(dependency_column)
+  group_id_column <- enquo(group_id_column)
+  
+  is_from_scala_column <- str_c(prefix, "is_from_scala")
+  
   df %>%
     mutate(
-      is_jvm=str_detect(module_id, ":jvm$"),
-      is_js=str_detect(module_id, ":js$"),
-      is_native=str_detect(module_id, ":native$"),
-      platform=str_replace(module_id, ".*:(jvm|js|native)$", "\\1")
+      !!is_from_scala_column := (!!dependency_column) & startsWith(!!group_id_column, "org.scala-lang")
     )
 }
 
