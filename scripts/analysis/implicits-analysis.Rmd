@@ -20,7 +20,7 @@ editor_options:
 source(file.path(params$lib_dir, "setup.R"))
 ```
 
-```{r}
+```{r define outputs}
 OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
 OUT_PATTERNS_DECLARATIONS_TEX <- path(output_dir, "patterns-declarations.tex")
 OUT_PATTERNS_CALLSITES_TEX <- path(output_dir, "patterns-callsites.tex")
@@ -850,6 +850,8 @@ ggsave(OUT_IMPLICITS_OVERVIEW_PDF)
 ### Summary
 
 ```{r implicits overview}
+n_implicit_declarations <- sum(corpus_noncat$implicit_declarations)
+
 n_callsites          <- sum(corpus_noncat$callsites)
 n_explicit_callsites <- sum(corpus_noncat$explicit_callsites)
 n_implicit_callsites <- sum(corpus_noncat$implicit_callsites)
@@ -933,18 +935,17 @@ match_methods_using_parameter <- function(ds, ps) {
 
 patterns_human_name <- function(x) {
   case_when(
-    x=="ALL"  ~ "Overview",
-    x=="BIC"  ~ "Bidirectional Conversion",
-    x=="CTXM" ~ "Context",
-    x=="EM"   ~ "Extension Methods",
-    x=="ESM"  ~ "Extension Syntax Methos",
-    x=="IC"   ~ "Implicit Conversions",
-    x=="IP"   ~ "Implicit Parameters",
-    x=="LTI"  ~ "Late Trait Implementation",
-    x=="TCM"  ~ "Type Classess - Methods",
-    x=="TCT"  ~ "Type Classess - Types",
-    x=="TP"   ~ "Type Proofs",
-    x=="UIC"  ~ "Unrelated Conversions"
+    x=="ALL" ~ "Overview",
+    x=="BIC" ~ "Bidirectional Conversion",
+    x=="CTX" ~ "Context",
+    x=="EM"  ~ "Extension Methods",
+    x=="ESM" ~ "Extension Syntax Methos",
+    x=="IC"  ~ "Implicit Conversions",
+    x=="IP"  ~ "Implicit Parameters",
+    x=="LTI" ~ "Late Trait Implementation",
+    x=="TC"  ~ "Type Classess",
+    x=="TP"  ~ "Type Proofs",
+    x=="UIC" ~ "Unrelated Conversions"
   )
 }
 ```
@@ -1004,7 +1005,7 @@ pattern_extension_methods_cs <- match_extension_methods(conversions_all) %>% mat
 pattern_extension_methods <- pattern_summary("EM", pattern_extension_methods_ds, pattern_extension_methods_cs)
 ```
 
-#### Type Classes
+#### Type Classes (TC)
 
 ```{r type class parameters}
 match_type_class_parameter <- function(ps) {
@@ -1015,45 +1016,38 @@ parameters_all_type_classes   <- match_type_class_parameter(parameters_all)
 parameters_local_type_classes <- match_type_class_parameter(parameters_local)
 ```
 
-##### Type Classes - Methods (TCM)
-
 ```{r pattern type class methods}
-pattern_type_class_m_ds <- match_methods_using_parameter(declarations_local, parameters_local_type_classes)
-pattern_type_class_m_cs <- match_methods_using_parameter(declarations_all, parameters_all_type_classes) %>% match_callsites()
-pattern_type_class_m <- pattern_summary("TCM", pattern_type_class_m_ds, pattern_type_class_m_cs)
+pattern_type_class_ds <- match_methods_using_parameter(declarations_local, parameters_local_type_classes)
+pattern_type_class_cs <- match_methods_using_parameter(declarations_all, parameters_all_type_classes) %>% match_callsites()
+pattern_type_class <- pattern_summary("TC", pattern_type_class_ds, pattern_type_class_cs)
 ```
 
-##### Type Classes - Types (TCT)
+#### Bidirectional Implicit Conversion (BIC)
 
-```{r pattern type classes types}
-type_class_types_all <- 
-  parameters_all_type_classes %>%
-  filter(
-    # skip type aliases
-    type_id == resolved_type_id
-  ) %>% 
-  distinct(mid, resolved_type_id, .keep_all=T) %>%
-  select_at(vars(pid, mid, project_id, module_id, resolved_type_id, starts_with("type_"))) %>%
-  # this is to look like a ds / cs for the pattern_summary
-  mutate(
-    declaration_id=resolved_type_id,
-    def_is_in_test=type_is_in_test,
-    is_in_test=type_is_in_test
-  )
+scala/collection/convert/WrapAsJava#`deprecated asJavaCollection`().
+from: scala/collection/Iterable#[scala/collection/convert/WrapAsJava#`deprecated asJavaCollection`().[A]]
+to:        java/util/Collection#[scala/collection/convert/WrapAsJava#`deprecated asJavaCollection`().[A]]
 
-type_class_types_local <-
-  type_class_types_all %>% 
-  filter(
-    is_module_local(type_location_uri),
-  )
+from: scala/collection/Iterable#[[A]]
+to:        java/util/Collection#[[A]]
 
-pattern_type_class_t <- pattern_summary("TCT", type_class_types_local, type_class_types_all)
-```
+scala/collection/convert/WrapAsScala#`deprecated collectionAsScalaIterable`().
+from:      java/util/Collection#[scala/collection/convert/WrapAsScala#`deprecated collectionAsScalaIterable`().[A]]
+to:   scala/collection/Iterable#[scala/collection/convert/WrapAsScala#`deprecated collectionAsScalaIterable`().[A]]
 
-##### Bidirectional Implicit Conversion (BIC)
+from:      java/util/Collection#[[A]]
+to:   scala/collection/Iterable#[[A]]
+
 
 ```{r pattern bi-directional implicit conversion}
 match_bi_directional_conversions <- function(df) {
+  df <-
+    df %>%
+    mutate(
+      from=str_replace(from, fixed(declaration_id), ""),
+      to=str_replace(to, fixed(declaration_id), "")
+    )
+  
   from <-
     df %>%
     select_at(
@@ -1082,17 +1076,10 @@ match_bi_directional_conversions <- function(df) {
   ) %>%
     filter(
       def_group_id.x      == def_group_id.y,
-      def_artifact_id.x   == def_artifact_id.y,
-      def_location_path.x == def_location_path.y, 
-      def_location_uri.y  == def_location_uri.y
+      def_artifact_id.x   == def_artifact_id.y
     ) %>%
-    rename(
-      pid=pid.x,
-      mid=mid.x,
-      project_id=project_id.x,
-      declaration_id=declaration_id.x,
-      def_is_in_test=def_is_in_test.x
-    )
+    select_at(vars(-ends_with(".y"))) %>%
+    rename_at(vars(ends_with(".x")), ~str_replace(., ".x", ""))
 }
 
 pattern_bi_directional_ds <- match_bi_directional_conversions(conversions_local)
@@ -1100,7 +1087,13 @@ pattern_bi_directional_cs <- match_bi_directional_conversions(conversions_all) %
 pattern_bi_directional <- pattern_summary("BIC", pattern_bi_directional_ds, pattern_bi_directional_cs)
 ```
 
-##### Type Proofs (TP)
+```{r}
+# should match scala deprecated java converters
+stopifnot(nrow(filter(pattern_bi_directional_ds, declaration_id=="scala/collection/convert/WrapAsScala#`deprecated collectionAsScalaIterable`().")) != 0)
+stopifnot(nrow(filter(pattern_bi_directional_ds, declaration_id=="scala/collection/convert/WrapAsJava#`deprecated asJavaCollection`().")) != 0)
+```
+
+#### Type Proofs (TP)
 
 ```{r pattern type proofs}
 TYPE_PROOFS_TYPE_IDS = c("=:=", "<:<", "=>")
@@ -1116,7 +1109,7 @@ pattern_type_proofs_cs <- match_methods_using_parameter(declarations_all, parame
 pattern_type_proofs <- pattern_summary("TP", pattern_type_proofs_ds, pattern_type_proofs_cs)
 ```
 
-##### Extension Syntax Methods (ESM)
+#### Extension Syntax Methods (ESM)
 
 ```{r pattern extension syntax methods}
 match_syntax <- function(ds, ps) {
@@ -1132,7 +1125,7 @@ pattern_syntax_cs <- match_syntax(declarations_all, parameters_all_non_type_proo
 pattern_syntax <- pattern_summary("ESM", pattern_syntax_ds, pattern_syntax_cs)
 ```
 
-##### Context - Methods (CTXM)
+#### Context (CTX)
 
 ```{r pattern context}
 match_context_parameter <- function(ps) {
@@ -1142,15 +1135,15 @@ match_context_parameter <- function(ps) {
 parameters_local_context <- match_context_parameter(parameters_local)
 parameters_all_context   <- match_context_parameter(parameters_all)
 
-pattern_context_m_ds <- match_methods_using_parameter(declarations_local, parameters_local_context)
-pattern_context_m_cs <- match_methods_using_parameter(declarations_all, parameters_all_context) %>% match_callsites()
-pattern_context_m <- pattern_summary("CTXM", pattern_context_m_ds, pattern_context_m_cs)
+pattern_context_ds <- match_methods_using_parameter(declarations_local, parameters_local_context)
+pattern_context_cs <- match_methods_using_parameter(declarations_all, parameters_all_context) %>% match_callsites()
+pattern_context <- pattern_summary("CTX", pattern_context_ds, pattern_context_cs)
 ```
+
+#### Unrelated Conversions (UIC)
 
 Unrelated conversions are public, top-level definitions (reachable from outside
 of the compilation unit) defined outside either from or to compilation units.
-
-##### Unrelated Conversions (UIC)
 
 ```{r pattern unrelated conversions}
 match_unrelated_conversion <- function(df, compilation_units) {
@@ -1191,19 +1184,22 @@ pattern_unrelated_conversions <- pattern_summary("UIC", pattern_unrelated_conver
 #### Summary
 
 ```{r patterns together}
+# this should correspond to organization of Section 2
+
 patterns <- bind_rows(
+  # overview
   pattern_all,
-  pattern_bi_directional,
-  pattern_context_m,
-  pattern_extension_methods,
   pattern_implicit_conversions,
   pattern_implicit_parameters,
+  # patterns  
   pattern_late_trait,
+  pattern_extension_methods,
+  pattern_type_class,
   pattern_syntax,
-  pattern_type_class_m,
-  pattern_type_class_t,
   pattern_type_proofs,
-  pattern_unrelated_conversions
+  pattern_context,
+  pattern_unrelated_conversions,
+  pattern_bi_directional,
 )
 ```
 
@@ -1220,6 +1216,30 @@ corpus_cat_overview <-
   )
 
 stopifnot(mutate(corpus_cat_overview, check=all_callsites - all_explicit_callsites - all_implicit_callsites) %>% filter(check!=0) %>% nrow() == 0)
+
+p <- tribble(
+  ~project_id, ~cat,   ~declarations, ~callsites, ~pattern,
+  "A",         "test", 1            , 5         , "x",
+  "A",         "lib",  10           , 10        , "x",
+  "A",         "test", 2            , 3         , "y",
+  "B",         "lib" , 3            , 4         , "y",
+)
+
+patterns_overview_all_row <-
+  patterns %>%
+  group_by(pattern) %>%
+  summarise(
+    projects_declaring=length(unique(project_id[declarations > 0])),
+    projects_using=length(unique(project_id[callsites > 0])),
+    declarations=sum(declarations),
+    callsites=sum(callsites)
+  ) %>% mutate(
+    cat="all",
+    projects_declaring_pct=projects_declaring/nrow(corpus_noncat),
+    projects_using_pct=projects_using/nrow(corpus_noncat),
+    declarations_pct=declarations/n_implicit_declarations,
+    callsites_pct=callsites/n_implicit_callsites 
+  )
 
 patterns_overview <-
   patterns %>%
@@ -1268,7 +1288,7 @@ patterns_overview_full %>%
   write_csv(OUT_PATTERNS_CSV)
 ```
 
-```{r}
+```{r a graphical overview}
 patterns_overview_full %>%
   mutate(pattern=patterns_human_name(pattern)) %>%
   select_at(vars(pattern, cat, ends_with("_pct"))) %>%
@@ -1276,12 +1296,22 @@ patterns_overview_full %>%
   ggplot(aes(x=cat,y=value,fill=cat)) + geom_bar(stat="identity") + facet_grid(pattern~variable)
 ```
 
-
 ```{r formatting pattern table}
+.fmt.custom_format <- function(x) {
+  format <- attr(x, "format")
+  sprintf(format, x)
+}
+
+custom_format <- function(x, format) {
+  class(x) <- "custom_format"
+  attr(x, "format") <- format
+  x
+}
+
 patterns_overview_table <- 
   patterns_overview_full %>%
   mutate_if(is.numeric, oom) %>%
-  mutate_at(vars(ends_with("_pct")), percent) %>%
+  mutate_at(vars(ends_with("_pct")), ~custom_format(.*100, "%02.0f%%")) %>%
   mutate_all(fmt) %>%
   transmute(
     pattern,
@@ -1338,11 +1368,98 @@ save_pattern_table(patterns_overview_declarations_table, OUT_PATTERNS_DECLARATIO
 save_pattern_table(patterns_overview_callsites_table,    OUT_PATTERNS_CALLSITES_TEX)
 ```
 
+```{r}
+patterns_overview_all <- bind_rows(
+  patterns_overview_full,
+  patterns_overview_all_row
+)
+
+pattern_info <- function(pattern, category) {
+  ctg <- match.arg(category, patterns_overview_all$cat)
+  ptn <- match.arg(pattern, patterns_overview_all$pattern)
+
+  filter(patterns_overview_all, cat==ctg, pattern==ptn) %>%
+    mutate_at(vars(ends_with("_pct")), percent) %>%
+    as.list()
+}
+```
+
+```{r}
+stopifnot(pattern_info("ALL", "all")$declarations_pct == 100)
+stopifnot(pattern_info("ALL", "all")$callsites_pct == 100)
+```
+
+```{r}
+overview_pattern <- function(info) {
+  pattern <- info$pattern
+  category <- info$cat
+  
+  overview(
+    r(str_c(pattern, " ", category, " projects using"),         info$projects_using),
+    r(str_c(pattern, " ", category, " projects using pct"),     info$projects_using_pct),
+    r(str_c(pattern, " ", category, " projects declaring"),     info$projects_declaring),
+    r(str_c(pattern, " ", category, " projects declaring pct"), info$projects_declaring_pct),
+    
+    r(str_c(pattern, " ", category, " callsites"),     info$callsites),
+    r(str_c(pattern, " ", category, " callsites pct"), info$callsites_pct),
+    
+    r(str_c(pattern, " ", category, " declarations"),     info$declarations),
+    r(str_c(pattern, " ", category, " declarations pct"), info$declarations_pct)
+  )
+}
+```
+
+### Implicit Conversion (5.1)
+
+```{r}
+conversion_cs_from_scala <- filter(pattern_implicit_conversions_cs, def_is_from_scala)
+conversion_cs_from_scala_main <- filter(pattern_implicit_conversions_cs, def_is_from_scala, !is_in_test)
+conversion_ds_from_scala <- filter(pattern_implicit_conversions_ds, def_group_id=="org.scala-lang", def_artifact_id=="scala-library") # cos of the way we define from_scala
+
+TEST_LIBS <- c(
+  "^org.scalatest:.*",
+  "^org.spec2:.*",
+  "^org.scalastic:.*",
+  "^com.lihaoyi:utest.*"
+)
+
+conversion_cs_from_testlib <- 
+  map_dfr(TEST_LIBS, ~filter(pattern_implicit_conversions_cs, str_detect(def_library, .)))
+```
+
+```{r}
+IC_all <- pattern_info("IC", "all")
+IC_test <- pattern_info("IC", "test")
+
+overview_table(
+  overview_pattern(IC_all),
+  overview_pattern(IC_test),
+  r("IC callsites from scala pct",              percent(nrow(conversion_cs_from_scala)      /  IC_all$callsites)),
+  r("IC callsites from scala in main pct",      percent(nrow(conversion_cs_from_scala_main) / (IC_all$callsites - IC_test$callsites))),
+  r("IC callsites from test libraries pct",     percent(nrow(conversion_cs_from_testlib)    /  IC_test$callsites)),
+  r("IC callsites from local declarations pct", ratio(filter(pattern_implicit_conversions_cs, !def_is_in_dependency), pattern_implicit_conversions_cs))
+)
+```
+
+In terms of declarations, \TgIcAllProjectsDeclaringProjects (43\%) declare at least one
+implicit conversion.  Together they define 38,609 conversions with a median
+of 4 conversions per project and a standard deviation of 41.  Testing
+frameworks have the largest numbers of conversions with \c{scalatest} (868)
+and \c{specs2} (684). The rest are mostly libraries.???evidence????
+\Scala itself define 608 conversions.????is that the compiler???? Most of
+the other conversions are coming from the popular DSLs and the two main
+functional-programming libraries (\c{cats} and \c{scalaz}). The only
+exception is \c{lichess}\footnote{\Cf an open source chess server
+  \url{https://github.com/ornicar/lila/})} which the largest (177K LOC) and
+most popular application in the corpus (5K+ stars). It defines over 600
+conversions. However, on close inspection, we see that it defines a small
+DSL for database management.?????
 
 
-#### Implicit Not Found
 
-```{r pattern custom error}
+### Implicit Not Found
+
+```{r pattern custom error, eval=F}
 match_implicit_not_found <- function(df) {
   filter(df, str_detect(type_annotations, "scala/annotation/implicitNotFound#"))
 }
@@ -1352,4 +1469,31 @@ match_implicit_not_found(type_class_types_all) %>% distinct(type_library, type_i
 ```
 
 
+### Type Classes - Types (TCT)
 
+```{r pattern type classes types, eval=F}
+type_class_types_all <- 
+  parameters_all_type_classes %>%
+  filter(
+    # skip type aliases
+    type_id == resolved_type_id
+  ) %>% 
+  distinct(mid, resolved_type_id, .keep_all=T) %>%
+  select_at(vars(pid, mid, project_id, module_id, resolved_type_id, starts_with("type_"))) %>%
+  # this is to look like a ds / cs for the pattern_summary
+  mutate(
+    declaration_id=resolved_type_id,
+    def_is_in_test=type_is_in_test,
+    is_in_test=type_is_in_test
+  )
+
+type_class_types_local <-
+  type_class_types_all %>% 
+  filter(
+    is_module_local(type_location_uri),
+  )
+
+#pattern_type_class_t <- pattern_summary("TCT", type_class_types_local, type_class_types_all)
+```
+
+### TODO: Context - types
