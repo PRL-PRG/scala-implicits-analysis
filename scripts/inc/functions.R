@@ -325,6 +325,35 @@ view_corpus <- function(corpus, view=FALSE) {
   if (view) View(df) else df
 }
 
+### Shared between Rmd
+
+cat_to_fct <- function(cat) {
+  factor(cat, levels=c("app_small", "app_big", "lib", "test"), ordered = T)
+}
+
+fmt_categories <- function(x) {
+  case_when(
+    x == "test"      ~ "Tests",
+    x == "lib"       ~ "Libraries",
+    x == "app_small" ~ "Small applications",
+    x == "app_big"   ~ "Large applications"
+  )
+}
+
+fmt_categories_short <- function(x) {
+  case_when(
+    x == "test"      ~ "Tests",
+    x == "lib"       ~ "Libraries",
+    x == "app_small" ~ "Small apps",
+    x == "app_big"   ~ "Large apps"
+  )
+}
+
+###
+
+str_detect_multiple <- function(xs, pats) {
+  map_lgl(xs, ~any(str_detect(., pats)))
+}
 
 ### Functions for cleaning data for implicit-analysis
 

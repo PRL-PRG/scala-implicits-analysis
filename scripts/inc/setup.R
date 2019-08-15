@@ -19,6 +19,7 @@ if (!dir_exists(output_dir)) {
 source(file.path(params$lib_dir, "paths.R"))
 source(file.path(params$lib_dir, "functions.R"))
 source(file.path(params$lib_dir, "latextags.R"))
+source(file.path(params$lib_dir, "flat_violin.R"))
 
 # create latex tags based on the report name
 # the output will go the corpus_dir

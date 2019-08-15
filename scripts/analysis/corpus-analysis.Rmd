@@ -287,7 +287,7 @@ filter(corpus, !scaladex) %>%
 ```{r}
 SMALL_BIG_APP_SEP <- 1000
 
-tag("SmallBigAppSep", SMALL_BIG_APP_SEP)
+tag("SmallBigAppSep", fmt(SMALL_BIG_APP_SEP))
 
 split_corpus <- 
   corpus %>%
@@ -359,15 +359,6 @@ corpus <-
 ```
 
 ```{r split overview}
-fmt_categories <- function(x) {
-  case_when(
-    x == "test"      ~ "Tests",
-    x == "lib"       ~ "Libraries",
-    x == "app_small" ~ "Small applications",
-    x == "app_big"   ~ "Large applications"
-  )
-}
-
 category_overview <-
   split_corpus %>%
   select(
@@ -420,6 +411,9 @@ corpus_commit_mean <- mean(corpus$commit_count)
 corpus_commit_median <- median(corpus$commit_count)
 
 corpus %>%
+  mutate(
+    cat=cat_to_fct(cat)
+  ) %>%
   ggplot(
     aes(
       x=metadata_scala_code_compile, 
@@ -462,7 +456,7 @@ corpus %>%
 ```
 
 ```{r save corpus overview plot}
-ggsave(OUT_CORPUS_OVERVIEW_PDF)
+ggsave(OUT_CORPUS_OVERVIEW_PDF, width = 9.88, height = 7.93)
 ```
 
 ### TOP projects

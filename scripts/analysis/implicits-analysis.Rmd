@@ -22,9 +22,13 @@ source(file.path(params$lib_dir, "setup.R"))
 
 ```{r define outputs}
 OUT_IMPLICITS_OVERVIEW_PDF <- path(output_dir, "implicits-overview.pdf")
+OUT_PATTERNS_OVERVIEW_DECLARATIONS_TEX <- path(output_dir, "patterns-overview-declarations.tex")
+OUT_PATTERNS_OVERVIEW_CALLSITES_TEX <- path(output_dir, "patterns-overview-callsites.tex")
 OUT_PATTERNS_DECLARATIONS_TEX <- path(output_dir, "patterns-declarations.tex")
 OUT_PATTERNS_CALLSITES_TEX <- path(output_dir, "patterns-callsites.tex")
 OUT_PATTERNS_CSV <- path(output_dir, "patterns.csv")
+OUT_IMPLICIT_CALLSITES_RATIO_PDF <- path(output_dir, "implicit-callsites-ratio.pdf")
+OUT_CALLSITES_LOCATION_RATIO_PDF <- path(output_dir, "callsites-location-ratio.pdf")
 ```
 
 ## Introduction
@@ -868,9 +872,19 @@ projects_using_implicits <- filter(corpus_noncat, implicit_callsites > 0)
 projects_defining_implicits <- filter(corpus_noncat, implicit_declarations > 0)
 declarations_local_external <- distinct(declarations_all, def_library, declaration_id)
 
+declarations_local_public  <- filter(declarations_local, !def_is_access_specified | def_is_public)
+declarations_local_in_main <- filter(declarations_local, !def_is_in_test)
+declarations_local_in_test <- filter(declarations_local, def_is_in_test)
+
 overview_table(
   r("implicit local and extenal declarations", declarations_local_external),
-  r("implicit declarations", declarations_local),
+  r("implicit declarations",             declarations_local),
+  r("implicit declarations public",      declarations_local_public),
+  r("implicit declarations public pct",  ratio(declarations_local_public, declarations_local)),
+  r("implicit declarations in main",     declarations_local_in_main),
+  r("implicit declarations in main pct", ratio(declarations_local_in_main, declarations_local)),
+  r("implicit declarations in test",     declarations_local_in_test),
+  r("implicit declarations in test pct", ratio(declarations_local_in_test, declarations_local)),
   r("local implicit declarations pct", ratio(declarations_local, declarations_local_external)),
   
   r("call sites",              n_callsites),
@@ -900,11 +914,15 @@ projects_other_platform <-
   select(project_id) %>%
   semi_join(corpus_noncat, ., by="project_id")
 
+n_projects_jvm    <- nrow(count(filter(declarations_all, def_is_jvm), project_id))
+n_projects_js     <- nrow(count(filter(declarations_all, def_is_js), project_id))
+n_projects_native <- nrow(count(filter(declarations_all, def_is_native), project_id))
+
 overview_table(
   overview_projects("projects targeting other platform", projects_other_platform),
-  r("projects targeting JVM",    count(filter(declarations_all, def_is_jvm), project_id)),
-  r("projects targeting JS",     count(filter(declarations_all, def_is_js), project_id)),
-  r("projects targeting native", count(filter(declarations_all, def_is_native), project_id))
+  r("projects targeting JVM",    n_projects_jvm),
+  r("projects targeting JS",     n_projects_js),
+  r("projects targeting native", n_projects_native)
 )
 ```
 
@@ -973,6 +991,12 @@ pattern_implicit_conversions_ds <- conversions_local
 pattern_implicit_conversions_cs <- match_callsites(conversions_all)
 pattern_implicit_conversions <- pattern_summary("IC", pattern_implicit_conversions_ds, pattern_implicit_conversions_cs)
 ```
+
+```{r check implicit conversions}
+# no duplicates
+stopifnot(nrow(pattern_implicit_conversions_ds %>% count(mid, declaration_id) %>% filter(n > 1)) == 0)
+```
+
 
 #### Late Trait Implementation (LTI)
 
@@ -1183,49 +1207,57 @@ pattern_unrelated_conversions <- pattern_summary("UIC", pattern_unrelated_conver
 
 #### Summary
 
-```{r patterns together}
-# this should correspond to organization of Section 2
+```{r aux patterns overview}
+compute_pattern_overview <- function(patterns) {
+  corpus_cat_overview <-
+    corpus_cat %>%
+    group_by(cat) %>%
+    summarise(
+      projects=n(),
+      all_implicit_callsites=sum(implicit_callsites),
+      all_explicit_callsites=sum(explicit_callsites),
+      all_callsites=sum(callsites),
+      all_implicit_declarations=sum(implicit_declarations)
+    )
 
-patterns <- bind_rows(
-  # overview
-  pattern_all,
-  pattern_implicit_conversions,
-  pattern_implicit_parameters,
-  # patterns  
-  pattern_late_trait,
-  pattern_extension_methods,
-  pattern_type_class,
-  pattern_syntax,
-  pattern_type_proofs,
-  pattern_context,
-  pattern_unrelated_conversions,
-  pattern_bi_directional,
-)
-```
+  stopifnot(mutate(corpus_cat_overview, check=all_callsites - all_explicit_callsites - all_implicit_callsites) %>% filter(check!=0) %>% nrow() == 0)
 
-```{r patterns overview}
-corpus_cat_overview <-
-  corpus_cat %>%
-  group_by(cat) %>%
-  summarise(
-    projects=n(),
-    all_implicit_callsites=sum(implicit_callsites),
-    all_explicit_callsites=sum(explicit_callsites),
-    all_callsites=sum(callsites),
-    all_implicit_declarations=sum(implicit_declarations)
-  )
+  patterns_overview <-
+    patterns %>%
+    group_by(pattern, cat) %>%
+    summarise(
+      projects_declaring=sum(declarations > 0),
+      projects_using=sum(callsites > 0),
+      declarations=sum(declarations),
+      callsites=sum(callsites)
+    ) %>%
+    ungroup() %>%
+    left_join(
+      select(corpus_cat_overview, cat, projects), 
+      by="cat"
+    ) %>%
+    mutate(
+      projects_declaring_pct=projects_declaring/projects,
+      projects_using_pct=projects_using/projects
+    ) %>%
+    select(-projects)
 
-stopifnot(mutate(corpus_cat_overview, check=all_callsites - all_explicit_callsites - all_implicit_callsites) %>% filter(check!=0) %>% nrow() == 0)
+  patterns_overview_sums <-
+    patterns_overview %>%
+    group_by(pattern) %>%
+    summarise_at(vars(declarations, callsites), sum) %>%
+    rename_at(vars(declarations, callsites), ~str_c("all_", .))
 
-p <- tribble(
-  ~project_id, ~cat,   ~declarations, ~callsites, ~pattern,
-  "A",         "test", 1            , 5         , "x",
-  "A",         "lib",  10           , 10        , "x",
-  "A",         "test", 2            , 3         , "y",
-  "B",         "lib" , 3            , 4         , "y",
-)
+  patterns_overview %>%
+  left_join(patterns_overview_sums, by="pattern") %>%
+  mutate(
+    declarations_pct=declarations/all_declarations,
+    callsites_pct=callsites/all_callsites
+  ) %>%
+  select(-all_declarations, -all_callsites)
+}
 
-patterns_overview_all_row <-
+compute_pattern_overview_all_row <- function(patterns) {
   patterns %>%
   group_by(pattern) %>%
   summarise(
@@ -1240,63 +1272,24 @@ patterns_overview_all_row <-
     declarations_pct=declarations/n_implicit_declarations,
     callsites_pct=callsites/n_implicit_callsites 
   )
-
-patterns_overview <-
-  patterns %>%
-  group_by(pattern, cat) %>%
-  summarise(
-    projects_declaring=sum(declarations > 0),
-    projects_using=sum(callsites > 0),
-    declarations=sum(declarations),
-    callsites=sum(callsites)
-  ) %>%
-  ungroup() %>%
-  left_join(
-    select(corpus_cat_overview, cat, projects), 
-    by="cat"
-  ) %>%
-  mutate(
-    projects_declaring_pct=projects_declaring/projects,
-    projects_using_pct=projects_using/projects
-  ) %>%
-  select(-projects)
-
-patterns_overview_sums <-
-  patterns_overview %>%
-  group_by(pattern) %>%
-  summarise_at(vars(declarations, callsites), sum) %>%
-  rename_at(vars(declarations, callsites), ~str_c("all_", .))
-
-patterns_overview_full <-
-  patterns_overview %>%
-  left_join(patterns_overview_sums, by="pattern") %>%
-  mutate(
-    declarations_pct=declarations/all_declarations,
-    callsites_pct=callsites/all_callsites
-  ) %>%
-  select(-all_declarations, -all_callsites)
-
-patterns_overview_full %>%
-  mutate_at(vars(ends_with("_pct")), percent) %>%
-  mutate_all(fmt) %>%
-  my_datatable()
+}
 ```
 
-```{r save to CSV}
-patterns_overview_full %>%
-  mutate(pattern=patterns_human_name(pattern)) %>%
-  write_csv(OUT_PATTERNS_CSV)
+```{r pattern overview test, eval=F}
+p <- tribble(
+  ~project_id, ~cat,   ~declarations, ~callsites, ~pattern,
+  "A",         "test", 1            , 5         , "x",
+  "A",         "lib",  10           , 10        , "x",
+  "A",         "test", 2            , 3         , "y",
+  "B",         "lib" , 3            , 4         , "y",
+  "C",         "lib" , 1            , 1         , "y",
+)
+
+compute_pattern_overview(p)
+compute_pattern_overview_all_row(p)
 ```
 
-```{r a graphical overview}
-patterns_overview_full %>%
-  mutate(pattern=patterns_human_name(pattern)) %>%
-  select_at(vars(pattern, cat, ends_with("_pct"))) %>%
-  gather(variable, value, -(pattern:cat)) %>% 
-  ggplot(aes(x=cat,y=value,fill=cat)) + geom_bar(stat="identity") + facet_grid(pattern~variable)
-```
-
-```{r formatting pattern table}
+```{r aux compute pattern tables}
 .fmt.custom_format <- function(x) {
   format <- attr(x, "format")
   sprintf(format, x)
@@ -1308,16 +1301,16 @@ custom_format <- function(x, format) {
   x
 }
 
-patterns_overview_table <- 
-  patterns_overview_full %>%
+compute_overview_table <- function(df) {
+  df %>%
   mutate_if(is.numeric, oom) %>%
   mutate_at(vars(ends_with("_pct")), ~custom_format(.*100, "%02.0f%%")) %>%
   mutate_all(fmt) %>%
   transmute(
     pattern,
     cat,
-    callsites=str_c(callsites, " (", callsites_pct, "/", projects_using_pct, ")"),
-    declarations=str_c(declarations, " (", declarations_pct, "/", projects_declaring_pct, ")")
+    callsites=str_c(callsites, " (", callsites_pct, ", ", projects_using_pct, ")"),
+    declarations=str_c(declarations, " (", declarations_pct, ", ", projects_declaring_pct, ")")
   ) %>%
   gather(variable, value, -(pattern:cat)) %>%
   unite(temp, cat, variable) %>%
@@ -1333,52 +1326,122 @@ patterns_overview_table <-
     lib_callsites,           
     test_callsites
   )
+}
 
-patterns_overview_declarations_table <- 
-  patterns_overview_table %>%
+compute_overview_table_declarations <- function(df, pattern_column="Pattern") {
+  df %>%
   transmute(
-    `Pattern`=patterns_human_name(pattern),
+    !!pattern_column := patterns_human_name(pattern),
     `Small Apps`=app_small_declarations,
     `Large Apps`=app_big_declarations,
     `Libraries`=lib_declarations, 
     `Tests`=test_declarations
   )
+}
 
-patterns_overview_callsites_table <- 
-  patterns_overview_table %>%
+compute_overview_table_callsites <- function(df, pattern_column="Pattern") {
+  df %>%
   transmute(
-    `Pattern`=patterns_human_name(pattern),
+    !!pattern_column := patterns_human_name(pattern),
     `Small Apps`=app_small_callsites,
     `Large Apps`=app_big_callsites,
     `Libraries`=lib_callsites, 
     `Tests`=test_callsites
   )
-
-save_pattern_table <- function(df, fname) {
-  df %>%
-  xtable::xtable(align="llrrrr") %>%
-  print(
-    floating=F,
-    file=fname,
-    include.rownames=F
-  )
 }
 
-save_pattern_table(patterns_overview_declarations_table, OUT_PATTERNS_DECLARATIONS_TEX)
-save_pattern_table(patterns_overview_callsites_table,    OUT_PATTERNS_CALLSITES_TEX)
+print_pattern_overview <- function(df) {
+  df %>% 
+  mutate_at(vars(ends_with("_pct")), percent) %>%
+  mutate_all(fmt) %>%
+  my_datatable()
+}
+```
+
+```{r aux save patterns}
+save_pattern_tables <- function(df, pattern_names, ds_filename, cs_filename, ...) {
+  save_table <- function(df, fname) {
+    df %>%
+    xtable::xtable(align="llrrrr") %>%
+    print(
+      floating=F,
+      file=fname,
+      include.rownames=F
+    )
+  }
+
+  table <-
+    df %>%
+    filter(pattern %in% pattern_names) %>%
+    mutate(pattern=factor(pattern, levels=pattern_names, ordered = T)) %>%
+    arrange(pattern)
+  
+  table_ds <- compute_overview_table_declarations(table, ...)
+  table_cs <- compute_overview_table_callsites(table, ...)
+  
+  save_table(table_ds, ds_filename)
+  save_table(table_cs, cs_filename)
+  
+  table
+}
+```
+
+```{r patterns all}
+patterns_all <- bind_rows(
+  # overview
+  pattern_all,
+  pattern_implicit_conversions,
+  pattern_implicit_parameters,
+  # idioms
+  pattern_late_trait,
+  pattern_extension_methods,
+  pattern_type_class,
+  pattern_syntax,
+  pattern_type_proofs,
+  pattern_context,
+  pattern_unrelated_conversions,
+  pattern_bi_directional,
+)
+
+patterns_all_overview <- compute_pattern_overview(patterns_all)
+patterns_all_overview_all_row <- compute_pattern_overview_all_row(patterns_all)
+
+patterns_all_overview %>%
+  mutate(pattern=patterns_human_name(pattern)) %>%
+  write_csv(OUT_PATTERNS_CSV)
+
+patterns_all_table <- compute_overview_table(patterns_all_overview)
+
+print_pattern_overview(patterns_all_overview)
+```
+
+```{r save overview patterns}
+save_pattern_tables(patterns_all_table, c("ALL", "IC", "IP"), OUT_PATTERNS_OVERVIEW_DECLARATIONS_TEX, OUT_PATTERNS_OVERVIEW_CALLSITES_TEX, pattern_column=" ")
+```
+
+```{r save patterns}
+save_pattern_tables(patterns_all_table, c("LTI", "EM", "TC", "ESM", "TP", "CTX", "UIC", "BIC"), OUT_PATTERNS_DECLARATIONS_TEX, OUT_PATTERNS_CALLSITES_TEX)
+```
+
+```{r a graphical overview}
+patterns_all_overview %>%
+  mutate(pattern=patterns_human_name(pattern)) %>%
+  select_at(vars(pattern, cat, ends_with("_pct"))) %>%
+  gather(variable, value, -(pattern:cat)) %>% 
+  ggplot(aes(x=cat,y=value,fill=cat)) + geom_bar(stat="identity") + facet_grid(pattern~variable)
 ```
 
 ```{r}
-patterns_overview_all <- bind_rows(
-  patterns_overview_full,
-  patterns_overview_all_row
+patterns_overview <- bind_rows(
+  patterns_all_overview,
+  patterns_all_overview_all_row
 )
 
-pattern_info <- function(pattern, category) {
-  ctg <- match.arg(category, patterns_overview_all$cat)
-  ptn <- match.arg(pattern, patterns_overview_all$pattern)
+pattern_info <- function(pattern, category, overview=patterns_overview) {
+  ctg <- match.arg(category, overview$cat)
+  ptn <- match.arg(pattern, overview$pattern)
 
-  filter(patterns_overview_all, cat==ctg, pattern==ptn) %>%
+  filter(overview, cat==ctg, pattern==ptn) %>%
     mutate_at(vars(ends_with("_pct")), percent) %>%
     as.list()
 }
@@ -1389,7 +1452,7 @@ stopifnot(pattern_info("ALL", "all")$declarations_pct == 100)
 stopifnot(pattern_info("ALL", "all")$callsites_pct == 100)
 ```
 
-```{r}
+```{r aux pattern overview}
 overview_pattern <- function(info) {
   pattern <- info$pattern
   category <- info$cat
@@ -1409,53 +1472,461 @@ overview_pattern <- function(info) {
 }
 ```
 
-### Implicit Conversion (5.1)
+### Implicit Conversion (Section 5.1)
 
-```{r}
-conversion_cs_from_scala <- filter(pattern_implicit_conversions_cs, def_is_from_scala)
-conversion_cs_from_scala_main <- filter(pattern_implicit_conversions_cs, def_is_from_scala, !is_in_test)
-conversion_ds_from_scala <- filter(pattern_implicit_conversions_ds, def_group_id=="org.scala-lang", def_artifact_id=="scala-library") # cos of the way we define from_scala
+Excluded uTest ("^com\\.lihaoyi:utest.*") as it only defines 5 conversions. It is using macros.
 
+```{r test and scala libraries setup}
 TEST_LIBS <- c(
-  "^org.scalatest:.*",
-  "^org.spec2:.*",
-  "^org.scalastic:.*",
-  "^com.lihaoyi:utest.*"
+  "^org\\.specs2:.*",
+  "^org\\.scalatest:.*",
+  "^org\\.scalactic:.*"
 )
 
-conversion_cs_from_testlib <- 
-  map_dfr(TEST_LIBS, ~filter(pattern_implicit_conversions_cs, str_detect(def_library, .)))
+TEST_LIBS_DF <-
+  count(declarations_all, def_library) %>%
+    filter(str_detect_multiple(def_library, TEST_LIBS)) %>%
+    select(-n)
+
+SCALA_LIB <- "org\\.scala-lang:scala-library.*"
+SCALA_LIB_DF <-
+  count(declarations_all, def_library) %>%
+    filter(str_detect_multiple(def_library, SCALA_LIB)) %>%
+    select(-n)
+
+SCALA_and_TEST_LIB_DF <-
+  bind_rows(
+    SCALA_LIB_DF,
+    TEST_LIBS_DF
+  )
 ```
 
-```{r}
+```{r aux top n projects}
+top_n_projects <- function(df_ds, df_cs, N=10) {
+  stopifnot(c("project_id", "n") %in% names(df_ds))
+  
+  format_df <- function(df, suffix) {
+    name_column <- str_c("name_", suffix)
+    n_column <- str_c("n_", suffix)
+    
+    top_n(df, N, n) %>%
+    left_join(
+      select(corpus_noncat, project_id, origin, gh_stars, scala_code=main_scala_code),
+      by="project_id"
+    ) %>%
+    arrange(desc(n)) %>%
+    mutate(
+      ord=1:n(),
+      name=str_replace(project_id, "--", "/"),
+      name=xtable::sanitize(name),
+      gh_stars=fmt(oom(gh_stars), digits=0),
+      scala_code=fmt(oom(scala_code), digits=0),
+      name=str_c("\\href{https://github.com/", name, "/}{", name, "} (", gh_stars, ", ", scala_code, ")"),
+      n=fmt(oom(n), digits=0)
+    ) %>%
+      transmute(
+        !!name_column := name,
+        !!n_column := n,
+        ord
+      )
+  }
+  
+  ds <- format_df(df_ds, "ds")
+  cs <- format_df(df_cs, "cs")
+  df <- left_join(ds, cs, by="ord")
+  df %>% 
+    select(
+      -ord,
+      `Project`=name_ds,
+      `Project `=name_cs, # ugly hack
+      `Declarations`=n_ds,
+      `Callsites`=n_cs,
+    )
+}
+
+save_top_n_projects <- function(df_ds, df_cs, fname) {
+  df <- top_n_projects(df_ds, df_cs) 
+  
+  print(df)
+  
+  df %>%
+  xtable::xtable(align="llrlr") %>%
+  print(
+    floating=F,
+    file=fname,
+    include.rownames=F,
+    sanitize.text.function=identity
+  )
+}
+```
+
+```{r implicit conversion data}
+conversion_cs_from_scala <- filter(pattern_implicit_conversions_cs, def_is_from_scala)
+conversion_cs_from_scala_main <- filter(pattern_implicit_conversions_cs, def_is_from_scala, !is_in_test)
+# TODO: explain whe cannot we use def_is_from_scala
+conversion_ds_from_scala <- semi_join(pattern_implicit_conversions_ds, SCALA_LIB_DF, by="def_library")
+conversion_cs_from_testlib <- semi_join(pattern_implicit_conversions_cs, TEST_LIBS_DF, by="def_library")
+
 IC_all <- pattern_info("IC", "all")
 IC_test <- pattern_info("IC", "test")
 
+# TODO: this should come from the pattern - we just need a way how to get rid of tests
+IC_ds_per_project <- count(pattern_implicit_conversions_ds, project_id)
+IC_cs_per_project <- count(pattern_implicit_conversions_cs, project_id)
+IC_declaration <- count(pattern_implicit_conversions_cs, def_library, declaration_id)
+
+IC_callsites_platforms <- 
+  count(pattern_implicit_conversions_cs, def_platform) %>% 
+  spread(def_platform, n) %>%
+  mutate(
+    js_pct=js/n_projects_js,
+    jvm_pct=jvm/n_projects_jvm,
+    native_pct=native/n_projects_native
+  )
+
+IC_declarations_from_scala_and_testlib <-
+  semi_join(pattern_implicit_conversions_ds, SCALA_and_TEST_LIB_DF, by="def_library") %>%
+  count(def_group_id)
+```
+
+```{r implicit conversion report}
 overview_table(
   overview_pattern(IC_all),
   overview_pattern(IC_test),
+  
   r("IC callsites from scala pct",              percent(nrow(conversion_cs_from_scala)      /  IC_all$callsites)),
   r("IC callsites from scala in main pct",      percent(nrow(conversion_cs_from_scala_main) / (IC_all$callsites - IC_test$callsites))),
   r("IC callsites from test libraries pct",     percent(nrow(conversion_cs_from_testlib)    /  IC_test$callsites)),
-  r("IC callsites from local declarations pct", ratio(filter(pattern_implicit_conversions_cs, !def_is_in_dependency), pattern_implicit_conversions_cs))
+  r("IC callsites from local declarations pct", ratio(filter(pattern_implicit_conversions_cs, !def_is_in_dependency), pattern_implicit_conversions_cs)),
+  
+  r("IC declarations mean",   mean(IC_ds_per_project$n)),
+  r("IC declarations sd",     sd(IC_ds_per_project$n)),
+  r("IC declarations median", median(IC_ds_per_project$n)),
+  
+  r("IC declarations sd without slinky", sd(filter(IC_ds_per_project, project_id!="shadaj--slinky")$n)),
+  
+  r("IC used in js vs jvm", IC_callsites_platforms$js_pct/IC_callsites_platforms$jvm_pct),
+  
+  r("IC in scala stdlib", conversion_ds_from_scala),
+  r("IC in scala", filter(IC_ds_per_project, project_id=="scala--scala")$n),
+  r("IC in scalatest", filter(IC_ds_per_project, project_id=="scalatest--scalatest")$n),
+  r("IC in spec", filter(IC_ds_per_project, project_id=="etorreborre--specs2")$n),
+  r("IC in utest", filter(IC_ds_per_project, project_id=="lihaoyi--utest")$n),
+  r("IC in scalaz", filter(IC_ds_per_project, project_id=="scalaz--scalaz")$n),
+  r("IC in cats", filter(IC_ds_per_project, project_id=="typelevel--cats")$n),
+  r("IC in slinky", filter(IC_ds_per_project, project_id=="shadaj--slinky")$n),
+)
+
+save_top_n_projects(IC_ds_per_project, IC_cs_per_project, path(output_dir, "IC-top-projects.tex"))
+```
+
+#### Exploration
+
+```{r top use of declarations from non-scala and non-testlib}
+IC_declaration_without_scalalib_testlib <-
+  IC_declaration %>%
+  anti_join(
+    bind_rows(TEST_LIBS_DF, SCALA_LIB_DF), 
+    by="def_library"
+  )
+
+arrange(IC_declaration_without_scalalib_testlib, desc(n))
+```
+
+```{r top use of declarations from scala and testlib}
+IC_declaration_from_scalalib_testlib <-
+  IC_declaration %>%
+  semi_join(
+    bind_rows(TEST_LIBS_DF, SCALA_LIB_DF), 
+    by="def_library"
+  )
+
+arrange(IC_declaration_from_scalalib_testlib, desc(n))
+```
+
+```{r top use of declarations from scala}
+IC_declaration_from_scalalib <-
+  IC_declaration %>%
+  semi_join(
+    SCALA_LIB_DF, 
+    by="def_library"
+  )
+
+arrange(IC_declaration_from_scalalib, desc(n))
+```
+
+#### Slink
+
+```{r}
+slinky_in_corpus <-
+  filter(pattern_implicit_conversions_cs, def_library=="me.shadaj:slinky-web:js") %>% 
+    count(project_id, declaration_id) %>%
+    count(project_id) %>%
+    left_join(select(corpus_noncat, project_id, scala_code, gh_stars), by="project_id")
+
+overview_table(
+  r("IC slinky use", sum(slinky_in_corpus$n)),
+  r("IC slinky use projects", nrow(slinky_in_corpus)),
+  r("IC slinky use projects code", sum(slinky_in_corpus$scala_code)),
 )
 ```
 
-In terms of declarations, \TgIcAllProjectsDeclaringProjects (43\%) declare at least one
-implicit conversion.  Together they define 38,609 conversions with a median
-of 4 conversions per project and a standard deviation of 41.  Testing
-frameworks have the largest numbers of conversions with \c{scalatest} (868)
-and \c{specs2} (684). The rest are mostly libraries.???evidence????
-\Scala itself define 608 conversions.????is that the compiler???? Most of
-the other conversions are coming from the popular DSLs and the two main
-functional-programming libraries (\c{cats} and \c{scalaz}). The only
-exception is \c{lichess}\footnote{\Cf an open source chess server
-  \url{https://github.com/ornicar/lila/})} which the largest (177K LOC) and
-most popular application in the corpus (5K+ stars). It defines over 600
-conversions. However, on close inspection, we see that it defines a small
-DSL for database management.?????
+#### TODO: From / To conversions
 
+```{r eval=F}
+top_from <- pattern_implicit_conversions_ds %>% count(from) %>% arrange(desc(n))
 
+semi_join(
+  pattern_implicit_conversions_ds,
+  top_n(top_from, 1),
+  by="from"
+)
+
+top_to <- pattern_implicit_conversions_ds %>% count(to) %>% arrange(desc(n)) %>% filter(!str_detect(to, "slinky"))
+
+pattern_implicit_conversions_ds %>% 
+  filter(from=="java/lang/String#") %>% 
+  count(to, project_id) %>%
+  arrange(desc(n)) %>%
+  count(to) %>% 
+  arrange(desc(n))
+
+pattern_implicit_conversions_ds %>% count(from, to) %>% arrange(desc(n)) %>% print(n=100)
+```
+
+#### TODO: Conditional conversions
+
+#### TODO: Collection conversions
+
+#### Functional value conversions
+
+```{r}
+match_fun_conversion <- function(df) {
+  filter(df, def_kind != "DEF")
+}
+
+IC_fun_ds <- match_fun_conversion(conversions_local)
+IC_fun_cs <- match_fun_conversion(conversions_all) %>% match_callsites()
+
+IC_fun <- pattern_summary("ICfun", IC_fun_ds, IC_fun_cs)
+IC_fun_sum <- compute_pattern_overview(IC_fun)
+IC_fun_all_row <- compute_pattern_overview_all_row(IC_fun)
+
+print_pattern_overview(IC_fun_all_row)
+```
+
+```{r}
+IC_java_to_java_ds %>% select(from, from_group_id, to, to_group_id)
+```
+
+```{r}
+overview_table(
+  overview_pattern(pattern_info("ICfun", "all", IC_fun_all_row)),
+  overview_pattern(pattern_info("ICfun", "test", IC_fun_sum))
+)
+```
+
+### Implicit Parameter (Section 5.2)
+
+#### Ratio of call sites that are implicits
+
+```{r}
+select(corpus_cat, project_id, cat, implicit_callsites, callsites) %>%
+  mutate(
+    r=implicit_callsites/callsites,
+    cat=cat_to_fct(cat)
+  ) %>%
+  ggplot(aes(x=cat, y=r, fill=cat, color=cat)) + 
+  geom_boxplot(width=.5, alpha=.7, lwd=.2, outlier.size = 0, outlier.stroke=0) +
+#  geom_flat_violin(width=.5, alpha=.7, lwd=.2) +
+  geom_dotplot(
+    binaxis="y", 
+    dotsize=0.08, 
+    stackdir="down",
+    stackratio=1,
+    binwidth=0.005, 
+    position=position_nudge(-0.025),
+    alpha=.7
+  ) +
+  scale_fill_wsj(labels=fmt_categories) +
+  scale_color_wsj(labels=fmt_categories) +
+  scale_x_discrete(labels=fmt_categories_short) +
+  scale_y_continuous(labels=scales::percent, limits=c(0, .75)) +
+  guides(fill=F, color=F) +
+  labs(
+    y="Ratio of implicit call sites"
+  ) +
+  theme(
+    aspect.ratio = 2,
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(size=10)
+  )
+```
+
+```{r}
+ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF)
+```
+
+#### Location of implicit declarations
+
+```{r}
+empty_declarations <- filter(pattern_all_cs, FALSE)
+def_local    <- pattern_summary("local",    empty_declarations, filter(callsites_all, !def_is_in_dependency))
+def_external <- pattern_summary("external", empty_declarations, filter(callsites_all, def_is_in_dependency, !def_is_from_scala))
+def_scala    <- pattern_summary("scala",    empty_declarations, filter(callsites_all, def_is_in_dependency, def_is_from_scala))
+def_all <-
+  bind_rows(
+    def_local,
+    def_external,
+    def_scala
+  )
+
+stopifnot(sum(def_all$callsites) == nrow(callsites_all))
+
+defs_overview <- 
+  def_all %>%
+  left_join(
+    select(corpus_cat, project_id, cat, implicit_callsites),
+    by=c("project_id", "cat")
+  ) %>%
+  mutate(
+    callsites_pct=callsites/implicit_callsites
+  ) %>%
+  select(project_id, pattern, cat, callsites_pct)
+```
+
+```{r}
+defs_overview %>%
+  mutate(cat=cat_to_fct(cat)) %>%
+  ggplot(aes(x=pattern, y=callsites_pct, color=cat)) + 
+  geom_boxplot(aes(fill=cat), width=.5, alpha=.7, lwd=.2, outlier.size=0, outlier.stroke=0, position=position_dodge(.8)) +
+#  geom_flat_violin(width=.5, alpha=.7, lwd=.2, trim = T, scale="width", position = position_dodge(.8), draw_quantiles=1) +
+  geom_dotplot(
+    binaxis="y",
+    dotsize=0.08,
+    stackdir="down",
+    stackratio=1,
+    binwidth=0.005,
+    position = position_dodge(.8),
+    alpha=.7
+  ) +
+  scale_fill_wsj(labels=fmt_categories_short) +
+  scale_x_discrete(labels=c("external"="External dependencies", "local"="Project local", "scala"="Scala standard library")) +
+  scale_color_wsj() +
+  scale_y_continuous(labels=scales::percent) +
+  theme(
+    axis.title.x = element_blank(),
+    legend.position = c(.5, 0.8),
+    legend.box.background = element_rect(fill="white", size=0.1),
+    axis.text.x = element_text(size=10)
+  ) +
+  guides(color=F) +
+  labs(fill="Category", y="Ratio of implicit calls")
+```
+
+```{r}
+ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF)
+```
+
+#### Text
+
+```{r}
+nrow(declarations_local)/2
+n_all_stars <- sum(corpus_noncat$gh_stars)
+n_all_code <- sum(corpus_noncat$scala_code)
+top200_declarations <-
+  corpus_noncat %>%
+  select(project_id, cat, implicit_declarations, gh_stars, scala_code) %>%
+  top_n(200, implicit_declarations) %>%
+  arrange(desc(implicit_declarations))
+
+top200_sums <- summarise_all(top200_declarations, sum)
+top200_cats <- count(top200_declarations, cat) %>% spread(cat, n)
+```
+
+```{r}
+overview_table(
+  r("IP apps in top projects", top200_cats$app_big/200),
+)
+```
+
+```{r}
+filter(pattern_implicit_parameters_cs, def_is_from_scala) %>% 
+  count(declaration_id) %>%
+  arrange(desc(n))
+```
+
+```{r}
+filter(parameters_all, type_group_id=="org.scala-lang", type_artifact_id=="scala-library") %>% 
+  count(resolved_type_id) %>%
+  arrange(desc(n))
+```
+
+```{r}
+match_parameter_id <- function(regex) {
+  filter(parameters_all, str_detect(resolved_type_id, regex))
+}
+
+projects_using <- function(name, ds) {
+  cs <- match_callsites(ds)
+
+  p <- pattern_summary(name, empty_declarations, cs)
+  
+  bind_rows(
+    compute_pattern_overview(p),
+    compute_pattern_overview_all_row(p)
+  ) %>%
+    select(
+      pattern,
+      cat,
+      projects_using,
+      callsites, 
+      projects_using_pct,
+      callsites_pct
+    )
+}
+
+projects_using_parameter <- function(name, id) {
+  projects_using(name, match_parameter_id(id))
+}
+
+overview_pattern2 <- function(xs, keys=names(xs)) {
+  items <-
+    xs %>% 
+      gather("key", "value", -(pattern:cat)) %>%
+      filter(key %in% keys) %>%
+      transmute(
+        value=ifelse(endsWith(key, "_pct"), fmt(percent(value)), fmt(value)),
+        key=str_c(pattern, " ", cat, " ", key),
+        key=str_replace_all(key, "_", " ")
+      )
+  overview(map2_dfr(items$key, items$value, ~r(.x, .y)))
+}
+
+overview_table(
+  overview_pattern2(
+    projects_using_parameter("IP scala collection", "^scala/collection/generic/CanBuildFrom#$"),
+     c("projects_using_pct", "callsites_pct")
+  ),
+  overview_pattern2(
+    projects_using_parameter("IP scala reflection", "^scala/reflect/.*"),
+     c("projects_using_pct", "callsites_pct")
+  ),
+  overview_pattern2(
+    projects_using_parameter("IP scala concurrency", "^scala/concurrent/ExecutionContext#$"),
+     c("projects_using_pct", "callsites_pct")
+  )
+)
+```
+
+#### Top projects
+
+```{r}
+IP_ds_per_project <- count(pattern_implicit_parameters_ds, project_id)
+IP_cs_per_project <- count(pattern_implicit_parameters_cs, project_id)
+IP_declaration    <- count(pattern_implicit_parameters_cs, def_library, declaration_id)
+save_top_n_projects(IP_ds_per_project, IP_cs_per_project, path(output_dir, "IP-top-projects.tex"))
+```
 
 ### Implicit Not Found
 
@@ -1468,6 +1939,75 @@ match_implicit_not_found(type_class_types_local)
 match_implicit_not_found(type_class_types_all) %>% distinct(type_library, type_id)
 ```
 
+### Unrelated Conversions
+
+#### Primitive
+
+For the top most ones!
+
+% projects using
+% projects definining
+% defintions
+% usage
+
+```{r}
+SCALA_PRIMITIVES <- c(
+  "scala/Any#",
+  "scala/AnyRef#",
+  "scala/AnyVal#",
+  "scala/Boolean#",
+  "scala/Byte#",
+  "scala/Char#",
+  "scala/Double#",
+  "scala/Float#",
+  "scala/Int#",
+  "scala/Long#",
+  "scala/Short#",
+  "scala/StringContext#",
+  "scala/Unit#",
+  "java/lang/String#"
+)
+
+declaration_is_scala_primitive <- function(x) {
+  x %in% SCALA_PRIMITIVES
+}
+```
+
+
+#### From Java / To Java
+
+```{r implicit conversion java to java data}
+match_IC_java_to_java <- function(df) {
+  filter(df, from_language=="JAVA", to_language=="JAVA")
+}
+
+IC_java_to_java_ds <- match_IC_java_to_java(conversions_local)
+IC_java_to_java_cs <- match_IC_java_to_java(conversions_all) %>% match_callsites()
+
+IC_java_to_java <- pattern_summary("ICJJ", IC_java_to_java_ds, IC_java_to_java_cs)
+IC_java_to_java_sum <- compute_pattern_overview(IC_java_to_java)
+IC_java_to_java_all_row <- compute_pattern_overview_all_row(IC_java_to_java)
+
+print_pattern_overview(IC_java_to_java_sum)
+```
+
+```{r}
+IC_java_to_java_ds %>% select(from, from_group_id, to, to_group_id)
+```
+
+
+```{r implicit conversion java to java analysis}
+overview_table(
+  overview_pattern(pattern_info("ICJJ", "all", IC_java_to_java_all_row))
+)
+```
+
+```{r}
+filter(pattern_implicit_conversions_ds, from_language=="JAVA", to_language=="JAVA") %>% View()
+IC_from_java <- 
+  filter(pattern_implicit_conversions_ds, from_language=="JAVA") %>% 
+  select(declaration_id=from, group_id=from_group_id, artifact_id=from_artifact_id)
+```
 
 ### Type Classes - Types (TCT)
 

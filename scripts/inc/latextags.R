@@ -25,7 +25,10 @@ r.numeric <- function(name, value, ...) {
 r.default <- function(name, value, ...) {
   stopifnot(length(value) == 1)
   
-  tibble(name=name, value=tag(name, fmt(value, ...)))
+  value <- fmt(value, ...)
+  tag_name <- tag(name, value)
+  
+  tibble(name=str_c(name, " (\\", tag_name, ")"), value=value)
 }
 
 r.data.frame <- function(name, value, ...) {
@@ -112,7 +115,8 @@ tag <- function(name, value, tags=get_default_tags()) {
   stopifnot(length(name)==1)
   
   value <- as.character(value)
-  latex <- generate_latex_command(name, value, prefix=tags_prefix(tags))
+  latex_tag_name <- generate_latex_command_name(name, prefix=tags_prefix(tags))
+  latex <- generate_latex_command(latex_tag_name, value)
   
   existing <- which(tags$values$name == name)
   
@@ -130,7 +134,23 @@ tag <- function(name, value, tags=get_default_tags()) {
   
   save_tag_file(tags)
   
-  invisible(value)
+  invisible(latex_tag_name)
+}
+
+rm_tag <- function(name, tags=get_default_tags()) {
+  if (is.null(tags)) {
+    return(value)
+  }
+  
+  stopifnot(is.character(name))
+
+  removed <- dplyr::semi_join(tags$values, tibble(name), by="name")$name
+  
+  tags$values <- dplyr::anti_join(tags$values, tibble(name), by="name")
+  
+  save_tag_file(tags)
+  
+  invisible(removed)
 }
 
 fmt_tag <- function(name, value, ...) {
@@ -151,17 +171,22 @@ latex_escape <- function(s) {
     stringr::str_replace_all("-", "")
 }
 
-generate_latex_command <- function(name, value, prefix = "") {
-  stopifnot(length(names) == length(value))
-  
+generate_latex_command_name <- function(name, prefix="") {
   if (nchar(prefix)) {
     prefix <- stringr::str_c(prefix, " ")
   }
+  
   name <- stringr::str_c(prefix, name)
   name <- latex_command_name(name)
   
+  latex_escape(name)
+}
+
+generate_latex_command <- function(command_name, value) {
+  stopifnot(length(command_name) == length(value))
+  
   stringr::str_c(
-    "\\newcommand{\\", latex_escape(name), "}{", latex_escape(value), "\\xspace}"
+    "\\newcommand{\\", command_name, "}{", latex_escape(value), "\\xspace}"
   )
 }
 
