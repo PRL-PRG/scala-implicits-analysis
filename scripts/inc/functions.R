@@ -434,4 +434,3 @@ remove_scala_version_suffix <- function(x) {
   # name_sjc0.6_2.11-RC5
   str_replace("(.*)_\\d+[._-]\\d+.*$", "\\1")
 }
-

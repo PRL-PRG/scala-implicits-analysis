@@ -28,7 +28,9 @@ OUT_PATTERNS_DECLARATIONS_TEX <- path(output_dir, "patterns-declarations.tex")
 OUT_PATTERNS_CALLSITES_TEX <- path(output_dir, "patterns-callsites.tex")
 OUT_PATTERNS_CSV <- path(output_dir, "patterns.csv")
 OUT_IMPLICIT_CALLSITES_RATIO_PDF <- path(output_dir, "implicit-callsites-ratio.pdf")
+OUT_IMPLICIT_CALLSITES_RATIO_PNG <- path(output_dir, "implicit-callsites-ratio.png")
 OUT_CALLSITES_LOCATION_RATIO_PDF <- path(output_dir, "callsites-location-ratio.pdf")
+OUT_CALLSITES_LOCATION_RATIO_PNG <- path(output_dir, "callsites-location-ratio.png")
 ```
 
 ## Introduction
@@ -827,9 +829,9 @@ local({
       panel.grid.major.y=element_line(),
       panel.grid.minor.y=element_blank(),
       axis.text.x=element_blank(),
-      axis.text.y=element_text(color = "grey20", size = 10),
-      axis.title.x=element_text( size = 11),
-      axis.title.y=element_text( size = 11)
+      axis.text.y=element_text(color = "grey20", size = 12),
+      axis.title.x=element_text( size = 14),
+      axis.title.y=element_text( size = 14)
     ) + 
     
     scale_y_continuous(
@@ -901,7 +903,11 @@ overview_table(
   r("projects using implicits",        projects_using_implicits),
   r("projects defining implicits",     projects_defining_implicits),
   r("projects using implicits pct",    ratio(projects_using_implicits, corpus_noncat)),
-  r("projects defining implicits pct", ratio(projects_defining_implicits, corpus_noncat))
+  r("projects defining implicits pct", ratio(projects_defining_implicits, corpus_noncat)),
+  
+  r("projects using implicits rnd pct",    ratio(projects_using_implicits, corpus_noncat), digits=0),
+  r("projects defining implicits rnd pct", ratio(projects_defining_implicits, corpus_noncat), digits=0),
+  r("implicit call sites rnd pct", percent(n_implicit_callsites/n_callsites), digits=0),
 )
 ```
 
@@ -997,7 +1003,6 @@ pattern_implicit_conversions <- pattern_summary("IC", pattern_implicit_conversio
 # no duplicates
 stopifnot(nrow(pattern_implicit_conversions_ds %>% count(mid, declaration_id) %>% filter(n > 1)) == 0)
 ```
-
 
 #### Late Trait Implementation (LTI)
 
@@ -1376,8 +1381,8 @@ compute_overview_table <- function(df) {
   transmute(
     pattern,
     cat,
-    callsites=str_c(callsites, " (", callsites_pct, ", ", projects_using_pct, ")"),
-    declarations=str_c(declarations, " (", declarations_pct, ", ", projects_declaring_pct, ")")
+    callsites=str_c(callsites, " (", callsites_pct, " ", projects_using_pct, ")"),
+    declarations=str_c(declarations, " (", declarations_pct, " ", projects_declaring_pct, ")")
   ) %>%
   gather(variable, value, -(pattern:cat)) %>%
   unite(temp, cat, variable) %>%
@@ -1429,8 +1434,10 @@ print_pattern_overview <- function(df) {
 save_pattern_tables <- function(df, pattern_names, ds_filename, cs_filename, ...) {
   save_table <- function(df, fname) {
     df %>%
-    xtable::xtable(align="llrrrr") %>%
+    xtable::xtable(align="lXrrrr") %>%
     print(
+      tabular.environment = "tabularx", 
+      width = "\\textwidth",
       floating=F,
       file=fname,
       include.rownames=F
@@ -1783,10 +1790,6 @@ print_pattern_overview(IC_fun_all_row)
 ```
 
 ```{r}
-IC_java_to_java_ds %>% select(from, from_group_id, to, to_group_id)
-```
-
-```{r}
 overview_table(
   overview_pattern(pattern_info("ICfun", "all", IC_fun_all_row)),
   overview_pattern(pattern_info("ICfun", "test", IC_fun_sum))
@@ -1794,6 +1797,29 @@ overview_table(
 ```
 
 ### Implicit Parameter (Section 5.2)
+
+```{r}
+SCALA_PRIMITIVES <- c(
+  "scala/Any#",
+  "scala/AnyRef#",
+  "scala/AnyVal#",
+  "scala/Boolean#",
+  "scala/Byte#",
+  "scala/Char#",
+  "scala/Double#",
+  "scala/Float#",
+  "scala/Int#",
+  "scala/Long#",
+  "scala/Short#",
+  "scala/StringContext#",
+  "scala/Unit#",
+  "java/lang/String#"
+)
+
+declaration_is_scala_primitive <- function(x) {
+  x %in% SCALA_PRIMITIVES
+}
+```
 
 #### Ratio of call sites that are implicits
 
@@ -1806,7 +1832,10 @@ callsites_ratio <-
     )
 
 callsites_ratio_median <- median(callsites_ratio$r)
+```
 
+
+```{r eval=F}
 callsites_ratio %>%
   ggplot(aes(x=cat, y=r, fill=cat, color=cat)) + 
 #  geom_flat_violin(width=.5, alpha=.7, lwd=.2) +
@@ -1832,16 +1861,43 @@ callsites_ratio %>%
   theme(
     aspect.ratio = 1/2,
     axis.title.y = element_blank(),
-    axis.text.y = element_text(size=11),
-    axis.text.x = element_text(size=11),
-#    axis.text.x = element_text(vjust=-1)
+    axis.text = element_text(size=11)
   ) +
   coord_flip() +
   theme_minimal()
 ```
 
-```{r}
+```{r eval=F}
 ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF)
+```
+
+Heather's version
+
+```{r}
+callsites_ratio %>%
+  ggplot(aes(x=cat, y=r, fill=cat)) +
+  geom_boxplot(alpha=.5, outlier.shape=NA, notch=TRUE, show.legend=FALSE) +
+  geom_jitter(alpha=.1, position=position_jitterdodge(jitter.width=1), aes(color=cat), show.legend=FALSE) +
+  geom_hline(yintercept=callsites_ratio_median, linetype="dashed", color="black", size=0.5) +
+  scale_fill_wsj(labels=fmt_categories) +
+  scale_color_wsj(labels=fmt_categories) +
+  scale_x_discrete(labels=fmt_categories_short) +
+  scale_y_continuous(labels=scales::percent_format(accuracy=1)) +
+  coord_flip(clip="on") +
+  theme_minimal() +
+  theme(
+    aspect.ratio = .3,
+    plot.title=element_text(size=14),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=14),
+    axis.title=element_text(size=14),
+  ) +
+  labs(x="", y="")
+```
+
+```{r}
+ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF, width=9.56, height=3.12, units="in")
+ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PNG, width=9.56, height=3.12, units="in", dpi=400)
 ```
 
 ```{r}
@@ -1876,12 +1932,12 @@ defs_overview <-
     by=c("project_id", "cat")
   ) %>%
   mutate(
-    callsites_pct=callsites/implicit_callsites
+    callsites_pct=ifelse(implicit_callsites > 0, callsites/implicit_callsites, 0)
   ) %>%
   select(project_id, pattern, cat, callsites_pct)
 ```
 
-```{r}
+```{r eval=F}
 defs_overview %>%
   mutate(cat=cat_to_fct(cat)) %>%
   ggplot(aes(x=pattern, y=callsites_pct, color=cat)) + 
@@ -1895,7 +1951,7 @@ defs_overview %>%
     position = position_dodge(.8),
     alpha=.7
   ) +
-  geom_boxplot(aes(fill=cat), width=.5, alpha=.7, lwd=.2, outlier.size=0, outlier.stroke=0, position=position_dodge(.8), color="black") +
+  geom_boxplot(aes(fill=cat), width=.5, alpha=.7, lwd=.2, outlier.size=0, outlier.stroke=0, position=position_dodge(.8), color="black", notch = TRUE) +
   scale_fill_wsj(labels=fmt_categories_short) +
   scale_x_discrete(labels=c("external"="External dependencies", "local"="Project local", "scala"="Scala standard library")) +
   scale_color_wsj() +
@@ -1911,14 +1967,44 @@ defs_overview %>%
   theme_minimal()
 ```
 
+```{r eval=F}
+ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF)
+```
+
+Heather's version
+
+```{r}
+defs_overview %>%
+  mutate(cat=cat_to_fct(cat)) %>%
+  ggplot(aes(x=pattern, y=callsites_pct, fill=cat)) +
+  geom_boxplot(alpha=.5, outlier.shape=NA, notch=TRUE) +
+  geom_jitter(alpha=.1, position=position_jitterdodge(jitter.width=0.3), aes(color=cat), show.legend=FALSE) +
+  scale_fill_wsj(labels=fmt_categories_short) +
+  scale_color_wsj() +
+  scale_x_discrete(labels=c("external"="External dependencies", "local"="Project local", "scala"="Scala standard library")) +
+  scale_y_continuous(labels=scales::percent) +
+  theme_minimal() +
+  theme(legend.position = c(0.5, 0.8), 
+        panel.grid.major.y = element_line(size = 0.25, linetype = 'solid', colour = "grey60"),
+        panel.grid.minor.y = element_line(size = 0.1, linetype = 'solid', colour = "grey80"),
+        legend.background = element_rect(color = "transparent", fill = "transparent"),
+        axis.text.x=element_text(size=12),
+        axis.text.y=element_text(size=12),
+        axis.title=element_text(size=14),
+        legend.title=element_text(size=14, face="bold"),
+        legend.text=element_text(size=14),
+  ) +
+  labs(x="", y="Ratio of implicit call sites", fill="Category")
+```
+
 ```{r}
 ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF)
+ggsave(OUT_CALLSITES_LOCATION_RATIO_PNG, dpi=400)
 ```
 
 #### Text
 
 ```{r}
-nrow(declarations_local)/2
 n_all_stars <- sum(corpus_noncat$gh_stars)
 n_all_code <- sum(corpus_noncat$scala_code)
 top200_declarations <-
@@ -1927,12 +2013,14 @@ top200_declarations <-
   top_n(200, implicit_declarations) %>%
   arrange(desc(implicit_declarations))
 
-top200_sums <- summarise_all(top200_declarations, sum)
 top200_cats <- count(top200_declarations, cat) %>% spread(cat, n)
 ```
 
 ```{r}
+cs_related_to_IP <- filter(callsites_all, def_kind=="DEF", num_implicit_arguments > 0 | (def_is_implicit & !is.na(parent_id)))
+
 overview_table(
+  r("IP in call sites pct", ratio(cs_related_to_IP, callsites_all)),
   r("IP apps in top projects", top200_cats$app_big/200),
 )
 ```
@@ -2062,29 +2150,8 @@ save_top_n_projects(IP_ds_per_project, IP_cs_per_project, path(output_dir, "IP-t
 ### Late trait (Section 5.3.1)
 
 ```{r}
-SCALA_PRIMITIVES <- c(
-  "^scala/Any#",
-  "^scala/AnyRef#",
-  "^scala/AnyVal#",
-  "^scala/Boolean#",
-  "^scala/Byte#",
-  "^scala/Char#",
-  "^scala/Double#",
-  "^scala/Float#",
-  "^scala/Int#",
-  "^scala/Long#",
-  "^scala/Short#",
-  "^scala/StringContext#",
-  "^scala/Unit#",
-  "^java/lang/String#"
-)
-
 JAVA_DATE <- c("^java/time", "^java/util/Date", "^org/joda/time")
 JAVA_IO <- c("^java/[n]?io", "^io/netty")
-
-declaration_is_scala_primitive <- function(x) {
-  x %in% SCALA_PRIMITIVES
-}
 
 is_from_to <- function(df, id) {
   filter(df, str_detect_multiple(from, id) | str_detect_multiple(to, id))
@@ -2138,6 +2205,7 @@ save_top_n_projects(EM_ds_per_project, EM_cs_per_project, path(output_dir, "EM-t
 ```
 
 ```{r}
+EM_class_over_def <- filter(pattern_extension_methods_ds, def_is_companion)
 EM_implicit_classes <- filter(pattern_extension_methods_ds, def_is_companion)
 EM_conditional <- filter(pattern_extension_methods_ds, def_num_implicit_parameters > 0)
 EM_from_to_java <- filter(pattern_extension_methods_ds, from_language=="JAVA" | to_language=="JAVA")
@@ -2146,6 +2214,8 @@ EM_from_primitive <- is_from_to(pattern_extension_methods_ds, SCALA_PRIMITIVES)
 EM_good <- filter(pattern_extension_methods_ds, def_group_id==from_group_id | def_group_id==to_group_id)
 
 overview_table(
+  r("EM class over def", EM_class_over_def),
+  r("EM class over def pct", ratio(EM_class_over_def, pattern_extension_methods_ds)),
   r("EM conditional", EM_conditional),
   r("EM conditional pct", ratio(EM_conditional, pattern_extension_methods_ds)),
   r("EM good", EM_good),
@@ -2205,13 +2275,37 @@ save_top_n_projects(CTX_ds_per_project, CTX_cs_per_project, path(output_dir, "CT
 ```
 
 ```{r}
+parameters_local_context %>% count(resolved_type_id)
+filter(parameters_local_context, resolved_type_id=="scala/Function1#")
 
+parameters_local_context_jdk <- filter(parameters_local_context, type_group_id=="JDK")
+parameters_local_context_primitive <- filter(parameters_local_context, declaration_is_scala_primitive(resolved_type_id))
+parameters_local_context_function <- filter(parameters_local_context, startsWith(resolved_type_id, "scala/Function"))
 
-
+overview_table(
+  r("CTX JDK", parameters_local_context_jdk),
+  r("CTX JDK types", count(parameters_local_context_jdk, type_id)),
+  r("CTX JDK projects", count(parameters_local_context_jdk, project_id)),
+  r("CTX primitive", parameters_local_context_primitive),
+  r("CTX primitive projects", count(parameters_local_context_primitive, project_id)),
+  r("CTX function", parameters_local_context_function),
+  r("CTX function projects", count(parameters_local_context_function, project_id)),
+)
 ```
 
+- SparkContext
+- Position
+- Prettifier
+- ActorSystem
+- Actor
+- ExecutionContext
+- compilation context
+- HTTP requests
+- Database sessions
 
-### Unrelated Implicits (Section 5.3.7)
+### Anti-pattern Conversions (Section 5.3.7)
+
+#### Unrelated
 
 ```{r}
 UIC_ds_per_project <- count(pattern_unrelated_conversions_ds, project_id)
@@ -2220,7 +2314,50 @@ UIC_declaration    <- count(pattern_unrelated_conversions_cs, def_library, decla
 save_top_n_projects(UIC_ds_per_project, UIC_cs_per_project, path(output_dir, "UIC-top-projects.tex"))
 ```
 
-### Bi-directional (Section 5.3.8)
+source or target type. Summary is in Table 15.
+There are 41K of unrelated conversions spanning across 1.1K projects. Most of them belong
+to the already mentioned slinky projects bringing React apps development to Scala. The rest is
+quite closely collocated with its source or target. If we change the query to only regard the same
+artifact then it drops too 1.1K conversions in 619 projects. There are some indication that unrelated
+conversions might be deprecated in the upcoming revision of the Scala language 12 here show, that these conversions are being defined, but they are usually in the scope of the same
+library. 
+
+From the unrelated conversions, 1.6K from 550 projects involves Scala primitive. Only a
+few convert just between primitive types and these are defined mainly in small applications. The
+rest spans both applications and libraries.
+
+```{r}
+overview_table(
+  r("UIC defined", sum(UIC_ds_per_project$n)),
+  r("UIC defined in slinky", filter(UIC_ds_per_project, project_id=="shadaj--slinky")$n),
+  r("UIC defining projects ", UIC_ds_per_project),
+  r("UIC defining projects pct", ratio(UIC_ds_per_project, corpus_noncat)),
+  r("UIC using projects ", UIC_cs_per_project),
+  r("UIC using projects pct", ratio(UIC_cs_per_project, corpus_noncat)),
+  r("UIC defined in libs", unrelated_conversions_lib_ds),
+  r("UIC defined in libs projects", count(unrelated_conversions_lib_ds, project_id))
+)
+```
+
+##### Primitive
+
+```{r}
+UIC_involving_primitive <- filter(pattern_unrelated_conversions_ds, declaration_is_scala_primitive(from) | declaration_is_scala_primitive(to))
+UIC_involving_primitive_both <- filter(UIC_involving_primitive, declaration_is_scala_primitive(from), declaration_is_scala_primitive(to))
+
+overview_table(
+  r("UIC primitive", UIC_involving_primitive),
+  r("UIC primitive projects", count(UIC_involving_primitive, project_id)),
+  r("UIC from primitive", filter(UIC_involving_primitive, declaration_is_scala_primitive(from))),
+  r("UIC to primitive", filter(UIC_involving_primitive, declaration_is_scala_primitive(to))),
+  r("UIC both primitive", UIC_involving_primitive_both),
+  r("UIC both primitive projects", count(UIC_involving_primitive_both, project_id))
+)
+```
+
+- Most are string and ints
+
+#### Bi-directional
 
 ```{r}
 BIC_ds_per_project <- count(pattern_bi_directional_ds, project_id)
@@ -2229,9 +2366,49 @@ BIC_declaration    <- count(pattern_bi_directional_cs, def_library, declaration_
 save_top_n_projects(BIC_ds_per_project, BIC_cs_per_project, path(output_dir, "BIC-top-projects.tex"))
 ```
 
+```{r}
+overview_table(
+  r("BIC defined", sum(BIC_ds_per_project$n)),
+  r("BIC defining projects", BIC_ds_per_project),
+  r("BIC defining projects pct", ratio(BIC_ds_per_project, corpus_noncat)),
+  r("BIC using projects", BIC_cs_per_project),
+  r("BIC using projects pct", ratio(BIC_cs_per_project, corpus_noncat)),
+)
+```
+
+- From Java / to Java version of the API (Akka, Spark)
+- DSL onstructs
+  - using a tuple to represent a cell
+  - lifting from / to Options
+- converting between dates
+
+```{r}
+overview_table(
+  r("BIC from or to primitives", filter(pattern_bi_directional_ds, declaration_is_scala_primitive(from))),
+  r("BIC from and to primitives", filter(pattern_bi_directional_ds, declaration_is_scala_primitive(from), declaration_is_scala_primitive(to)))
+)
+```
+
+Projects using WrapAs / DecorateAs
+
+```{r}
+BIC_decorate_as <- filter(callsites_all, startsWith(declaration_id, "scala/collection/convert/DecorateAs")) %>% count(project_id)
+BIC_wrap_as <- filter(callsites_all, startsWith(declaration_id, "scala/collection/convert/WrapAs")) %>% count(project_id)
+BIC_projects_using_both <- filter(corpus_cat, cat!="test") %>% semi_join(semi_join(BIC_wrap_as, BIC_decorate_as, by="project_id"), by="project_id")
+
+overview_table(
+  r("BIC projects using decorate as", BIC_decorate_as),
+  r("BIC projects using decorate as pct", ratio(BIC_decorate_as, corpus_noncat)),
+  r("BIC projects using wrap as", BIC_wrap_as),
+  r("BIC projects using wrap as pct", ratio(BIC_wrap_as, corpus_noncat)),
+  r("BIC projects using both", BIC_projects_using_both)
+)
+```
+
+
 ### Implicit Not Found
 
-```{r pattern custom error, eval=F}
+```{r pattern custom error}
 match_implicit_not_found <- function(df) {
   filter(df, str_detect(type_annotations, "scala/annotation/implicitNotFound#"))
 }
@@ -2246,41 +2423,6 @@ overview_table(
   r("implicit not found projects", implicit_not_found_projects)
 )
 ```
-
-### Unrelated Conversions
-
-#### Primitive
-
-For the top most ones!
-
-% projects using
-% projects definining
-% defintions
-% usage
-
-```{r}
-SCALA_PRIMITIVES <- c(
-  "scala/Any#",
-  "scala/AnyRef#",
-  "scala/AnyVal#",
-  "scala/Boolean#",
-  "scala/Byte#",
-  "scala/Char#",
-  "scala/Double#",
-  "scala/Float#",
-  "scala/Int#",
-  "scala/Long#",
-  "scala/Short#",
-  "scala/StringContext#",
-  "scala/Unit#",
-  "java/lang/String#"
-)
-
-declaration_is_scala_primitive <- function(x) {
-  x %in% SCALA_PRIMITIVES
-}
-```
-
 
 #### From Java / To Java
 
@@ -2311,7 +2453,7 @@ overview_table(
 ```
 
 ```{r}
-filter(pattern_implicit_conversions_ds, from_language=="JAVA", to_language=="JAVA") %>% View()
+filter(pattern_implicit_conversions_ds, from_language=="JAVA", to_language=="JAVA")
 IC_from_java <- 
   filter(pattern_implicit_conversions_ds, from_language=="JAVA") %>% 
   select(declaration_id=from, group_id=from_group_id, artifact_id=from_artifact_id)
@@ -2368,7 +2510,12 @@ decl_w_params <-
     #coord_cartesian(xlim = c(1, M)) + 
     scale_x_continuous(breaks = seq(0,M,BW), labels = seq(0,M,BW)) +
     scale_y_log10(labels=scales::comma) +
-    theme(aspect.ratio = 2/1) +
+    theme_minimal() +
+    theme(
+      aspect.ratio = 2/1,
+      axis.text=element_text(size=11),
+      axis.title=element_text(size=14)
+    ) +
     labs(
       x="Number of implicit parameters",
       y="Number of declarations (log)"
@@ -2378,7 +2525,7 @@ decl_w_params <-
 ```
 
 ```{r}
-ggsave(path(output_dir, "hist-impl-parameters.pdf"))
+ggsave(path(output_dir, "hist-impl-parameters.pdf"), width=4.49, height=7.85, unit="in")
 ```
 
 ```{r}
@@ -2399,7 +2546,12 @@ decl_w_chain %>%
   stat_bin(binwidth=BW, center=0, aes(label=scales::percent(..count../N), y=..count..), geom="text", vjust=.5, hjust=1.5, color="black", angle=90) +
   scale_x_continuous(breaks = seq(0,M,BW), labels = seq(0,M,BW)) +
   scale_y_log10(labels=scales::comma) +
-  theme(aspect.ratio = 2/1) +
+  theme_minimal() +
+  theme(
+    aspect.ratio = 2/1,
+    axis.text=element_text(size=11),
+    axis.title=element_text(size=14)
+  ) +
   labs(
     x="Number of all injected arguments including all nested calls",
     y="Number of call sites (log)"
@@ -2409,7 +2561,7 @@ decl_w_chain %>%
 ```
 
 ```{r}
-ggsave(path(output_dir, "hist-nested-arguments.pdf"))
+ggsave(path(output_dir, "hist-nested-arguments.pdf"), width=4.61, height=7.85, unit="in")
 ```
 
 ### Section 5.3
