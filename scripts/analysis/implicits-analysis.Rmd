@@ -851,7 +851,7 @@ local({
 ```
 
 ```{r save implicits overview plot}
-ggsave(OUT_IMPLICITS_OVERVIEW_PDF)
+ggsave(OUT_IMPLICITS_OVERVIEW_PDF, device=cairo_pdf)
 ```
 
 ### Summary
@@ -1868,7 +1868,7 @@ callsites_ratio %>%
 ```
 
 ```{r eval=F}
-ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF)
+ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF, device=cairo_pdf)
 ```
 
 Heather's version
@@ -1886,18 +1886,16 @@ callsites_ratio %>%
   coord_flip(clip="on") +
   theme_minimal() +
   theme(
-    aspect.ratio = .3,
-    plot.title=element_text(size=14),
+    aspect.ratio=.3,
     axis.text.x=element_text(size=12),
-    axis.text.y=element_text(size=14),
-    axis.title=element_text(size=14),
+    axis.text.y=element_text(size=14)
   ) +
   labs(x="", y="")
 ```
 
 ```{r}
-ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF, width=9.56, height=3.12, units="in")
-ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PNG, width=9.56, height=3.12, units="in", dpi=400)
+ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PDF, width=9.56, height=3.12, units="in", device=cairo_pdf)
+ggsave(OUT_IMPLICIT_CALLSITES_RATIO_PNG, width=9.56, height=3.12, units="in", dpi=400, device=cairo_pdf)
 ```
 
 ```{r}
@@ -1968,7 +1966,7 @@ defs_overview %>%
 ```
 
 ```{r eval=F}
-ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF)
+ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF, device=cairo_pdf)
 ```
 
 Heather's version
@@ -1990,16 +1988,16 @@ defs_overview %>%
         legend.background = element_rect(color = "transparent", fill = "transparent"),
         axis.text.x=element_text(size=12),
         axis.text.y=element_text(size=12),
-        axis.title=element_text(size=14),
-        legend.title=element_text(size=14, face="bold"),
-        legend.text=element_text(size=14),
+        axis.title=element_text(size=12),
+        legend.title=element_text(size=12, face="bold"),
+        legend.text=element_text(size=12),
   ) +
   labs(x="", y="Ratio of implicit call sites", fill="Category")
 ```
 
 ```{r}
-ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF)
-ggsave(OUT_CALLSITES_LOCATION_RATIO_PNG, dpi=400)
+ggsave(OUT_CALLSITES_LOCATION_RATIO_PDF, device=cairo_pdf)
+ggsave(OUT_CALLSITES_LOCATION_RATIO_PNG, dpi=400, device=cairo_pdf)
 ```
 
 #### Text
@@ -2525,7 +2523,7 @@ decl_w_params <-
 ```
 
 ```{r}
-ggsave(path(output_dir, "hist-impl-parameters.pdf"), width=4.49, height=7.85, unit="in")
+ggsave(path(output_dir, "hist-impl-parameters.pdf"), width=4.49, height=7.85, unit="in", device=cairo_pdf)
 ```
 
 ```{r}
@@ -2561,7 +2559,7 @@ decl_w_chain %>%
 ```
 
 ```{r}
-ggsave(path(output_dir, "hist-nested-arguments.pdf"), width=4.61, height=7.85, unit="in")
+ggsave(path(output_dir, "hist-nested-arguments.pdf"), width=4.61, height=7.85, unit="in", device=cairo_pdf)
 ```
 
 ### Section 5.3

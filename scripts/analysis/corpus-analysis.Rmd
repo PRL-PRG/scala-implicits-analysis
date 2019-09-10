@@ -456,7 +456,7 @@ corpus %>%
 ```
 
 ```{r save corpus overview plot}
-ggsave(OUT_CORPUS_OVERVIEW_PDF, width = 9.88, height = 7.93)
+ggsave(OUT_CORPUS_OVERVIEW_PDF, width=9.88, height=7.93, device=cairo_pdf)
 ```
 
 ### TOP projects
