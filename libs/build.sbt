@@ -83,7 +83,8 @@ lazy val tools = (project in file("tools"))
       "org.scalameta" %% "testkit" % ScalametaVersion % Test,
       "org.scalameta" % ("metac_" + scalaVersion.value) % ScalametaVersion,
       "org.scalameta" % ("interactive_" + scalaVersion.value) % ScalametaVersion,
-      "org.scalameta" % ("semanticdb-scalac_" + scalaVersion.value) % ScalametaVersion
+      "org.scalameta" % ("semanticdb-scalac_" + scalaVersion.value) % ScalametaVersion,
+      "org.neo4j" % "neo4j" % "4.0.0"
     ),
     libraryDependencies += BetterFiles,
     buildInfoPackage := "cz.cvut.fit.prl.scala.implicits.utils",
