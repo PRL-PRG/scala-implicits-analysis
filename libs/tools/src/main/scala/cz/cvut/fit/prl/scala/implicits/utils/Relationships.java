@@ -4,10 +4,12 @@ import org.neo4j.graphdb.RelationshipType;
 
 public enum Relationships implements RelationshipType {
     LOCATED_IN,
-    HAS_DECLARATION,
-    HAS_ARTIFACT,
+    DECLARES,
+    DECLARED_BY,
     HAS_VERSION,
     HAS_MODULE,
     HAS_CALLSITE,
+    GROUP_ARTIFACT,
+    ARTIFACT_DECLARATION,
     HAS_PATH
 }

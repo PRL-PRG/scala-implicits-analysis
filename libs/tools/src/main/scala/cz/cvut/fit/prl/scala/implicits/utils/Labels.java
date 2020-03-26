@@ -12,5 +12,7 @@ public enum Labels implements Label {
     Library,
     Classpath,
     Module,
-    CallSite
+    CallSite,
+    Artifact,
+    Group
 }

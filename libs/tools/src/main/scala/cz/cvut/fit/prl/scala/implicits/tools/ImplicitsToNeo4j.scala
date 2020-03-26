@@ -66,13 +66,13 @@ class Converter(transaction: Transaction) {
 
   import Converter._
 
-  // TODO: this is not necessary - perhaps better is to have them separated by project
-  // to avoid supernode (or densenode) situation -- need to be tested.
-  val libraryGroupNodes = TrieMap.empty[String, Node]
-  // (libraryGroupNode -> Version) -> libraryNode
-  val libraryNodes = TrieMap.empty[(Node, String), Node]
-  // (libraryNode -> Version) -> classpathNode
-  val classpathNodes = TrieMap.empty[(Node, String), Node]
+//  // TODO: this is not necessary - perhaps better is to have them separated by project
+//  // to avoid supernode (or densenode) situation -- need to be tested.
+//  val libraryGroupNodes = TrieMap.empty[String, Node]
+//  // (libraryGroupNode -> Version) -> libraryNode
+//  val libraryNodes = TrieMap.empty[(Node, String), Node]
+//  // (libraryNode -> Version) -> classpathNode
+//  val classpathNodes = TrieMap.empty[(Node, String), Node]
 
 
 //  def createLibrary(libraryGroupNode: Node, artifactId: String): Node = {
@@ -84,11 +84,42 @@ class Converter(transaction: Transaction) {
 //  }
 
   def createDeclarationNode(declaration: Declaration): Node = {
-    val declarationNode = transaction.createNode(Labels.Declaration)
-    //declaration.annotations
+    // TODO create conections for language, kind, access
+    val properties = Map("declarationId" -> declaration.declarationId,
+      "name" -> declaration.name,
+      "properties" -> declaration.properties)
+    createNode(Labels.Declaration, properties)
+  }
+  // Gets declaration node, if it is available or creates new one with the connection to the artifactId and groupId
+  def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String): Node = {
+
+    val declarationNodeOpt = transaction.findNodes(Labels.Declaration, "declarationId", declaration.declarationId).stream()
+      .findFirst()
+
+    if (declarationNodeOpt.isPresent)
+      return declarationNodeOpt.get()
+
+    val declarationNode = createDeclarationNode(declaration)
+
+    val artifactNodeOpt = transaction.findNodes(Labels.Artifact, "artifactId", artifactId).stream()
+      .findFirst()
+
+    if (artifactNodeOpt.isPresent) {
+      artifactNodeOpt.get().createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
+      return declarationNode
+    }
+
+    val artifactNode = createNode(Labels.Artifact, Map("artifactId" -> artifactId))
+    artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
+
+    val groupNode = mergeNode(Labels.Group, Map("groupId" -> groupId))
+
+    groupNode.createRelationshipTo(artifactNode, Relationships.GROUP_ARTIFACT)
 
     declarationNode
   }
+
+
   // more types of call sites, solve it buy groupId?
   def createCallSiteNode(callSite: CallSite): Node = {
   // TODO resolve parent callSite (callSite hiearchy)?
@@ -98,23 +129,22 @@ class Converter(transaction: Transaction) {
     callSiteNode
   }
 
-  // What label and relation ship name should be used for childs of PathEntry? How should this inheritance should be dealt with?
-  // They should be dealt with different way
-  def createPathNode(pathEntry: PathEntry): Node = {
-    val pathProperties: Map[String, Object] = pathEntry match {
-//        Converting scala types to java object
-//      case SourcepathEntry(path, scope, managed) => Map("path" -> path, "scope" -> scope, "managed" -> managed)
+//  // What label and relation ship name should be used for childs of PathEntry? How should this inheritance should be dealt with?
+//  def createPathNode(pathEntry: PathEntry): Node = {
+//    val pathProperties: Map[String, Object] = pathEntry match {
+////        Converting scala types to java object
+////      case SourcepathEntry(path, scope, managed) => Map("path" -> path, "scope" -> scope, "managed" -> managed)
+////      case ClasspathEntry(path, groupId, artifactId, scope, internal, managed, version, transitive) =>
+////        Map("path" -> path, "scope" -> scope, "managed" -> managed, "groupId" -> groupId,
+////          "artifactId" -> artifactId, "internal" -> internal, "version" -> version, "transitive" -> transitive)
+//      case SourcepathEntry(path, scope, managed) => Map("path" -> path, "scope" -> scope)
 //      case ClasspathEntry(path, groupId, artifactId, scope, internal, managed, version, transitive) =>
-//        Map("path" -> path, "scope" -> scope, "managed" -> managed, "groupId" -> groupId,
-//          "artifactId" -> artifactId, "internal" -> internal, "version" -> version, "transitive" -> transitive)
-      case SourcepathEntry(path, scope, managed) => Map("path" -> path, "scope" -> scope)
-      case ClasspathEntry(path, groupId, artifactId, scope, internal, managed, version, transitive) =>
-        Map("path" -> path, "scope" -> scope, "groupId" -> groupId,
-          "artifactId" -> artifactId, "internal" -> internal)
-      case _ => Map()
-    }
-    mergeNode(Labels.Path, pathProperties)
-  }
+//        Map("path" -> path, "scope" -> scope, "groupId" -> groupId,
+//          "artifactId" -> artifactId, "internal" -> internal)
+//      case _ => Map()
+//    }
+//    mergeNode(Labels.Path, pathProperties)
+//  }
 
   def createModuleNode(module: Module): Node = {
     val moduleProperties = Map(("moduleId", module.moduleId), ("groupId", module.groupId),
@@ -123,20 +153,34 @@ class Converter(transaction: Transaction) {
 
     val moduleNode = createNode(Labels.Module, moduleProperties)
 
-    module.declarations.foreach(declarationTuple => {
-      val (_, declaration) = declarationTuple
-      val declarationNode = createDeclarationNode(declaration)
-      moduleNode.createRelationshipTo(declarationNode, Relationships.HAS_DECLARATION)
-    })
     module.implicitCallSites.foreach(callSite => {
       val callSiteNode = createCallSiteNode(callSite)
       moduleNode.createRelationshipTo(callSiteNode, Relationships.HAS_CALLSITE)
-    })
 
-    module.paths.foreach(pathTuple => {
-      val (_, path) = pathTuple
-      val pathNode = createPathNode(path)
-      moduleNode.createRelationshipTo(pathNode, Relationships.HAS_PATH)
+      val declaration : Declaration = module.declarations(callSite.declarationId)
+
+      // TODO path needs to be adjusted somehow
+      val path = declaration.location.path
+      val entryPath = module.paths.get(declaration.location.path)
+
+      if (entryPath.isEmpty) {
+        println(s"Path $path does not match any paths")
+      }
+      else {
+        // TODO - create some nodes from paths? Or should they be ignored?
+        val declarationNode = entryPath.get match {
+          case ClasspathEntry(_, groupId, artifactId, _, _, _, _, _) => {
+            mergeDeclarationNode(declaration, artifactId, groupId)
+          }
+          case SourcepathEntry(_, _, _) => {
+            val declNode = mergeDeclarationNode(declaration, module.artifactId, module.groupId)
+            moduleNode.createRelationshipTo(declNode, Relationships.DECLARES)
+            declNode
+          }
+          case _ => throw new IllegalArgumentException("No path found - is ensured, it wont come to here!")
+        }
+        callSiteNode.createRelationshipTo(declarationNode, Relationships.DECLARED_BY)
+      }
     })
 
     moduleNode
@@ -152,9 +196,9 @@ class Converter(transaction: Transaction) {
       projectNode.createRelationshipTo(moduleNode, Relationships.HAS_MODULE)
     })
 
-
     projectNode
   }
+
 
   private def mergeNode(label: Labels, properties: Map[String, Object]): Node =
     transaction.findNodes(label, properties.asJava).stream()
@@ -236,13 +280,6 @@ object ImplicitsToNeo4j extends App {
         )
       )
 
-
-//        testing insertions
-      val nodes: ResourceIterable[Node] = transaction.getAllNodes
-      println("Project nodes:")
-      nodes.stream().filter(node => node.hasLabel(Labels.Project)).forEach(node =>
-      println(s"node: firstLabel- ${node.getLabels.iterator.next}, properties - ${node.getAllProperties}"))
-      println(s"node count = ${nodes.stream().count()}")
 
       transaction.commit()
     } catch {
