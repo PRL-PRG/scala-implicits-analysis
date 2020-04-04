@@ -14,5 +14,14 @@ public enum Labels implements Label {
     Module,
     CallSite,
     Artifact,
-    Group
+    Group,
+    Language,
+    Access,
+    DeclarationType,
+    Signature,
+    SignatureType,
+    TypeReference,
+    Parameter,
+    ParameterList,
+    Implicit
 }
