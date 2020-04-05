@@ -93,7 +93,7 @@ class Converter(transaction: Transaction) {
     val signatureNode = createNode(Labels.Signature)
 
     signature match {
-      case MethodSignature(typeParameters, parameterLists, returnType) => {
+      case MethodSignature(typeParameters, parameterLists, returnType) =>
         addSignatureType(signatureNode, "method")
 
         typeParameters.foreach(param => {
@@ -120,8 +120,7 @@ class Converter(transaction: Transaction) {
 
         val returnTypeNode = mergeTypeReferenceNode(returnType)
         signatureNode.createRelationshipTo(returnTypeNode, Relationships.RETURN_TYPE)
-      }
-      case ClassSignature(typeParameters, parents) => {
+      case ClassSignature(typeParameters, parents) =>
         addSignatureType(signatureNode, "class")
 
         typeParameters.foreach(param => {
@@ -133,8 +132,7 @@ class Converter(transaction: Transaction) {
           val parentNode = mergeTypeReferenceNode(parent)
           signatureNode.createRelationshipTo(parentNode, Relationships.PARENT)
         })
-      }
-      case TypeSignature(typeParameters, upperBound, lowerBound) => {
+      case TypeSignature(typeParameters, upperBound, lowerBound) =>
         addSignatureType(signatureNode, "type")
 
         typeParameters.foreach(param => {
@@ -151,14 +149,12 @@ class Converter(transaction: Transaction) {
           val upperBoundNode = mergeTypeReferenceNode(lowerBound.get)
           signatureNode.createRelationshipTo(upperBoundNode, Relationships.LOWER_BOUND)
         }
-      }
-      case ValueSignature(tpe) => {
+      case ValueSignature(tpe) =>
         addSignatureType(signatureNode, "value")
 
         val valueTypeNode = mergeTypeReferenceNode(tpe)
 
         signatureNode.createRelationshipTo(valueTypeNode, Relationships.TYPE)
-      }
       case _ => throw new IllegalArgumentException("Unexpected signature type")
     }
 
@@ -228,6 +224,8 @@ class Converter(transaction: Transaction) {
   }
 
   private def connectDeclaration(declaration: Declaration, declarationNode: Node): Unit = {
+    if (declarationNode.hasRelationship(Direction.OUTGOING, Relationships.DECLARATION_SIGNATURE))
+      return
     val signatureNode = createSignatureNode(declaration.signature)
     declarationNode.createRelationshipTo(signatureNode, Relationships.DECLARATION_SIGNATURE)
 
@@ -333,10 +331,9 @@ class Converter(transaction: Transaction) {
 
   private def connectCallSite(callSite: CallSite, callSiteNode: Node, callSiteTuples: mutable.Map[Int, (CallSite, Node)]): Unit = {
     callSite.implicitArgumentTypes.foreach {
-      case ValueRef(declarationId) => {
+      case ValueRef(declarationId) =>
         val declarationNode = mergeDeclarationNodeWrapper(moduleContext.get.declarations(declarationId))
         callSiteNode.createRelationshipTo(declarationNode, Relationships.IMPLICIT_VALUEREF)
-      }
       case CallSiteRef(callsiteId) =>
         callSiteNode.createRelationshipTo(callSiteTuples(callsiteId)._2, Relationships.IMPLICIT_CALLSITEREF)
       case _ => throw new IllegalArgumentException("Unknown implicit argument found")
@@ -372,12 +369,10 @@ class Converter(transaction: Transaction) {
 
     // TODO - create some nodes from paths? Or should they be ignored?
     entryPath match {
-      case ClasspathEntry(_, groupId, artifactId, _, _, _, _, _) => {
+      case ClasspathEntry(_, groupId, artifactId, _, _, _, _, _) =>
         mergeDeclarationNode(declaration, artifactId, groupId)
-      }
-      case SourcepathEntry(_, _, _) => {
+      case SourcepathEntry(_, _, _) =>
         mergeDeclarationNode(declaration, module.artifactId, module.groupId)
-      }
       case _ => throw new IllegalArgumentException("No path \"" + path + "\" found! ")
     }
   }
@@ -437,12 +432,12 @@ class Converter(transaction: Transaction) {
   private def mergeNode(label: Labels, properties: Map[String, Object]): Node =
     transaction.findNodes(label, properties.asJava).stream()
       .findFirst()
-      .orElse(createNode(label, properties))
+      .orElseGet(() => createNode(label, properties))
 
   private def mergeNode(label:Labels): Node =
     transaction.findNodes(label).stream()
       .findFirst()
-      .orElse(createNode(label))
+      .orElseGet(() => createNode(label))
 
   private def createNode(label: Labels, properties: Map[String, Any]): Node =
     setNodeProperties(transaction.createNode(label), properties)
