@@ -16,6 +16,7 @@ import scala.collection.mutable
 
 class Converter(transaction: Transaction) {
 
+  // Avoids passing module node and module entity through every function
   var currentModuleNode: Option[Node] = None
   var moduleContext: Option[Module] = None
 
@@ -47,9 +48,9 @@ class Converter(transaction: Transaction) {
           })
           signatureNode.createRelationshipTo(parameterListNode, Relationships.HAS_PARAMETERLIST)
         })
-
         val returnTypeNode = mergeTypeReferenceNode(returnType)
         signatureNode.createRelationshipTo(returnTypeNode, Relationships.RETURN_TYPE)
+
       case ClassSignature(typeParameters, parents) =>
         addSignatureType(signatureNode, "class")
 
@@ -118,7 +119,6 @@ class Converter(transaction: Transaction) {
     }
   }
 
-
   // Declaration is not unique in the whole scope - groupId and artifactId could be added to ensure the uniqueness
   // but it is good enough for most purposes and is more performing
   private def getTypeExpression(typeArgument: TypeRef): String = {
@@ -128,10 +128,6 @@ class Converter(transaction: Transaction) {
       val typeArguments = typeArgument.typeArguments.map(getTypeExpression).mkString("[",",","]")
       declarationId + typeArguments
     }
-  }
-
-  private def getDeclarationById(declarationId: String): Declaration = {
-    moduleContext.get.declarations(declarationId)
   }
 
   private def createDeclarationNode(declaration: Declaration): Node = {
@@ -268,8 +264,8 @@ class Converter(transaction: Transaction) {
       case _ => throw new IllegalArgumentException("Unknown implicit argument found")
     }
 
-    // Some callsites with parent Ids do not exist -
     callSite.parentId.fold{}{parentId =>
+      // Some callsites with parent Ids do not exist!
       callSiteTuples.get(parentId).fold{}{
         case (_, parentNode) => callSiteNode.createRelationshipTo(parentNode, Relationships.PARENT)
       }
@@ -278,7 +274,7 @@ class Converter(transaction: Transaction) {
   }
 
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
-    // TODO Does path needs to be adjusted somehow?
+    // TODO Does path needs to be somehow adjusted?
     val path = fromRelativePath(declaration.location.path)
     val module = moduleContext.get
     val entryPath = module.paths(path)
