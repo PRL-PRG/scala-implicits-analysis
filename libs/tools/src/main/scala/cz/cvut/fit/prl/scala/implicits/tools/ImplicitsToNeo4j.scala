@@ -9,6 +9,7 @@ import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, PathEntry, Position, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
 import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.model.Util._
+import cz.cvut.fit.prl.scala.implicits.tools.neo4j.ImplicitType
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
 import org.neo4j.graphdb.{Direction, GraphDatabaseService, Node, Relationship, RelationshipType, ResourceIterable, ResourceIterator, Transaction}
 
@@ -107,7 +108,7 @@ class Converter(transaction: Transaction) {
             val parameterNode = createNode(Labels.Parameter, Map("name" -> parameter.name))
             // TODO how to use the implicit flag? One super node of all implicits
             if (parameter.isImplicit) {
-              mergeIsImplicitNode().createRelationshipTo(parameterNode, Relationships.IMPLICIT_PARAMETER)
+              parameterNode.addLabel(Labels.Implicit)
             }
 
             val parameterTypeNode = mergeTypeReferenceNode(parameter.tpe)
@@ -161,9 +162,8 @@ class Converter(transaction: Transaction) {
     signatureNode
   }
 
-  private def mergeIsImplicitNode(): Node = {
-    mergeNode(Labels.Implicit)
-  }
+  private def mergeImplicitTypeNode(implicitType: ImplicitType.Value): Node =
+    mergeNode(Labels.ImplicitType, Map("type" -> implicitType.toString))
 
   private def addSignatureType(signatureNode: Node, signatureType: String): Unit = {
     val signatureTypeNode = mergeNode(Labels.SignatureType, Map("name" -> signatureType))
@@ -305,10 +305,8 @@ class Converter(transaction: Transaction) {
 
 
   private def createCallSiteNode(callSite: CallSite): Node = {
-  // TODO resolve parent callSite (callSite hierarchy)?
     // TODO remove callSiteId?
-    // TODO add implicit arguments
-    // TODO add type arguments
+
     val properties = Map(("callSiteId", callSite.callSiteId), ("code", callSite.code))
     val callSiteNode = createNode(Labels.CallSite, properties)
 
@@ -317,8 +315,10 @@ class Converter(transaction: Transaction) {
       callSiteNode.createRelationshipTo(typeArgumentNode, Relationships.TYPE_ARGUMENT)
     })
 
+    val implicitType = if (callSite.implicitArgumentTypes.isEmpty && callSite.parentId.isEmpty)
+      ImplicitType.Conversion else ImplicitType.ParameterCompletion
 
-
+    callSiteNode.createRelationshipTo(mergeImplicitTypeNode(implicitType), Relationships.IMPLICIT_TYPE)
 
     val declaration = moduleContext.get.declarations(callSite.declarationId)
     val declarationNode = mergeDeclarationNodeWrapper(declaration)
@@ -339,8 +339,12 @@ class Converter(transaction: Transaction) {
       case _ => throw new IllegalArgumentException("Unknown implicit argument found")
     }
 
+    // Some callsites with parent Ids do not exist -
     callSite.parentId.fold{}{parentId =>
-      callSiteNode.createRelationshipTo(callSiteTuples(parentId)._2, Relationships.PARENT)
+      callSiteTuples.get(parentId).fold{}{
+        case (_, parentNode) => callSiteNode.createRelationshipTo(parentNode, Relationships.PARENT)
+      }
+
     }
   }
 
@@ -482,10 +486,10 @@ object ImplicitsToNeo4j extends App {
   def run(): Unit = {
     val DEFAULT_DB_NAME = "neo4j"
     val corporaDir = "/home/panpuncocha/skola/bt/pipelineTest/OOPSLA19-artifact/corpora/"
-//    val projectDir = corporaDir + "2-single"
-//    val implicitsBinRelPath = "/implicits.bin"
-    val projectDir = corporaDir + "1-example"
-    val implicitsBinRelPath = "/_analysis_/implicits.bin"
+    val projectDir = corporaDir + "2-single"
+    val implicitsBinRelPath = "/implicits.bin"
+//    val projectDir = corporaDir + "1-example"
+//    val implicitsBinRelPath = "/_analysis_/implicits.bin"
 
     val implicitsPath = projectDir + implicitsBinRelPath
 

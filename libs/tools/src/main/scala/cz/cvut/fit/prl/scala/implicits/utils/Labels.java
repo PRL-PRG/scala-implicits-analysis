@@ -23,5 +23,6 @@ public enum Labels implements Label {
     TypeReference,
     Parameter,
     ParameterList,
-    Implicit
+    Implicit,
+    ImplicitType
 }

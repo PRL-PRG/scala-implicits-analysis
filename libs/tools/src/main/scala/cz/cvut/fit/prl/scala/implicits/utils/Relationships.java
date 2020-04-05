@@ -25,7 +25,7 @@ public enum Relationships implements RelationshipType {
     RETURN_TYPE,
     HAS_PARAMETERLIST,
     HAS_PARAMETER,
-    IMPLICIT_PARAMETER,
+    IMPLICIT_TYPE,
     IN_LANGUAGE,
     TYPE_ARGUMENT,
     ANNOTATION,
