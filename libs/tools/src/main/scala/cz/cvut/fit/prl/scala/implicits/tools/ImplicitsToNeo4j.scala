@@ -1,92 +1,21 @@
 package cz.cvut.fit.prl.scala.implicits.tools
 
-import java.io.{FileInputStream, FileOutputStream}
-import java.util
-import java.util.Optional
 import java.util.stream.StreamSupport
 
 import better.files.File
-import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, PathEntry, Position, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
-import cz.cvut.fit.prl.scala.implicits.utils._
 import cz.cvut.fit.prl.scala.implicits.model.Util._
+import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
 import cz.cvut.fit.prl.scala.implicits.tools.neo4j.ImplicitType
+import cz.cvut.fit.prl.scala.implicits.utils._
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
-import org.neo4j.graphdb.{Direction, GraphDatabaseService, Node, Relationship, RelationshipType, ResourceIterable, ResourceIterator, Transaction}
+import org.neo4j.graphdb.{Direction, GraphDatabaseService, Node, Transaction}
 
 import scala.collection.JavaConverters._
-import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
-import scala.runtime.Nothing$
-import scala.util.Try
 
-//case class Library(groupId: String, artifactId: String, version: String)
-//
-//// TODO: support for scala versions
-//// TODO: support for projects references
-//// TODO: support for JDK
-//// TODO: support for maven
-//object Library {
-//  // library paths in Ivy are like
-//  // .../.ivy/cache/org.scala-lang/scala-library/jars/scala-library-2.12.6.jar
-//  private val LibraryRegex = "/([^/]+)/(jars|bundles)/([^/]+)-([^/]+)\\.jar$".r
-//
-//  def apply(path: String): Option[Library] =
-//    LibraryRegex
-//      .findFirstMatchIn(path)
-//      .map(x => Library(x.group(1), x.group(3), x.group(4)))
-//
-//  def unapply(path: String): Option[(String, String, String, String)] =
-//    apply(path)
-//      .map(x => (x.groupId, x.artifactId, x.version, path))
-//}
-
-object Converter {
-
-  implicit class ProjectOps(project: Project) {
-
-    def githubUrl: String =
-      project.projectId.split("--").mkString("http://github.com/", "/", "")
-  }
-
-  implicit class PathOps(path: String) {
-
-    def projectRelative(projectId: String): String =
-      path.substring(path.indexOf(projectId) + projectId.length + 1)
-
-//    def library: Option[Library] = Library(path)
-  }
-
-  implicit class NodeOps(node: Node) {
-
-    def children(
-        relationshipType: RelationshipType,
-        p: Relationship => Boolean): List[Relationship] = {
-      node.getRelationships(relationshipType).iterator().asScala.filter(p).toList
-    }
-  }
-
-}
 
 class Converter(transaction: Transaction) {
 
-  import Converter._
-
-//  // TODO: this is not necessary - perhaps better is to have them separated by project
-//  // to avoid supernode (or densenode) situation -- need to be tested.
-//  val libraryGroupNodes = TrieMap.empty[String, Node]
-//  // (libraryGroupNode -> Version) -> libraryNode
-//  val libraryNodes = TrieMap.empty[(Node, String), Node]
-//  // (libraryNode -> Version) -> classpathNode
-//  val classpathNodes = TrieMap.empty[(Node, String), Node]
-
-
-//  def createLibrary(libraryGroupNode: Node, artifactId: String): Node = {
-//    val node = transaction.createNode(Labels.Library)
-//    node.setProperty("artifactId", artifactId)
-//    // TODO: should be the other way around
-//    libraryGroupNode.createRelationshipTo(node, Relationships.HAS_ARTIFACT)
-//    node
-//  }
   var currentModuleNode: Option[Node] = None
   var moduleContext: Option[Module] = None
 
@@ -239,7 +168,9 @@ class Converter(transaction: Transaction) {
   // Gets declaration node, if it is available or creates new one with the connection to the artifactId and groupId
   // Could be simplified by creating all groupIds and artifacts beforehand
   // TODO Edit - at least create sub-functions
-  // TODO refactor java stream to scala iterator
+  // TODO refactor java stream to scala iterator - conversion cost?
+  // TODO Module declares Declaration relationShip wont be ever created in case module does not declare this declaration
+  //  - Is this relation necessary? This relation-ship is already present in form of artifact relation
   private def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String): Node = {
     val module = moduleContext.get
     val groupNodeOpt = transaction.findNodes(Labels.Group, "groupId", groupId).stream()
@@ -303,10 +234,8 @@ class Converter(transaction: Transaction) {
     }
   }
 
-
   private def createCallSiteNode(callSite: CallSite): Node = {
     // TODO remove callSiteId?
-
     val properties = Map(("callSiteId", callSite.callSiteId), ("code", callSite.code))
     val callSiteNode = createNode(Labels.CallSite, properties)
 
@@ -348,30 +277,13 @@ class Converter(transaction: Transaction) {
     }
   }
 
-//  // What label and relation ship name should be used for childs of PathEntry? How should this inheritance should be dealt with?
-//  def createPathNode(pathEntry: PathEntry): Node = {
-//    val pathProperties: Map[String, Object] = pathEntry match {
-////        Converting scala types to java object
-////      case SourcepathEntry(path, scope, managed) => Map("path" -> path, "scope" -> scope, "managed" -> managed)
-////      case ClasspathEntry(path, groupId, artifactId, scope, internal, managed, version, transitive) =>
-////        Map("path" -> path, "scope" -> scope, "managed" -> managed, "groupId" -> groupId,
-////          "artifactId" -> artifactId, "internal" -> internal, "version" -> version, "transitive" -> transitive)
-//      case SourcepathEntry(path, scope, managed) => Map("path" -> path, "scope" -> scope)
-//      case ClasspathEntry(path, groupId, artifactId, scope, internal, managed, version, transitive) =>
-//        Map("path" -> path, "scope" -> scope, "groupId" -> groupId,
-//          "artifactId" -> artifactId, "internal" -> internal)
-//      case _ => Map()
-//    }
-//    mergeNode(Labels.Path, pathProperties)
-//  }
-
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
-    // TODO path needs to be adjusted somehow? Does it?
+    // TODO Does path needs to be adjusted somehow?
     val path = fromRelativePath(declaration.location.path)
     val module = moduleContext.get
     val entryPath = module.paths(path)
 
-    // TODO - create some nodes from paths? Or should they be ignored?
+    // TODO - create some path nodes? Or should they be ignored?
     entryPath match {
       case ClasspathEntry(_, groupId, artifactId, _, _, _, _, _) =>
         mergeDeclarationNode(declaration, artifactId, groupId)
@@ -423,12 +335,12 @@ class Converter(transaction: Transaction) {
     val projectProperties = Map(("projectId", project.projectId),("sbtVersion", project.sbtVersion))
     val projectNode = mergeNode(Labels.Project, projectProperties)
 
-    project.modules.foreach( moduleTuple  => {
-      val (_, module) = moduleTuple
-      moduleContext = Option(module)
-      val moduleNode = createModuleNode(module)
-      projectNode.createRelationshipTo(moduleNode, Relationships.HAS_MODULE)
-    })
+    project.modules.foreach {
+      case (_, module) =>
+        moduleContext = Option(module)
+        val moduleNode = createModuleNode(module)
+        projectNode.createRelationshipTo(moduleNode, Relationships.HAS_MODULE)
+    }
 
     projectNode
   }
