@@ -30,5 +30,7 @@ public enum Relationships implements RelationshipType {
     TYPE_ARGUMENT,
     ANNOTATION,
     IMPLICIT_VALUEREF,
-    IMPLICIT_CALLSITEREF
+    IMPLICIT_CALLSITEREF,
+    CONVERSION_FROM,
+    CONVERSION_TO
 }

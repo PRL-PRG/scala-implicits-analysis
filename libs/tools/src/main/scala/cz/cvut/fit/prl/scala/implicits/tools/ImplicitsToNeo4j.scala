@@ -4,7 +4,7 @@ import java.util.stream.StreamSupport
 
 import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.Util._
-import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
+import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, ParameterList, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
 import cz.cvut.fit.prl.scala.implicits.tools.neo4j.ImplicitType
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
@@ -13,12 +13,16 @@ import org.neo4j.graphdb.{Direction, GraphDatabaseService, Node, Transaction}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-
+// TODO - it might be possible to store the references to nodes in memory... -
+//  should be much faster and this might even help with making the import multithreaded
 class Converter(transaction: Transaction) {
 
   // Avoids passing module node and module entity through every function
+  // TODO pass it as arguments - using implicits could make this cleaner
   var currentModuleNode: Option[Node] = None
   var moduleContext: Option[Module] = None
+  val UNIT_DECLARATIONID = "scala/Unit#"
+  val FUNCTION1_DECLARATIONID = "scala/Function1#"
 
   private def createSignatureNode(signature: Signature): Node = {
     val signatureNode = createNode(Labels.Signature)
@@ -36,9 +40,8 @@ class Converter(transaction: Transaction) {
           val parameterListNode = createNode(Labels.ParameterList)
           parameterList.parameters.foreach(parameter => {
             val parameterNode = createNode(Labels.Parameter, Map("name" -> parameter.name))
-            // TODO how to use the implicit flag? One super node of all implicits
             if (parameter.isImplicit) {
-              parameterNode.addLabel(Labels.Implicit)
+              parameterNode.addLabel(Labels.ImplicitParameter)
             }
 
             val parameterTypeNode = mergeTypeReferenceNode(parameter.tpe)
@@ -136,6 +139,7 @@ class Converter(transaction: Transaction) {
       "properties" -> declaration.properties)
     val declarationNode = createNode(Labels.Declaration, properties)
 
+
     val accessNode = mergeNode(Labels.Access, Map("name" -> declaration.access.toString()))
     declarationNode.createRelationshipTo(accessNode, Relationships.HAS_ACCESS)
 
@@ -148,9 +152,85 @@ class Converter(transaction: Transaction) {
     declarationNode
   }
 
+  def isImplicitConvFunctionType(returnType: TypeRef): Option[(Node, Node)] = {
+    // is function A => B, where A,B is non-unit type
+    if (returnType.declarationId != FUNCTION1_DECLARATIONID ||
+      returnType.typeArguments.size != 2) {
+      None
+    }
+    else {
+      val fromTypeArg = returnType.typeArguments.head
+      val toTypeArg = returnType.typeArguments.tail.head
+
+      if (fromTypeArg.declarationId == UNIT_DECLARATIONID || toTypeArg.declarationId == UNIT_DECLARATIONID)
+        None
+      else
+        Some(mergeTypeReferenceNode(fromTypeArg),mergeTypeReferenceNode(toTypeArg))
+    }
+  }
+
+  def isMethodImplicitConv(parameterLists: Seq[ParameterList], returnType: TypeRef): Option[(Node, Node)] = {
+    // is function A=>B with exactly one non-implicit parameter in the first parameter list
+    // and zero or more implicit parameters in second parameter list
+    if (returnType.declarationId == UNIT_DECLARATIONID)
+      return None
+    val toTypeRefNode = mergeTypeReferenceNode(returnType)
+
+    if (parameterLists.isEmpty && parameterLists.head.parameters.size != 1)
+      return None
+
+    val firstListParameter = parameterLists.head.parameters.head
+
+    if (firstListParameter.isImplicit || firstListParameter.tpe.declarationId == UNIT_DECLARATIONID)
+      return None
+
+    val fromTypeRefNode = mergeTypeReferenceNode(firstListParameter.tpe)
+
+    if (parameterLists.size > 2)
+      return None
+
+    if (parameterLists.size == 2 && !parameterLists(1).parameters.forall(param => param.isImplicit))
+      None
+    Some(fromTypeRefNode, toTypeRefNode)
+  }
+
+  // returns from/to typereferences of implicit conversion
+  private def getImplicitConversion(implicitDeclaration: Declaration): Option[(Node,Node)] = {
+    assert(isImplicit(implicitDeclaration))
+    implicitDeclaration.signature match {
+      case MethodSignature(_, parameterLists, returnType) =>
+        val isAnonymous = parameterLists.isEmpty
+        if (isAnonymous)
+          isImplicitConvFunctionType(returnType)
+        else
+          isMethodImplicitConv(parameterLists, returnType)
+      case ClassSignature(_, parents) =>
+        // TODO is this really correct?
+        if (parents.size != 1)
+          None
+        else
+          isImplicitConvFunctionType(parents.head)
+      case ValueSignature(_) => Option.empty
+      case _ => Option.empty
+    }
+  }
+
   private def connectDeclaration(declaration: Declaration, declarationNode: Node): Unit = {
+    // check whether the signature is not already connected - declaration was connected, when processing different module
     if (declarationNode.hasRelationship(Direction.OUTGOING, Relationships.DECLARATION_SIGNATURE))
       return
+
+    if (isImplicit(declaration)) {
+      declarationNode.addLabel(Labels.ImplicitDeclaration)
+      getImplicitConversion(declaration).map {
+        case (fromNode, toNode) =>
+          val implicitTypeNode = mergeImplicitTypeNode(ImplicitType.Conversion)
+          declarationNode.createRelationshipTo(implicitTypeNode, Relationships.IMPLICIT_TYPE)
+          declarationNode.createRelationshipTo(fromNode, Relationships.CONVERSION_FROM)
+          declarationNode.createRelationshipTo(toNode, Relationships.CONVERSION_TO)
+        }
+    }
+
     val signatureNode = createSignatureNode(declaration.signature)
     declarationNode.createRelationshipTo(signatureNode, Relationships.DECLARATION_SIGNATURE)
 
@@ -160,6 +240,7 @@ class Converter(transaction: Transaction) {
     })
   }
 
+  def isImplicit(declaration: Declaration): Boolean = (declaration.properties & 0x20) != 0
 
   // Gets declaration node, if it is available or creates new one with the connection to the artifactId and groupId
   // Could be simplified by creating all groupIds and artifacts beforehand
@@ -240,10 +321,6 @@ class Converter(transaction: Transaction) {
       callSiteNode.createRelationshipTo(typeArgumentNode, Relationships.TYPE_ARGUMENT)
     })
 
-    val implicitType = if (callSite.implicitArgumentTypes.isEmpty && callSite.parentId.isEmpty)
-      ImplicitType.Conversion else ImplicitType.ParameterCompletion
-
-    callSiteNode.createRelationshipTo(mergeImplicitTypeNode(implicitType), Relationships.IMPLICIT_TYPE)
 
     val declaration = moduleContext.get.declarations(callSite.declarationId)
     val declarationNode = mergeDeclarationNodeWrapper(declaration)
@@ -265,7 +342,7 @@ class Converter(transaction: Transaction) {
     }
 
     callSite.parentId.fold{}{parentId =>
-      // Some callsites with parent Ids do not exist!
+      // Some with parent Ids do not link to any callsiteId exist!
       callSiteTuples.get(parentId).fold{}{
         case (_, parentNode) => callSiteNode.createRelationshipTo(parentNode, Relationships.PARENT)
       }
@@ -274,7 +351,7 @@ class Converter(transaction: Transaction) {
   }
 
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
-    // TODO Does path needs to be somehow adjusted?
+    // TODO Does the path needs to be somehow adjusted?
     val path = fromRelativePath(declaration.location.path)
     val module = moduleContext.get
     val entryPath = module.paths(path)
@@ -393,15 +470,15 @@ object ImplicitsToNeo4j extends App {
 
   def run(): Unit = {
     val DEFAULT_DB_NAME = "neo4j"
-    val corporaDir = "/home/panpuncocha/skola/bt/pipelineTest/OOPSLA19-artifact/corpora/"
-    val projectDir = corporaDir + "2-single"
-    val implicitsBinRelPath = "/implicits.bin"
-//    val projectDir = corporaDir + "1-example"
-//    val implicitsBinRelPath = "/_analysis_/implicits.bin"
+    val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
+//    val projectDir = corporaDir + "2-single"
+//    val implicitsBinRelPath = "/implicits.bin"
+    val projectDir = corporaDir + "1-example"
+    val implicitsBinRelPath = "/_analysis_/implicits.bin"
 
     val implicitsPath = projectDir + implicitsBinRelPath
 
-    val dbDirectoryRelPath = "/neo4j/databases"
+    val dbDirectoryRelPath = "/neo4jDB"
     val dbDirectoryPath = File(projectDir + dbDirectoryRelPath).toJava
 
     // opening/creating new graph db
@@ -425,7 +502,6 @@ object ImplicitsToNeo4j extends App {
           }
         )
       )
-
 
       transaction.commit()
     } catch {
