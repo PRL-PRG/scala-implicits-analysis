@@ -7,5 +7,5 @@ import cz.cvut.fit.prl.scala.implicits.tools.ImplicitsToNeo4j
 @main
 def main() = {
   println(File.currentWorkingDirectory)
-  ExtractImplicits.run(File.currentWorkingDirectory, File(File.currentWorkingDirectory + "/_analysis_/implicits.bin"))
+  ImplicitsToNeo4j.run(File.currentWorkingDirectory, File(File.currentWorkingDirectory + "/_analysis_/implicits.bin"))
 }
