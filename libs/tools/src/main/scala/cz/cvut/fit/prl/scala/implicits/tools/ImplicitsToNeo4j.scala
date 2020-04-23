@@ -96,7 +96,7 @@ class Converter(transaction: Transaction) {
   }
 
   private def mergeImplicitTypeNode(implicitType: ImplicitType.Value): Node =
-    mergeNode(Labels.ImplicitType, Map("type" -> implicitType.toString))
+    mergeNode(Labels.ImplicitType, Map("name" -> implicitType.toString))
 
   private def addSignatureType(signatureNode: Node, signatureType: String): Unit = {
     val signatureTypeNode = mergeNode(Labels.SignatureType, Map("name" -> signatureType))
@@ -352,6 +352,7 @@ class Converter(transaction: Transaction) {
 
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
     // TODO Does the path needs to be somehow adjusted?
+    // relative path needs to be adjusted to match paths in module
     val path = fromRelativePath(declaration.location.path)
     val module = moduleContext.get
     val entryPath = module.paths(path)
@@ -468,15 +469,8 @@ object ImplicitsToNeo4j extends App {
     }
   }
 
-  def run(): Unit = {
+  def run(projectDir: File, implicitsFile: File): Unit = {
     val DEFAULT_DB_NAME = "neo4j"
-    val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
-//    val projectDir = corporaDir + "2-single"
-//    val implicitsBinRelPath = "/implicits.bin"
-    val projectDir = corporaDir + "1-example"
-    val implicitsBinRelPath = "/_analysis_/implicits.bin"
-
-    val implicitsPath = projectDir + implicitsBinRelPath
 
     val dbDirectoryRelPath = "/neo4jDB"
     val dbDirectoryPath = File(projectDir + dbDirectoryRelPath).toJava
@@ -492,7 +486,7 @@ object ImplicitsToNeo4j extends App {
     val converter = new Converter(transaction)
     try {
 
-      File(implicitsPath).inputStream.apply(
+      implicitsFile.inputStream.apply(
         input => Project.streamFrom(input).foreach(
           project => {
             val time = System.currentTimeMillis()
@@ -512,6 +506,13 @@ object ImplicitsToNeo4j extends App {
       managementService.shutdown()
     }
   }
+      val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
+  //    val projectDir = corporaDir + "2-single"
+  //    val implicitsBinRelPath = "/implicits.bin"
+      val projectDir = File(corporaDir + "1-example")
+      val implicitsBinRelPath = "/_analysis_/implicits.bin"
 
-  run()
+      val implicitsFile = File(projectDir + implicitsBinRelPath)
+
+  run(projectDir, implicitsFile)
 }
