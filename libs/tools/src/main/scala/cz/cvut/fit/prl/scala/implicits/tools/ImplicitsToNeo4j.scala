@@ -5,6 +5,7 @@ import java.util.stream.StreamSupport
 import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.Util._
 import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, ParameterList, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
+import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.{Labels, Relationships}
 import cz.cvut.fit.prl.scala.implicits.tools.neo4j.ImplicitType
 import cz.cvut.fit.prl.scala.implicits.utils._
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
@@ -250,8 +251,7 @@ class Converter(transaction: Transaction) {
   //  - Is this relation necessary? This relation-ship is already present in form of artifact relation
   private def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String): Node = {
     val module = moduleContext.get
-    val groupNodeOpt = transaction.findNodes(Labels.Group, "groupId", groupId).stream()
-        .findFirst()
+    val groupNodeOpt = transaction.findNodes(Labels.Group, "groupId", groupId).asScala.find(_ => true)
     // group, artifact, declaration needs to be created
     if (groupNodeOpt.isEmpty) {
       val groupNode = createNode(Labels.Group, Map("groupId" -> groupId))
@@ -265,15 +265,14 @@ class Converter(transaction: Transaction) {
       declarationNode
     }
     else {
-      val groupNode = groupNodeOpt.get()
-      val artifactRelationOpt = StreamSupport.stream(
-        groupNode.getRelationships(Direction.OUTGOING, Relationships.GROUP_ARTIFACT).spliterator(), false)
-        .filter(relationShip => relationShip.getEndNode.getProperty("artifactId").equals(artifactId))
-        .findFirst()
+      val groupNode = groupNodeOpt.get
 
+      val artifactNodeOpt = groupNode.getRelationships(Direction.OUTGOING, Relationships.GROUP_ARTIFACT).asScala
+        .find(relationShip => relationShip.getEndNode.getProperty("artifactId").equals(artifactId))
+        .map(_.getEndNode)
 
       // artifact, declaration needs to be created
-      if (artifactRelationOpt.isEmpty) {
+      if (artifactNodeOpt.isEmpty) {
         //
         val artifactNode = createNode(Labels.Artifact, Map("artifactId" -> artifactId))
         val declarationNode = createDeclarationNode(declaration)
@@ -285,28 +284,19 @@ class Converter(transaction: Transaction) {
         declarationNode
       }
       else {
-        val artifactNode = artifactRelationOpt.get.getEndNode
+        val artifactNode = artifactNodeOpt.get
 
-        val declarationRelationOpt = StreamSupport.stream(
-          artifactNode.getRelationships(Direction.OUTGOING, Relationships.ARTIFACT_DECLARATION).spliterator(), false)
-          .filter(relationShip =>
-            relationShip.getEndNode.getProperty("declarationId").equals(declaration.declarationId)
-          )
-          .findFirst()
+        artifactNode.getRelationships(Direction.OUTGOING, Relationships.ARTIFACT_DECLARATION).asScala.
+          find(relation => relation.getEndNode.getProperty("declarationId") == declaration.declarationId)
+          .map(_.getEndNode)
+          .getOrElse({
+            val declarationNode = createDeclarationNode(declaration)
 
-
-        if (declarationRelationOpt.isPresent) {
-          declarationRelationOpt.get().getEndNode
-        }
-        // declaration needs to be created
-        else {
-          val declarationNode = createDeclarationNode(declaration)
-
-          artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
-          if (module.artifactId == artifactId && module.groupId == groupId)
-            currentModuleNode.get.createRelationshipTo(declarationNode, Relationships.DECLARES)
-          declarationNode
-        }
+            artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
+            if (module.artifactId == artifactId && module.groupId == groupId)
+              currentModuleNode.get.createRelationshipTo(declarationNode, Relationships.DECLARES)
+            declarationNode
+          })
       }
     }
   }
@@ -455,6 +445,10 @@ object ImplicitsToNeo4j extends App {
     })
   }
 
+  def sayHello():String = {
+    "Hello"
+  }
+
   def cleanUpDatabase(implicit graphDb: GraphDatabaseService): Unit = {
     val transaction = graphDb.beginTx()
 
@@ -507,10 +501,10 @@ object ImplicitsToNeo4j extends App {
     }
   }
       val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
-  //    val projectDir = corporaDir + "2-single"
-  //    val implicitsBinRelPath = "/implicits.bin"
-      val projectDir = File(corporaDir + "1-example")
-      val implicitsBinRelPath = "/_analysis_/implicits.bin"
+      val projectDir = File(corporaDir + "2-single")
+      val implicitsBinRelPath = "/implicits.bin"
+//      val projectDir = File(corporaDir + "1-example")
+//      val implicitsBinRelPath = "/_analysis_/implicits.bin"
 
       val implicitsFile = File(projectDir + implicitsBinRelPath)
 

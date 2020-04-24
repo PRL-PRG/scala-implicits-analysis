@@ -1,4 +1,4 @@
-package cz.cvut.fit.prl.scala.implicits.utils;
+package cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities;
 
 
 import org.neo4j.graphdb.Label;
