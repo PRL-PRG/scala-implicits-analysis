@@ -1,11 +1,12 @@
-import $ivy.`cz.cvut.fit.prl.scala.implicits::tools:1.0-SNAPSHOT`
-import $ivy.`org.typelevel::kittens:1.2.0`
+import $ivy.`cz.cvut.fit.prl.scala.implicits:tools_2.12:1.0-SNAPSHOT`
+import $ivy.`org.typelevel:kittens_2.12:1.2.0`
 
 import better.files._
 import cz.cvut.fit.prl.scala.implicits.tools.ImplicitsToNeo4j
 
 @main
-def main() = {
-  println(File.currentWorkingDirectory)
-  ImplicitsToNeo4j.run(File.currentWorkingDirectory, File(File.currentWorkingDirectory + "/_analysis_/implicits.bin"))
+def main(corporaDir: String = File.currentWorkingDirectory.toString, implicitsFileRelative: String = "/implicits.bin") = {
+
+//  println(File.currentWorkingDirectory)
+  ImplicitsToNeo4j.run(File(corporaDir), File(corporaDir + implicitsFileRelative))
 }
