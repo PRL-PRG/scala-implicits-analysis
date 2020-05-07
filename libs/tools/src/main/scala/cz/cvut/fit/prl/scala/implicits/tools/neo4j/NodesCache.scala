@@ -1,17 +1,20 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
+import cz.cvut.fit.prl.scala.implicits.model.Declaration
 import org.neo4j.graphdb.Node
 
 import scala.collection.mutable
 
 // map[groupId, (groupNode, Map[artifactId, (artifactNode, Map[declarationId, (declarationNode, Map[typeReferenceExpression, typeReferenceNode)])])
-class NodesCache(cache: mutable.Map[String,(Node, ArtifactCache)] ) {
+class NodesCache(val cache: mutable.Map[String,(Node, ArtifactCache)] ) {
   def apply(key: String): Option[(Node, ArtifactCache)] = cache.get(key)
   def put(key: String, value: Node): ArtifactCache = {
     val artifactCache = ArtifactCache()
     cache.put(key, (value, artifactCache))
     artifactCache
   }
+  def getDeclarationTuple(groupId: String, artifactId: String, declaration: Declaration): (Node, TypeReferenceCache) =
+    cache(groupId)._2.cache(artifactId)._2.cache(declaration.declarationId)
 }
 
 object NodesCache {
@@ -19,7 +22,7 @@ object NodesCache {
 }
 
 
-class TypeReferenceCache(cache: mutable.Map[String, Node]) {
+class TypeReferenceCache(val cache: mutable.Map[String, Node]) {
   def apply(key: String): Option[Node] = cache.get(key)
   def put(key: String, value: Node): Unit = cache.put(key, value)
 }
@@ -28,7 +31,7 @@ object TypeReferenceCache {
 }
 
 
-class DeclarationCache(cache: mutable.Map[String, (Node, TypeReferenceCache)]) {
+class DeclarationCache(val cache: mutable.Map[String, (Node, TypeReferenceCache)]) {
   def apply(key: String): Option[(Node, TypeReferenceCache)] = cache.get(key)
   def put(key: String, value: Node): TypeReferenceCache = {
     val typeReferenceCache = TypeReferenceCache()
@@ -41,7 +44,7 @@ object DeclarationCache {
 }
 
 
-class ArtifactCache(cache: mutable.Map[String, (Node, DeclarationCache)]) {
+class ArtifactCache(val cache: mutable.Map[String, (Node, DeclarationCache)]) {
   def apply(key: String): Option[(Node, DeclarationCache)] = cache.get(key)
   def put(key: String, value: Node): DeclarationCache = {
     val declarationCache = DeclarationCache()

@@ -13,22 +13,16 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
     val declaration = module.declarations(tpe.declarationId)
     val (groupId, artifactId) = Utils.getGroupArtifact(declaration)(module)
 
-    val declarationNode = mergeDeclarationNode(declaration, artifactId, groupId)(module, moduleNode)
+    val (declarationNode, typeReferenceCache) = cache.getDeclarationTuple(groupId, artifactId, declaration)
 
     val typeExpression = Utils.getTypeExpression(tpe)
 
-    val typeRefNodeOpt = declarationNode.getRelationships(Direction.INCOMING, Relationships.TYPEREF_DECLARATION)
-      .iterator
-      .asScala
-      .find(_.getStartNode.getProperty("typeExpression") == typeExpression)
-      .map(_.getStartNode)
-
-    if (typeRefNodeOpt.nonEmpty) typeRefNodeOpt.get
-    else {
+    typeReferenceCache(typeExpression).getOrElse({
       val typeRefNode = createNode(Labels.TypeReference, Map("typeExpression" -> typeExpression))
+      typeReferenceCache.put(typeExpression, typeRefNode)
       typeRefNode.createRelationshipTo(declarationNode, Relationships.TYPEREF_DECLARATION)
       typeRefNode
-    }
+    })
   }
 
 
@@ -39,12 +33,15 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
   // TODO Module declares Declaration relationShip wont be ever created in case module does not declare this declaration
   //  - Is this relation necessary? This relation-ship is already present in form of artifact relation
   def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String)(implicit module:Module, moduleNode: Node): Node = {
-    val groupNodeOpt = transaction.findNodes(Labels.Group, "groupId", groupId).asScala.find(_ => true)
+    val groupTupleOpt = cache(groupId)
+
     // group, artifact, declaration needs to be created
-    if (groupNodeOpt.isEmpty) {
+    if (groupTupleOpt.isEmpty) {
       val groupNode = createNode(Labels.Group, Map("groupId" -> groupId))
       val artifactNode = createNode(Labels.Artifact, Map("artifactId" -> artifactId))
       val declarationNode = createDeclarationNode(declaration)
+
+      cache.put(groupId, groupNode).put(artifactId, artifactNode).put(declaration.declarationId, declarationNode)
 
       groupNode.createRelationshipTo(artifactNode, Relationships.GROUP_ARTIFACT)
       artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
@@ -53,17 +50,16 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
       declarationNode
     }
     else {
-      val groupNode = groupNodeOpt.get
+      val (groupNode, artifactCache) = groupTupleOpt.get
 
-      val artifactNodeOpt = groupNode.getRelationships(Direction.OUTGOING, Relationships.GROUP_ARTIFACT).asScala
-        .find(relationShip => relationShip.getEndNode.getProperty("artifactId").equals(artifactId))
-        .map(_.getEndNode)
+      val artifactTupleOpt = artifactCache(artifactId)
 
       // artifact, declaration needs to be created
-      if (artifactNodeOpt.isEmpty) {
-        //
+      if (artifactTupleOpt.isEmpty) {
         val artifactNode = createNode(Labels.Artifact, Map("artifactId" -> artifactId))
         val declarationNode = createDeclarationNode(declaration)
+
+        artifactCache.put(artifactId, artifactNode).put(declaration.declarationId, declarationNode)
 
         groupNode.createRelationshipTo(artifactNode, Relationships.GROUP_ARTIFACT)
         artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
@@ -72,19 +68,17 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
         declarationNode
       }
       else {
-        val artifactNode = artifactNodeOpt.get
+        val (artifactNode, declarationCache) = artifactTupleOpt.get
 
-        artifactNode.getRelationships(Direction.OUTGOING, Relationships.ARTIFACT_DECLARATION).asScala.
-          find(relation => relation.getEndNode.getProperty("declarationId") == declaration.declarationId)
-          .map(_.getEndNode)
-          .getOrElse({
-            val declarationNode = createDeclarationNode(declaration)
+        val declarationTuple = declarationCache(declaration.declarationId).getOrElse({
+          val declarationNode = createDeclarationNode(declaration)
 
-            artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
-            if (module.artifactId == artifactId && module.groupId == groupId)
-              moduleNode.createRelationshipTo(declarationNode, Relationships.DECLARES)
-            declarationNode
-          })
+          artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
+          if (module.artifactId == artifactId && module.groupId == groupId)
+            moduleNode.createRelationshipTo(declarationNode, Relationships.DECLARES)
+          (declarationNode, declarationCache.put(declaration.declarationId, declarationNode))
+        })
+        declarationTuple._1
       }
     }
   }

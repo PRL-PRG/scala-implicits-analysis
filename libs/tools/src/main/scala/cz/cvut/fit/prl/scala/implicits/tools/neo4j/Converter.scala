@@ -233,7 +233,7 @@ class Converter(transaction: Transaction, proxy: Proxy) {
   }
 
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
-    val (artifactId, groupId) = Utils.getGroupArtifact(declaration)(moduleContext)
+    val (groupId, artifactId) = Utils.getGroupArtifact(declaration)(moduleContext)
     proxy.mergeDeclarationNode(declaration, artifactId, groupId)
   }
 
