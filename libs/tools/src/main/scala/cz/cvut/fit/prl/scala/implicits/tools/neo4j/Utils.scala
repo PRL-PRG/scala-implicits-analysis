@@ -16,7 +16,7 @@ object Utils {
       debug(path)
       println("Raw path")
       debug(declaration.location.path)
-      debugPaths("android.jar", module.paths.keys)
+      debugPaths(path, module.paths.keys)
     }
 
     val entryPath = module.paths(path)
@@ -42,10 +42,15 @@ object Utils {
       declarationId + typeArguments
     }
   }
-
+  // TODO some test could be created for this weird method
+  // adjusts relative path by removing "../"
+  // paths containing "../home/" and starting with "../" are prepended with "../"
   // relative path needs to be adjusted to match paths in module
   private def adjustPath(relativePath: String): String = {
-    if (relativePath.startsWith("../") && !relativePath.contains("../home/"))
+    if (relativePath.startsWith("../"))
+      if (relativePath.contains("../home/"))
+        "../" + relativePath
+      else
       relativePath.lastIndexOf("../") match {
         case -1 => relativePath
         case index => relativePath.substring(index + 2)
@@ -63,7 +68,9 @@ object Utils {
     println()
   }
 
-  private def debugPaths(contains: String, paths: Iterable[String]): Unit = {
+  private def debugPaths(path: String, paths: Iterable[String]): Unit = {
+    val contains = path.split("/").last
+    println("paths containing \"" + contains + "\":")
     paths.foreach(path => if (path.contains(contains)) println(path))
     println()
   }
