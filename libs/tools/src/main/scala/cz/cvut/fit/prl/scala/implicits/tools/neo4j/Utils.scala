@@ -49,7 +49,10 @@ object Utils {
   private def adjustPath(relativePath: String): String = {
     if (relativePath.startsWith("../"))
       if (relativePath.contains("../home/"))
-        "../" + relativePath
+        if (relativePath.contains("/sdk/"))
+          "../" + relativePath
+        else
+          relativePath
       else
       relativePath.lastIndexOf("../") match {
         case -1 => relativePath
