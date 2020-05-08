@@ -44,14 +44,13 @@ object Utils {
 
   // relative path needs to be adjusted to match paths in module
   private def adjustPath(relativePath: String): String = {
-    if (relativePath.startsWith("/home")) {
-      println("I was here in adjust path starts with /home")
-      println(s"relalative path: $relativePath\n adjusted: ${relativePath.split("/", 4)(3)}")
-      return relativePath.split("/", 4)(3)
-    }
     relativePath.lastIndexOf("../") match {
       case -1 => relativePath
-      case index => relativePath.substring(index + 2)
+      case index =>
+        val adjusted = relativePath.substring(index + 2)
+        if (adjusted.startsWith("/home"))
+          adjusted.split("/", 4)(3)
+        else adjusted
     }
   }
 
