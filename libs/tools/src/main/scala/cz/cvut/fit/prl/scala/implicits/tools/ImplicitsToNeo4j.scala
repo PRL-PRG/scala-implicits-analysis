@@ -80,10 +80,11 @@ object ImplicitsToNeo4j extends App {
   }
 
   val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
+
   val projectDir = File(corporaDir + "2-single")
   val implicitsBinRelPath = "/implicits.bin"
-//      val projectDir = File(corporaDir + "1-example")
-//      val implicitsBinRelPath = "/_analysis_/implicits.bin"
+//  val projectDir = File(corporaDir + "1-example")
+//  val implicitsBinRelPath = "/_analysis_/implicits.bin"
 
   val implicitsFile = File(projectDir + implicitsBinRelPath)
 

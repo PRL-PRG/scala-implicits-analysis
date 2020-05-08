@@ -7,7 +7,8 @@ object Utils {
   def getGroupArtifact(declaration: Declaration)(implicit module: Module): (String, String) = {
     // TODO Does the path needs to be somehow adjusted?
     // relative path needs to be adjusted to match paths in module
-    val path = fromRelativePath(declaration.location.path)
+    val path = adjustPath(declaration.location.path)
+
     val entryPath = module.paths(path)
 
     // TODO - create some path nodes? Or should they be ignored?
@@ -33,7 +34,10 @@ object Utils {
   }
 
   // relative path needs to be adjusted to match paths in module
-  private def fromRelativePath(relativePath: String): String = {
+  private def adjustPath(relativePath: String): String = {
+    if (relativePath.startsWith("/home"))
+      return relativePath.split("/",4)(3)
+
     relativePath.lastIndexOf("../") match {
       case -1 => relativePath
       case index => relativePath.substring(index + 2)
