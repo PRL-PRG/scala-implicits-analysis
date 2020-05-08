@@ -9,6 +9,12 @@ object Utils {
     // relative path needs to be adjusted to match paths in module
     val path = adjustPath(declaration.location.path)
 
+    val entryPathOpt = module.paths.get(path)
+
+    if (entryPathOpt.isEmpty) {
+      println(s"$path")
+    }
+
     val entryPath = module.paths(path)
 
     // TODO - create some path nodes? Or should they be ignored?
