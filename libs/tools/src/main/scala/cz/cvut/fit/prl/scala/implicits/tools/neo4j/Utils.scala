@@ -16,6 +16,7 @@ object Utils {
       debug(path)
       println("Raw path")
       debug(declaration.location.path)
+      debugPaths("android.jar", module.paths.keys)
     }
 
     val entryPath = module.paths(path)
@@ -60,6 +61,11 @@ object Utils {
     println("char at 0 pos:" + path.charAt(0).toLong)
     println("Position of first \"/\" :" + path.indexOf("/"))
     println(s"Has non printable chars: ${hasNonprintableAsciiChar(path)}")
+    println()
+  }
+
+  private def debugPaths(contains: String, paths: Iterable[String]): Unit = {
+    paths.foreach(path => if (path.contains(contains)) println(path))
     println()
   }
 
