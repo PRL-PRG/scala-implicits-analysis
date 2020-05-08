@@ -7,10 +7,11 @@ object Utils {
   def getGroupArtifact(declaration: Declaration)(implicit module: Module): (String, String) = {
     // TODO Does the path needs to be somehow adjusted?
     // relative path needs to be adjusted to match paths in module
-    val path = adjustPath(declaration.location.path)
+//    val path = adjustPath(declaration.location.path)
+    val path = declaration.location.path
 
+    // TODO remove only for debugging purposes
     val entryPathOpt = module.paths.get(path)
-
     if (entryPathOpt.isEmpty) {
       println("Adjusted path")
       debug(path)
