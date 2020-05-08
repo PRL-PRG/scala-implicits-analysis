@@ -12,7 +12,10 @@ object Utils {
     val entryPathOpt = module.paths.get(path)
 
     if (entryPathOpt.isEmpty) {
-      println(s"$path")
+      println("Adjusted path")
+      debug(path)
+      println("Raw path")
+      debug(declaration.location.path)
     }
 
     val entryPath = module.paths(path)
@@ -49,6 +52,23 @@ object Utils {
     relativePath.lastIndexOf("../") match {
       case -1 => relativePath
       case index => relativePath.substring(index + 2)
+    }
+  }
+
+  private def debug(path: String): Unit = {
+    println("\"" + path + "\"")
+    println(s"path size ${path.length}")
+    println("char at 0 pos:" + path.charAt(0).toLong)
+    println("Position of first \"/\" :" + path.indexOf("/"))
+    println(s"Has non printable chars: ${hasNonprintableAsciiChar(path)}")
+    println()
+  }
+
+  private def hasNonprintableAsciiChar(s: String): Boolean = {
+    val pattern = """[^\x20-\x7E]+""".r
+    pattern.findFirstMatchIn(s) match {
+      case Some(_) => true
+      case None => false
     }
   }
 }
