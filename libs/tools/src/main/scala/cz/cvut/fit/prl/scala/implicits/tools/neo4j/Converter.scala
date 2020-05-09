@@ -126,7 +126,7 @@ class Converter(transaction: Transaction, proxy: Proxy) {
       return None
     val toTypeRefNode = proxy.mergeTypeReferenceNode(returnType)
 
-    if (parameterLists.isEmpty && parameterLists.head.parameters.size != 1)
+    if (parameterLists.isEmpty || parameterLists.head.parameters.size != 1)
       return None
 
     val firstListParameter = parameterLists.head.parameters.head
