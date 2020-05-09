@@ -61,10 +61,11 @@ object ImplicitsToNeo4j extends App {
       implicitsFile.inputStream.apply(
         input => Project.streamFrom(input).foreach(
           project => {
+            print(s"Converting ${project.projectId}:")
             val time = System.currentTimeMillis()
             converter.createProject(project)
             println(
-              s"Converted ${project.projectId} in ${System.currentTimeMillis() - time}ms")
+              s" Converted in ${System.currentTimeMillis() - time}ms")
           }
         )
       )
