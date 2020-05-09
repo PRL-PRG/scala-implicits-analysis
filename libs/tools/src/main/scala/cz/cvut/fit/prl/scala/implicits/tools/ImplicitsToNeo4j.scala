@@ -4,6 +4,8 @@ import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.Project
 import cz.cvut.fit.prl.scala.implicits.model.Util._
 import cz.cvut.fit.prl.scala.implicits.tools.neo4j.Converter
+import javax.imageio.stream.FileImageInputStream
+import org.neo4j.configuration.GraphDatabaseSettings
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
 import org.neo4j.graphdb.{GraphDatabaseService, Transaction}
 
@@ -48,7 +50,9 @@ object ImplicitsToNeo4j extends App {
     val dbDirectoryPath = File(projectDir + dbDirectoryRelPath).toJava
 
     // opening/creating new graph db
-    val managementService = new DatabaseManagementServiceBuilder(dbDirectoryPath).build()
+    val managementService = new DatabaseManagementServiceBuilder(dbDirectoryPath)
+      .loadPropertiesFromFile(getClass.getResource("/neo4j.conf").getFile)
+      .build()
     implicit val graphDb: GraphDatabaseService = managementService.database(DEFAULT_DB_NAME)
     registerShutdownHook(managementService)
 
