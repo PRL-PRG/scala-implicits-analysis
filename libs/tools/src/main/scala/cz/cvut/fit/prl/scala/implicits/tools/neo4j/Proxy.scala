@@ -1,6 +1,8 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
-import cz.cvut.fit.prl.scala.implicits.model.{Declaration, Module, TypeRef}
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind.{TYPE, VAL}
+import cz.cvut.fit.prl.scala.implicits.model.Language.UNKNOWN_LANGUAGE
+import cz.cvut.fit.prl.scala.implicits.model.{Declaration, Language, Location, Module, TypeRef, TypeSignature}
 import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.{Labels, Relationships}
 import org.neo4j.graphdb.{Direction, Node, Transaction}
 
@@ -10,8 +12,15 @@ import scala.collection.JavaConverters._
 class Proxy(transaction: Transaction, cache: NodesCache) {
 
   def mergeTypeReferenceNode(tpe: TypeRef)(implicit module: Module, moduleNode: Node): Node = {
-    val declaration = module.declarations(tpe.declarationId)
-    val (groupId, artifactId) = Utils.getGroupArtifact(declaration)(module)
+    // This validation is only because there are some missing values in module.declarations in some projects
+    val declarationOpt = module.declarations.get(tpe.declarationId)
+    val (declaration, groupId, artifactId) = declarationOpt match {
+      case Some(d) =>
+        val (g, a) = Utils.getGroupArtifact(d)(module)
+        (d, g, a)
+      case None =>
+        (Utils.createUnknownDeclaration(), Utils.UNKNOWN_GROUP_ID, Utils.UNKNOWN_ARTIFACT_ID)
+    }
 
     val (declarationNode, typeReferenceCache) = cache.getDeclarationTuple(groupId, artifactId, declaration)
 
@@ -81,6 +90,24 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
         declarationTuple._1
       }
     }
+  }
+
+  // For the purpose to map typereferece, which with declaration id, that does not correspond to any declarationId in module.declarations
+  def createUnknownDeclarationNode(): Node = {
+    val declaration: Declaration = Utils.createUnknownDeclaration()
+    val groupId = Utils.UNKNOWN_GROUP_ID
+    val artifactId = Utils.UNKNOWN_ARTIFACT_ID
+
+    val groupNode = createNode(Labels.Group, Map("groupId" -> groupId))
+    val artifactNode = createNode(Labels.Artifact, Map("artifactId" -> artifactId))
+    val declarationNode = createDeclarationNode(declaration)
+
+    cache.put(groupId, groupNode).put(artifactId, artifactNode).put(declaration.declarationId, declarationNode)
+
+    groupNode.createRelationshipTo(artifactNode, Relationships.GROUP_ARTIFACT)
+    artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
+
+    declarationNode
   }
 
   private def createDeclarationNode(declaration: Declaration): Node = {

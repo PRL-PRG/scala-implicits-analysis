@@ -1,8 +1,13 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
-import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, Declaration, Module, PathEntry, SourcepathEntry, TypeRef}
+import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind.TYPE
+import cz.cvut.fit.prl.scala.implicits.model.Language.UNKNOWN_LANGUAGE
+import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, Declaration, Location, Module, PathEntry, SourcepathEntry, TypeRef, TypeSignature}
 
 object Utils {
+
+  val UNKNOWN_GROUP_ID = "UNKNOWN_GROUP_ID"
+  val UNKNOWN_ARTIFACT_ID = "UNKNOWN_ARTIFACT_ID"
 
   def getGroupArtifact(declaration: Declaration)(implicit module: Module): (String, String) = {
     // TODO Does the path needs to be somehow adjusted?
@@ -43,6 +48,13 @@ object Utils {
       declarationId + typeArguments
     }
   }
+
+
+  def createUnknownDeclaration(): Declaration = {
+    Declaration("UNKNOW","", TYPE,0,"",Declaration.Access.NOT_SPECIFIED,Location("","",None),UNKNOWN_LANGUAGE, Seq.empty, TypeSignature())
+  }
+
+
   // TODO some test could be created for this weird method
   // adjusts relative path by removing "../"
   // paths containing "../home/" and starting with "../" are prepended with "../"

@@ -61,7 +61,7 @@ object ImplicitsToNeo4j extends App {
     val transaction: Transaction = graphDb.beginTx()
     val converter = Converter(transaction)
     try {
-
+      converter.initiateDatabase()
       implicitsFile.inputStream.apply(
         input => Project.streamFrom(input).foreach(
           project => {

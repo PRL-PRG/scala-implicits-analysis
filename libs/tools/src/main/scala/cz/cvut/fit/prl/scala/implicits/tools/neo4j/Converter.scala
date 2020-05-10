@@ -19,6 +19,52 @@ class Converter(transaction: Transaction, proxy: Proxy) {
   val UNIT_DECLARATIONID = "scala/Unit#"
   val FUNCTION1_DECLARATIONID = "scala/Function1#"
 
+  def createModuleNode(module: Module): Node = {
+    val moduleProperties = Map(("moduleId", module.moduleId), ("groupId", module.groupId),
+      ("scalaVersion", module.scalaVersion), ("artifactId", module.artifactId),("version", module.version),
+      ("commit", module.commit))
+
+    val moduleNode: Node = createNode(Labels.Module, moduleProperties)
+    currentModuleNode = moduleNode
+    // 1. create declarations
+    // 2. create declaration signatures and annotations
+    module.declarations.values
+      .map(declaration => (declaration, mergeDeclarationNodeWrapper(declaration)))
+      .foreach(declarationTuple => (connectDeclaration _).tupled(declarationTuple))
+
+
+    // callsites ids are unique per module
+    // 3. create callsites and bounds to its references
+    val callSiteTuples = module.implicitCallSites
+      .foldLeft(mutable.Map[Int, (CallSite, Node)]())(
+        (map, callSite) => map += callSite.callSiteId -> (callSite, createCallSiteNode(callSite)))
+
+    callSiteTuples.values
+      .foreach{
+        case (callSite, callSiteNode) => connectCallSite(callSite, callSiteNode, callSiteTuples)
+      }
+    currentModuleNode = null
+    moduleNode
+  }
+
+  def createProject(project: Project): Node = {
+    val projectProperties = Map(("projectId", project.projectId),("sbtVersion", project.sbtVersion))
+    val projectNode = mergeNode(Labels.Project, projectProperties)
+
+    project.modules.foreach {
+      case (_, module) =>
+        moduleContext = module
+        val moduleNode = createModuleNode(module)
+        projectNode.createRelationshipTo(moduleNode, Relationships.HAS_MODULE)
+    }
+
+    projectNode
+  }
+
+  def initiateDatabase(): Unit = {
+    proxy.createUnknownDeclarationNode()
+  }
+
   private def createSignatureNode(signature: Signature): Node = {
     val signatureNode = createNode(Labels.Signature)
 
@@ -235,49 +281,6 @@ class Converter(transaction: Transaction, proxy: Proxy) {
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
     val (groupId, artifactId) = Utils.getGroupArtifact(declaration)(moduleContext)
     proxy.mergeDeclarationNode(declaration, artifactId, groupId)
-  }
-
-
-  def createModuleNode(module: Module): Node = {
-    val moduleProperties = Map(("moduleId", module.moduleId), ("groupId", module.groupId),
-      ("scalaVersion", module.scalaVersion), ("artifactId", module.artifactId),("version", module.version),
-      ("commit", module.commit))
-
-    val moduleNode: Node = createNode(Labels.Module, moduleProperties)
-    currentModuleNode = moduleNode
-    // 1. create declarations
-    // 2. create declaration signatures and annotations
-    module.declarations.values
-      .map(declaration => (declaration, mergeDeclarationNodeWrapper(declaration)))
-      .foreach(declarationTuple => (connectDeclaration _).tupled(declarationTuple))
-
-
-    // callsites ids are unique per module
-    // 3. create callsites and bounds to its references
-    val callSiteTuples = module.implicitCallSites
-      .foldLeft(mutable.Map[Int, (CallSite, Node)]())(
-        (map, callSite) => map += callSite.callSiteId -> (callSite, createCallSiteNode(callSite)))
-
-    callSiteTuples.values
-      .foreach{
-        case (callSite, callSiteNode) => connectCallSite(callSite, callSiteNode, callSiteTuples)
-      }
-    currentModuleNode = null
-    moduleNode
-  }
-
-  def createProject(project: Project): Node = {
-    val projectProperties = Map(("projectId", project.projectId),("sbtVersion", project.sbtVersion))
-    val projectNode = mergeNode(Labels.Project, projectProperties)
-
-    project.modules.foreach {
-      case (_, module) =>
-        moduleContext = module
-        val moduleNode = createModuleNode(module)
-        projectNode.createRelationshipTo(moduleNode, Relationships.HAS_MODULE)
-    }
-
-    projectNode
   }
 
   private def mergeNode(label: Labels, properties: Map[String, Object]): Node =
