@@ -84,10 +84,15 @@ object ImplicitsPathAdjuster extends App {
       case index => path.substring(index + 2)
     }
 
-    if (path1.startsWith("/"))
+    val path2 = if (path1.startsWith("/"))
       path1.substring(1)
     else
       path1
+
+    if (path2.startsWith(".jvm/"))
+      path2.substring(5)
+    else
+      path2
   }
 
   val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
