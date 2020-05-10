@@ -79,10 +79,15 @@ object ImplicitsPathAdjuster extends App {
   }
 
   private def modifyPath(path: String): String = {
-    path.lastIndexOf("../") match {
+    val path1 = path.lastIndexOf("../") match {
       case -1 => path
       case index => path.substring(index + 2)
     }
+
+    if (path1.startsWith("/"))
+      path1.substring(1)
+    else
+      path1
   }
 
   val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
