@@ -4,11 +4,9 @@ import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.Project
 import cz.cvut.fit.prl.scala.implicits.model.Util._
 import cz.cvut.fit.prl.scala.implicits.tools.neo4j.Converter
-import javax.imageio.stream.FileImageInputStream
-import org.neo4j.configuration.GraphDatabaseSettings
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
 import org.neo4j.graphdb.{GraphDatabaseService, Transaction}
-
+import org.neo4j.configuration.GraphDatabaseSettings
 
 
 object ImplicitsToNeo4j extends App {
@@ -58,8 +56,10 @@ object ImplicitsToNeo4j extends App {
 
     cleanUpDatabase
 
+    val beforeTransactionTime = System.currentTimeMillis()
     val transaction: Transaction = graphDb.beginTx()
     val converter = Converter(transaction)
+    val totalProjectExportTime = System.currentTimeMillis()
     try {
       converter.initiateDatabase()
       implicitsFile.inputStream.apply(
@@ -73,21 +73,25 @@ object ImplicitsToNeo4j extends App {
           }
         )
       )
+      println(s" Projects export in ${System.currentTimeMillis() - totalProjectExportTime}ms")
 
+      val transactionCommitTime = System.currentTimeMillis()
       transaction.commit()
+      println(s" Transaction commit in ${System.currentTimeMillis() - transactionCommitTime}ms")
     } catch {
       case e: Throwable =>
         e.printStackTrace()
     } finally {
       transaction.close()
+      println(s" Transaction time: ${System.currentTimeMillis() - beforeTransactionTime}ms")
       managementService.shutdown()
     }
   }
 
   val corporaDir = "/home/panpuncocha/skola/bt/OOPSLA19-artifact/corpora/"
-
-//  val projectDir = File(corporaDir + "2-single")
-  val projectDir = File(corporaDir + "5-extracted")
+//
+  val projectDir = File(corporaDir + "2-single")
+//  val projectDir = File(corporaDir + "5-extracted")
 
   val implicitsBinRelPath = "/implicits2.bin"
 //  val projectDir = File(corporaDir + "1-example")
