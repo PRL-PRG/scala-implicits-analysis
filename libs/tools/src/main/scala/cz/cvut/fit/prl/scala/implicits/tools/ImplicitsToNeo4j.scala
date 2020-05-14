@@ -49,6 +49,9 @@ object ImplicitsToNeo4j extends App {
 
     // opening/creating new graph db
     val managementService = new DatabaseManagementServiceBuilder(dbDirectoryPath)
+      .setConfig[java.lang.String](GraphDatabaseSettings.keep_logical_logs, "1 files")
+      .setConfig[java.lang.Long](GraphDatabaseSettings.logical_log_rotation_threshold, (1024*128).toLong)
+      .setConfig[java.lang.String](GraphDatabaseSettings.keep_logical_logs, "keep_none")
       .loadPropertiesFromFile(getClass.getResource("/neo4j.conf").getFile)
       .build()
     implicit val graphDb: GraphDatabaseService = managementService.database(DEFAULT_DB_NAME)
