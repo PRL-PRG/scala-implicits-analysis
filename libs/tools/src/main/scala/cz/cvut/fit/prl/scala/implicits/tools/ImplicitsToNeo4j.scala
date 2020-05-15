@@ -10,13 +10,13 @@ import org.neo4j.configuration.GraphDatabaseSettings
 
 
 object ImplicitsToNeo4j extends App {
-  val DEFAULT_DB_NAME = "neo4j"
 
   def run(projectDir: File, implicitsFile: File): Unit = {
 
     val managementService = createManagementService(projectDir)
     registerShutdownHook(managementService)
 
+    val DEFAULT_DB_NAME = "neo4j"
     val graphDb: GraphDatabaseService = managementService.database(DEFAULT_DB_NAME)
 
     cleanUpDatabase(graphDb)
