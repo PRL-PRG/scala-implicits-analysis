@@ -10,12 +10,13 @@ import scala.collection.JavaConverters._
 
 // TODO - it might be possible to store the references to nodes in memory... -
 //  should be much faster and this might even help with making the import multithreaded
-class Converter(transaction: Transaction, proxy: Proxy) {
+class Converter(proxy: Proxy) {
 
   // Avoids passing module node and module entity through every function
   // TODO pass it as arguments - using implicits could make this cleaner
   implicit var currentModuleNode: Node = _
   implicit var moduleContext: Module = _
+  implicit var transaction: Transaction = _
   val UNIT_DECLARATIONID = "scala/Unit#"
   val FUNCTION1_DECLARATIONID = "scala/Function1#"
 
@@ -47,7 +48,8 @@ class Converter(transaction: Transaction, proxy: Proxy) {
     moduleNode
   }
 
-  def createProject(project: Project): Node = {
+  def createProject(project: Project, transaction: Transaction): Node = {
+    this.transaction = transaction
     val projectProperties = Map(("projectId", project.projectId),("sbtVersion", project.sbtVersion))
     val projectNode = mergeNode(Labels.Project, projectProperties)
 
@@ -61,8 +63,8 @@ class Converter(transaction: Transaction, proxy: Proxy) {
     projectNode
   }
 
-  def initiateDatabase(): Unit = {
-    proxy.createUnknownDeclarationNode()
+  def initiateDatabase(transaction: Transaction): Unit = {
+    proxy.createUnknownDeclarationNode(transaction)
   }
 
   private def createSignatureNode(signature: Signature): Node = {
@@ -145,7 +147,7 @@ class Converter(transaction: Transaction, proxy: Proxy) {
   }
 
 
-  def isImplicitConvFunctionType(returnType: TypeRef): Option[(Node, Node)] = {
+  private def isImplicitConvFunctionType(returnType: TypeRef): Option[(Node, Node)] = {
     // is function A => B, where A,B is non-unit type
     if (returnType.declarationId != FUNCTION1_DECLARATIONID ||
       returnType.typeArguments.size != 2) {
@@ -158,14 +160,14 @@ class Converter(transaction: Transaction, proxy: Proxy) {
       if (fromTypeArg.declarationId == UNIT_DECLARATIONID || toTypeArg.declarationId == UNIT_DECLARATIONID)
         None
       else {
-        val fromNode = proxy.mergeTypeReferenceNode(fromTypeArg)(moduleContext, currentModuleNode)
+        val fromNode = proxy.mergeTypeReferenceNode(fromTypeArg)
         val toNode = proxy.mergeTypeReferenceNode(toTypeArg)
         Some(fromNode, toNode)
       }
     }
   }
 
-  def isMethodImplicitConv(parameterLists: Seq[ParameterList], returnType: TypeRef): Option[(Node, Node)] = {
+  private def isMethodImplicitConv(parameterLists: Seq[ParameterList], returnType: TypeRef): Option[(Node, Node)] = {
     // is function A=>B with exactly one non-implicit parameter in the first parameter list
     // and zero or more implicit parameters in second parameter list
     if (returnType.declarationId == UNIT_DECLARATIONID)
@@ -307,6 +309,6 @@ class Converter(transaction: Transaction, proxy: Proxy) {
 }
 
 object Converter {
-  def apply(transaction: Transaction, cache: NodesCache): Converter = new Converter(transaction, new Proxy(transaction,cache))
-  def apply(transaction: Transaction): Converter = new Converter(transaction, new Proxy(transaction, NodesCache()))
+  def apply(cache: NodesCache): Converter = new Converter(new Proxy(cache))
+  def apply(): Converter = new Converter(new Proxy(NodesCache()))
 }

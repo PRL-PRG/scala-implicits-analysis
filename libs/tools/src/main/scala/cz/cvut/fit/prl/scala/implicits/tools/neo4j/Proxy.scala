@@ -1,17 +1,15 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
-import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind.{TYPE, VAL}
-import cz.cvut.fit.prl.scala.implicits.model.Language.UNKNOWN_LANGUAGE
-import cz.cvut.fit.prl.scala.implicits.model.{Declaration, Language, Location, Module, TypeRef, TypeSignature}
+import cz.cvut.fit.prl.scala.implicits.model.{Declaration, Module, TypeRef}
 import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.{Labels, Relationships}
-import org.neo4j.graphdb.{Direction, Node, Transaction}
+import org.neo4j.graphdb.{Node, Transaction}
 
 import scala.collection.JavaConverters._
 
 
-class Proxy(transaction: Transaction, cache: NodesCache) {
+class Proxy(cache: NodesCache) {
 
-  def mergeTypeReferenceNode(tpe: TypeRef)(implicit module: Module, moduleNode: Node): Node = {
+  def mergeTypeReferenceNode(tpe: TypeRef)(implicit module: Module, moduleNode: Node, transaction: Transaction): Node = {
     // This validation is only because there are some missing values in module.declarations in some projects
     val declarationOpt = module.declarations.get(tpe.declarationId)
     val (declaration, groupId, artifactId) = declarationOpt match {
@@ -41,7 +39,7 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
   // TODO refactor java stream to scala iterator - conversion cost?
   // TODO Module declares Declaration relationShip wont be ever created in case module does not declare this declaration
   //  - Is this relation necessary? This relation-ship is already present in form of artifact relation
-  def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String)(implicit module:Module, moduleNode: Node): Node = {
+  def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String)(implicit module:Module, moduleNode: Node, transaction: Transaction): Node = {
     val groupTupleOpt = cache(groupId)
 
     // group, artifact, declaration needs to be created
@@ -93,7 +91,7 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
   }
 
   // For the purpose to map typereferece, which with declaration id, that does not correspond to any declarationId in module.declarations
-  def createUnknownDeclarationNode(): Node = {
+  def createUnknownDeclarationNode(implicit transaction: Transaction): Node = {
     val declaration: Declaration = Utils.createUnknownDeclaration()
     val groupId = Utils.UNKNOWN_GROUP_ID
     val artifactId = Utils.UNKNOWN_ARTIFACT_ID
@@ -110,7 +108,7 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
     declarationNode
   }
 
-  private def createDeclarationNode(declaration: Declaration): Node = {
+  private def createDeclarationNode(declaration: Declaration)(implicit transaction: Transaction): Node = {
     val properties = Map("declarationId" -> declaration.declarationId,
       "name" -> declaration.name,
       "properties" -> declaration.properties)
@@ -129,23 +127,23 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
     declarationNode
   }
 
-  private def mergeNode(label: Labels, properties: Map[String, Object]): Node =
+  private def mergeNode(label: Labels, properties: Map[String, Object])(implicit transaction: Transaction): Node =
     transaction.findNodes(label, properties.asJava).stream()
       .findFirst()
       .orElseGet(() => createNode(label, properties))
 
-  private def mergeNode(label:Labels): Node =
+  private def mergeNode(label:Labels)(implicit transaction: Transaction): Node =
     transaction.findNodes(label).stream()
       .findFirst()
       .orElseGet(() => createNode(label))
 
-  private def createNode(label: Labels, properties: Map[String, Any]): Node =
+  private def createNode(label: Labels, properties: Map[String, Any])(implicit transaction: Transaction): Node =
     setNodeProperties(transaction.createNode(label), properties)
 
-  private def createNode(label: Labels): Node =
+  private def createNode(label: Labels)(implicit transaction: Transaction): Node =
     transaction.createNode(label)
 
-  private def setNodeProperties(node: Node, properties: Map[String, Any]): Node = {
+  private def setNodeProperties(node: Node, properties: Map[String, Any])(implicit transaction: Transaction): Node = {
     properties.foreach(property => node.setProperty(property._1, property._2))
     node
   }
@@ -153,5 +151,5 @@ class Proxy(transaction: Transaction, cache: NodesCache) {
 }
 
 object Proxy{
-  def apply(transaction: Transaction) = new Proxy(transaction, NodesCache())
+  def apply() = new Proxy(NodesCache())
 }
