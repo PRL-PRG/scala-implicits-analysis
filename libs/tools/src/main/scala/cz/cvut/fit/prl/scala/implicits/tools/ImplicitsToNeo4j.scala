@@ -3,7 +3,6 @@ package cz.cvut.fit.prl.scala.implicits.tools
 import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.Project
 import cz.cvut.fit.prl.scala.implicits.model.Util._
-import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.{Labels, Relationships}
 import cz.cvut.fit.prl.scala.implicits.tools.neo4j.Converter
 import org.neo4j.dbms.api.{DatabaseManagementService, DatabaseManagementServiceBuilder}
 import org.neo4j.graphdb.{GraphDatabaseService, Transaction}
