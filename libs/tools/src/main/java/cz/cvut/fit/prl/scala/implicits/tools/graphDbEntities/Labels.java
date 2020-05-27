@@ -24,6 +24,6 @@ public enum Labels implements Label {
     Parameter,
     ParameterList,
     ImplicitParameter,
-    ImplicitType,
+    ImplicitConversion,
     ImplicitDeclaration
 }

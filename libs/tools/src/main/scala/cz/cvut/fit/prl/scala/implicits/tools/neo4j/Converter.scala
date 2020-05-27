@@ -138,9 +138,6 @@ class Converter(proxy: Proxy) {
     signatureNode
   }
 
-  private def mergeImplicitTypeNode(implicitType: ImplicitType.Value): Node =
-    mergeNode(Labels.ImplicitType, Map("name" -> implicitType.toString))
-
   private def addSignatureType(signatureNode: Node, signatureType: String): Unit = {
     val signatureTypeNode = mergeNode(Labels.SignatureType, Map("name" -> signatureType))
     signatureNode.createRelationshipTo(signatureTypeNode, Relationships.SIGNATURE_TYPE)
@@ -222,8 +219,7 @@ class Converter(proxy: Proxy) {
       declarationNode.addLabel(Labels.ImplicitDeclaration)
       getImplicitConversion(declaration).map {
         case (fromNode, toNode) =>
-          val implicitTypeNode = mergeImplicitTypeNode(ImplicitType.Conversion)
-          declarationNode.createRelationshipTo(implicitTypeNode, Relationships.IMPLICIT_TYPE)
+          declarationNode.addLabel(Labels.ImplicitConversion)
           declarationNode.createRelationshipTo(fromNode, Relationships.CONVERSION_FROM)
           declarationNode.createRelationshipTo(toNode, Relationships.CONVERSION_TO)
       }
@@ -266,14 +262,14 @@ class Converter(proxy: Proxy) {
         val declaration = moduleContext.declarations(declarationId)
         val declarationNode = mergeDeclarationNodeWrapper(declaration)
 
-        callSiteNode.createRelationshipTo(declarationNode, Relationships.IMPLICIT_VALUEREF)
+        callSiteNode.createRelationshipTo(declarationNode, Relationships.HAS_IMPLICIT_ARGUMENT_VALUEREF)
       case CallSiteRef(callsiteId) =>
-        callSiteNode.createRelationshipTo(callSiteTuples(callsiteId)._2, Relationships.IMPLICIT_CALLSITEREF)
+        callSiteNode.createRelationshipTo(callSiteTuples(callsiteId)._2, Relationships.HAS_IMPLICIT_ARGUMENT_CALLSITEREF)
       case _ => throw new IllegalArgumentException("Unknown implicit argument found")
     }
 
     callSite.parentId.fold{}{parentId =>
-      // Some with parent Ids do not link to any callsiteId exist!
+      // Some callsite parent Ids do not link to any callsiteId exist!
       callSiteTuples.get(parentId).fold{}{
         case (_, parentNode) => callSiteNode.createRelationshipTo(parentNode, Relationships.PARENT)
       }
