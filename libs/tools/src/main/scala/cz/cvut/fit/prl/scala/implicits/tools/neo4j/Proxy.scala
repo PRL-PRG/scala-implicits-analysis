@@ -108,6 +108,23 @@ class Proxy(cache: NodesCache) {
     declarationNode
   }
 
+  def mergeNode(label: Labels, properties: Map[String, Object])(implicit transaction: Transaction): Node =
+    transaction.findNodes(label, properties.asJava).stream()
+      .findFirst()
+      .orElseGet(() => createNode(label, properties))
+
+  def mergeNode(label:Labels)(implicit transaction: Transaction): Node =
+    transaction.findNodes(label).stream()
+      .findFirst()
+      .orElseGet(() => createNode(label))
+
+  def createNode(label: Labels, properties: Map[String, Any])(implicit transaction: Transaction): Node =
+    setNodeProperties(transaction.createNode(label), properties)
+
+  def createNode(label: Labels)(implicit transaction: Transaction): Node =
+    transaction.createNode(label)
+
+
   private def createDeclarationNode(declaration: Declaration)(implicit transaction: Transaction): Node = {
     val properties = Map("declarationId" -> declaration.declarationId,
       "name" -> declaration.name,
@@ -126,22 +143,6 @@ class Proxy(cache: NodesCache) {
 
     declarationNode
   }
-
-  private def mergeNode(label: Labels, properties: Map[String, Object])(implicit transaction: Transaction): Node =
-    transaction.findNodes(label, properties.asJava).stream()
-      .findFirst()
-      .orElseGet(() => createNode(label, properties))
-
-  private def mergeNode(label:Labels)(implicit transaction: Transaction): Node =
-    transaction.findNodes(label).stream()
-      .findFirst()
-      .orElseGet(() => createNode(label))
-
-  private def createNode(label: Labels, properties: Map[String, Any])(implicit transaction: Transaction): Node =
-    setNodeProperties(transaction.createNode(label), properties)
-
-  private def createNode(label: Labels)(implicit transaction: Transaction): Node =
-    transaction.createNode(label)
 
   private def setNodeProperties(node: Node, properties: Map[String, Any])(implicit transaction: Transaction): Node = {
     properties.foreach(property => node.setProperty(property._1, property._2))

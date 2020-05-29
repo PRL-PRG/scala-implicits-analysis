@@ -25,7 +25,7 @@ class Converter(proxy: Proxy) {
       ("scalaVersion", module.scalaVersion), ("artifactId", module.artifactId),("version", module.version),
       ("commit", module.commit))
 
-    val moduleNode: Node = createNode(Labels.Module, moduleProperties)
+    val moduleNode: Node = proxy.createNode(Labels.Module, moduleProperties)
     currentModuleNode = moduleNode
     // 1. create declarations
     // 2. create declaration signatures and annotations
@@ -44,14 +44,14 @@ class Converter(proxy: Proxy) {
       .foreach{
         case (callSite, callSiteNode) => connectCallSite(callSite, callSiteNode, callSiteTuples)
       }
-    currentModuleNode = null
+    currentModuleNode = _
     moduleNode
   }
 
   def createProject(project: Project, transaction: Transaction): Node = {
     this.transaction = transaction
     val projectProperties = Map(("projectId", project.projectId),("sbtVersion", project.sbtVersion))
-    val projectNode = mergeNode(Labels.Project, projectProperties)
+    val projectNode = proxy.createNode(Labels.Project, projectProperties)
 
     project.modules.foreach {
       case (_, module) =>
@@ -68,7 +68,7 @@ class Converter(proxy: Proxy) {
   }
 
   private def createSignatureNode(signature: Signature): Node = {
-    val signatureNode = createNode(Labels.Signature)
+    val signatureNode = proxy.createNode(Labels.Signature)
 
     signature match {
       case MethodSignature(typeParameters, parameterLists, returnType) =>
@@ -80,9 +80,9 @@ class Converter(proxy: Proxy) {
         })
 
         parameterLists.foreach(parameterList => {
-          val parameterListNode = createNode(Labels.ParameterList)
+          val parameterListNode = proxy.createNode(Labels.ParameterList)
           parameterList.parameters.foreach(parameter => {
-            val parameterNode = createNode(Labels.Parameter, Map("name" -> parameter.name))
+            val parameterNode = proxy.createNode(Labels.Parameter, Map("name" -> parameter.name))
             if (parameter.isImplicit) {
               parameterNode.addLabel(Labels.ImplicitParameter)
             }
@@ -138,8 +138,9 @@ class Converter(proxy: Proxy) {
     signatureNode
   }
 
+    //
   private def addSignatureType(signatureNode: Node, signatureType: String): Unit = {
-    val signatureTypeNode = mergeNode(Labels.SignatureType, Map("name" -> signatureType))
+    val signatureTypeNode = proxy.mergeNode(Labels.SignatureType, Map("name" -> signatureType))
     signatureNode.createRelationshipTo(signatureTypeNode, Relationships.SIGNATURE_TYPE)
   }
 
@@ -238,9 +239,8 @@ class Converter(proxy: Proxy) {
 
 
   private def createCallSiteNode(callSite: CallSite): Node = {
-    // TODO remove callSiteId?
-    val properties = Map(("callSiteId", callSite.callSiteId), ("code", callSite.code))
-    val callSiteNode = createNode(Labels.CallSite, properties)
+    val properties = Map(("code", callSite.code))
+    val callSiteNode = proxy.createNode(Labels.CallSite, properties)
 
     callSite.typeArguments.foreach(typeArgument => {
       val typeArgumentNode = proxy.mergeTypeReferenceNode(typeArgument)
@@ -280,28 +280,6 @@ class Converter(proxy: Proxy) {
     val (groupId, artifactId) = Utils.getGroupArtifact(declaration)(moduleContext)
     proxy.mergeDeclarationNode(declaration, artifactId, groupId)
   }
-
-  private def mergeNode(label: Labels, properties: Map[String, Object]): Node =
-    transaction.findNodes(label, properties.asJava).stream()
-      .findFirst()
-      .orElseGet(() => createNode(label, properties))
-
-  private def mergeNode(label:Labels): Node =
-    transaction.findNodes(label).stream()
-      .findFirst()
-      .orElseGet(() => createNode(label))
-
-  private def createNode(label: Labels, properties: Map[String, Any]): Node =
-    setNodeProperties(transaction.createNode(label), properties)
-
-  private def createNode(label: Labels): Node =
-    transaction.createNode(label)
-
-  private def setNodeProperties(node: Node, properties: Map[String, Any]): Node = {
-    properties.foreach(property => node.setProperty(property._1, property._2))
-    node
-  }
-
 }
 
 object Converter {
