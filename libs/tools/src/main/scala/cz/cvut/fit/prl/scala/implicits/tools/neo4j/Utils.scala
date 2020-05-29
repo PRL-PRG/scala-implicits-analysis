@@ -2,7 +2,7 @@ package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
 import cz.cvut.fit.prl.scala.implicits.model.Declaration.Kind.TYPE
 import cz.cvut.fit.prl.scala.implicits.model.Language.UNKNOWN_LANGUAGE
-import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, Declaration, Location, Module, PathEntry, SourcepathEntry, TypeRef, TypeSignature}
+import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, Declaration, Location, Module, SourcepathEntry, TypeRef, TypeSignature}
 
 object Utils {
 

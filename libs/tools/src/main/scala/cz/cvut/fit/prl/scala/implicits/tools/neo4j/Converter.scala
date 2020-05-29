@@ -44,14 +44,14 @@ class Converter(proxy: Proxy) {
       .foreach{
         case (callSite, callSiteNode) => connectCallSite(callSite, callSiteNode, callSiteTuples)
       }
-    currentModuleNode = _
+    currentModuleNode = null
     moduleNode
   }
 
   def createProject(project: Project, transaction: Transaction): Node = {
     this.transaction = transaction
     val projectProperties = Map(("projectId", project.projectId),("sbtVersion", project.sbtVersion))
-    val projectNode = proxy.createNode(Labels.Project, projectProperties)
+    val projectNode = proxy.createNode(Labels.Project, projectProperties)(transaction)
 
     project.modules.foreach {
       case (_, module) =>
