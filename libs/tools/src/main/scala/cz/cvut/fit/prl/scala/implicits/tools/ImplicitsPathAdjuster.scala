@@ -15,16 +15,14 @@ object ImplicitsPathAdjuster extends App {
       implicitsFile.inputStream.apply(
         input => Project.streamFrom(input).foreach(
           project => {
-            Project.write(modifyProject(project), os)
+            Project.write(fixProjectsPaths(project), os)
           }
         )
       )
     })
   }
 
-
-
-  private def modifyProject(project: Project): Project = {
+  def fixProjectsPaths(project: Project): Project = {
     val newModules = project.modules.map {
       case (moduleId, module) => (moduleId, modifyModule(module))
     }
