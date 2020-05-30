@@ -36,7 +36,7 @@ object ImplicitsToNeo4j extends App {
     }
   }
 
-  private def cleanUpDatabase(implicit graphDb: GraphDatabaseService): Unit = {
+  def cleanUpDatabase(implicit graphDb: GraphDatabaseService): Unit = {
     val transaction = graphDb.beginTx()
 
     try {

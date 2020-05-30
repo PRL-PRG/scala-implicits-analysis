@@ -1,15 +1,12 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
-import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, ClasspathEntry, Declaration, MethodSignature, Module, ParameterList, Project, Signature, SourcepathEntry, TypeRef, TypeSignature, ValueRef, ValueSignature}
+import cz.cvut.fit.prl.scala.implicits.model.{CallSite, CallSiteRef, ClassSignature, Declaration, MethodSignature, Module, ParameterList, Project, Signature, TypeRef, TypeSignature, ValueRef, ValueSignature}
 import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.{Labels, Relationships}
 import org.neo4j.graphdb.{Direction, Node, Transaction}
 
 import scala.collection.mutable
-import scala.collection.JavaConverters._
 
 
-// TODO - it might be possible to store the references to nodes in memory... -
-//  should be much faster and this might even help with making the import multithreaded
 class Converter(proxy: Proxy) {
 
   // Avoids passing module node and module entity through every function
@@ -17,36 +14,6 @@ class Converter(proxy: Proxy) {
   implicit var currentModuleNode: Node = _
   implicit var moduleContext: Module = _
   implicit var transaction: Transaction = _
-  val UNIT_DECLARATIONID = "scala/Unit#"
-  val FUNCTION1_DECLARATIONID = "scala/Function1#"
-
-  def createModuleNode(module: Module): Node = {
-    val moduleProperties = Map(("moduleId", module.moduleId), ("groupId", module.groupId),
-      ("scalaVersion", module.scalaVersion), ("artifactId", module.artifactId),("version", module.version),
-      ("commit", module.commit))
-
-    val moduleNode: Node = proxy.createNode(Labels.Module, moduleProperties)
-    currentModuleNode = moduleNode
-    // 1. create declarations
-    // 2. create declaration signatures and annotations
-    module.declarations.values
-      .map(declaration => (declaration, mergeDeclarationNodeWrapper(declaration)))
-      .foreach(declarationTuple => (connectDeclaration _).tupled(declarationTuple))
-
-
-    // callsites ids are unique per module
-    // 3. create callsites and bounds to its references
-    val callSiteTuples = module.implicitCallSites
-      .foldLeft(mutable.Map[Int, (CallSite, Node)]())(
-        (map, callSite) => map += callSite.callSiteId -> (callSite, createCallSiteNode(callSite)))
-
-    callSiteTuples.values
-      .foreach{
-        case (callSite, callSiteNode) => connectCallSite(callSite, callSiteNode, callSiteTuples)
-      }
-    currentModuleNode = null
-    moduleNode
-  }
 
   def createProject(project: Project, transaction: Transaction): Node = {
     this.transaction = transaction
@@ -67,156 +34,184 @@ class Converter(proxy: Proxy) {
     proxy.createUnknownDeclarationNode(transaction)
   }
 
+  private def createModuleNode(module: Module): Node = {
+    val moduleProperties = Map(("moduleId", module.moduleId), ("groupId", module.groupId),
+      ("scalaVersion", module.scalaVersion), ("artifactId", module.artifactId),("version", module.version),
+      ("commit", module.commit))
+
+    val moduleNode: Node = proxy.createNode(Labels.Module, moduleProperties)
+    currentModuleNode = moduleNode
+    // 1. create declarations
+    // 2. create declaration signatures and annotations
+    module.declarations.values
+      .map(declaration => (declaration, mergeDeclarationNodeWrapper(declaration)))
+      .foreach(declarationTuple => (connectDeclaration _).tupled(declarationTuple))
+
+
+    // 3. create callsites
+    // 4. bind callsites to its references
+    val callSiteTuples = module.implicitCallSites
+      .foldLeft(mutable.Map[Int, (CallSite, Node)]())(
+        (map, callSite) => map += callSite.callSiteId -> (callSite, createCallSiteNode(callSite)))
+
+    callSiteTuples.values
+      .foreach{
+        case (callSite, callSiteNode) => connectCallSite(callSite, callSiteNode, callSiteTuples)
+      }
+    currentModuleNode = null
+    moduleNode
+  }
+
   private def createSignatureNode(signature: Signature): Node = {
     val signatureNode = proxy.createNode(Labels.Signature)
 
     signature match {
       case MethodSignature(typeParameters, parameterLists, returnType) =>
-        addSignatureType(signatureNode, "method")
-
-        typeParameters.foreach(param => {
-          val paramNode = proxy.mergeTypeReferenceNode(param)
-          signatureNode.createRelationshipTo(paramNode, Relationships.TYPE_PARAMETER)
-        })
-
-        parameterLists.foreach(parameterList => {
-          val parameterListNode = proxy.createNode(Labels.ParameterList)
-          parameterList.parameters.foreach(parameter => {
-            val parameterNode = proxy.createNode(Labels.Parameter, Map("name" -> parameter.name))
-            if (parameter.isImplicit) {
-              parameterNode.addLabel(Labels.ImplicitParameter)
-            }
-
-            val parameterTypeNode = proxy.mergeTypeReferenceNode(parameter.tpe)
-            parameterNode.createRelationshipTo(parameterTypeNode, Relationships.TYPE)
-
-            parameterListNode.createRelationshipTo(parameterNode, Relationships.HAS_PARAMETER)
-          })
-          signatureNode.createRelationshipTo(parameterListNode, Relationships.HAS_PARAMETERLIST)
-        })
-        val returnTypeNode = proxy.mergeTypeReferenceNode(returnType)
-        signatureNode.createRelationshipTo(returnTypeNode, Relationships.RETURN_TYPE)
-
+        createMethodSignature(signatureNode, typeParameters, parameterLists, returnType)
       case ClassSignature(typeParameters, parents) =>
-        addSignatureType(signatureNode, "class")
-
-        typeParameters.foreach(param => {
-          val paramNode = proxy.mergeTypeReferenceNode(param)
-          signatureNode.createRelationshipTo(paramNode, Relationships.TYPE_PARAMETER)
-        })
-
-        parents.foreach(parent => {
-          val parentNode = proxy.mergeTypeReferenceNode(parent)
-          signatureNode.createRelationshipTo(parentNode, Relationships.PARENT)
-        })
+        createClassSignature(signatureNode, typeParameters, parents)
       case TypeSignature(typeParameters, upperBound, lowerBound) =>
-        addSignatureType(signatureNode, "type")
-
-        typeParameters.foreach(param => {
-          val paramNode = proxy.mergeTypeReferenceNode(param)
-          signatureNode.createRelationshipTo(paramNode, Relationships.TYPE_PARAMETER)
-        })
-
-        if (upperBound.nonEmpty) {
-          val upperBoundNode = proxy.mergeTypeReferenceNode(upperBound.get)
-          signatureNode.createRelationshipTo(upperBoundNode, Relationships.UPPER_BOUND)
-        }
-
-        if (lowerBound.nonEmpty) {
-          val upperBoundNode = proxy.mergeTypeReferenceNode(lowerBound.get)
-          signatureNode.createRelationshipTo(upperBoundNode, Relationships.LOWER_BOUND)
-        }
+        createTypeSignature(signatureNode, typeParameters, upperBound, lowerBound)
       case ValueSignature(tpe) =>
-        addSignatureType(signatureNode, "value")
-
-        val valueTypeNode = proxy.mergeTypeReferenceNode(tpe)
-
-        signatureNode.createRelationshipTo(valueTypeNode, Relationships.TYPE)
+        createValueSignature(signatureNode, tpe)
       case _ => throw new IllegalArgumentException("Unexpected signature type")
     }
 
     signatureNode
   }
 
-    //
+  private def createMethodSignature(signatureNode: Node, typeParameters: Seq[TypeRef],
+                                    parameterLists: Seq[ParameterList],
+                                    returnType: TypeRef): Unit = {
+    addSignatureType(signatureNode, "method")
+
+    typeParameters.foreach(param => {
+      val paramNode = proxy.mergeTypeReferenceNode(param)
+      signatureNode.createRelationshipTo(paramNode, Relationships.TYPE_PARAMETER)
+    })
+
+    parameterLists.foreach(parameterList => {
+      val parameterListNode = proxy.createNode(Labels.ParameterList)
+      parameterList.parameters.foreach(parameter => {
+        val parameterNode = proxy.createNode(Labels.Parameter, Map("name" -> parameter.name))
+        if (parameter.isImplicit) {
+          parameterNode.addLabel(Labels.ImplicitParameter)
+        }
+
+        val parameterTypeNode = proxy.mergeTypeReferenceNode(parameter.tpe)
+        parameterNode.createRelationshipTo(parameterTypeNode, Relationships.TYPE)
+
+        parameterListNode.createRelationshipTo(parameterNode, Relationships.HAS_PARAMETER)
+      })
+      signatureNode.createRelationshipTo(parameterListNode, Relationships.HAS_PARAMETERLIST)
+    })
+    val returnTypeNode = proxy.mergeTypeReferenceNode(returnType)
+    signatureNode.createRelationshipTo(returnTypeNode, Relationships.RETURN_TYPE)
+  }
+
+  private def createClassSignature(signatureNode: Node,
+                                  typeParameters: Seq[TypeRef],
+                                  parents: Seq[TypeRef]): Unit = {
+    addSignatureType(signatureNode, "class")
+
+    typeParameters.foreach(param => {
+      val paramNode = proxy.mergeTypeReferenceNode(param)
+      signatureNode.createRelationshipTo(paramNode, Relationships.TYPE_PARAMETER)
+    })
+
+    parents.foreach(parent => {
+      val parentNode = proxy.mergeTypeReferenceNode(parent)
+      signatureNode.createRelationshipTo(parentNode, Relationships.PARENT)
+    })
+  }
+
+  private def createTypeSignature(signatureNode: Node, typeParameters: Seq[TypeRef], upperBound: Option[TypeRef],
+                                  lowerBound: Option[TypeRef]): Unit = {
+    addSignatureType(signatureNode, "type")
+
+    typeParameters.foreach(param => {
+      val paramNode = proxy.mergeTypeReferenceNode(param)
+      signatureNode.createRelationshipTo(paramNode, Relationships.TYPE_PARAMETER)
+    })
+
+    if (upperBound.nonEmpty) {
+      val upperBoundNode = proxy.mergeTypeReferenceNode(upperBound.get)
+      signatureNode.createRelationshipTo(upperBoundNode, Relationships.UPPER_BOUND)
+    }
+
+    if (lowerBound.nonEmpty) {
+      val upperBoundNode = proxy.mergeTypeReferenceNode(lowerBound.get)
+      signatureNode.createRelationshipTo(upperBoundNode, Relationships.LOWER_BOUND)
+    }
+  }
+
+  private def createValueSignature(signatureNode: Node, tpe: TypeRef): Unit = {
+    addSignatureType(signatureNode, "value")
+
+    val valueTypeNode = proxy.mergeTypeReferenceNode(tpe)
+
+    signatureNode.createRelationshipTo(valueTypeNode, Relationships.TYPE)
+  }
+
   private def addSignatureType(signatureNode: Node, signatureType: String): Unit = {
     val signatureTypeNode = proxy.mergeNode(Labels.SignatureType, Map("name" -> signatureType))
     signatureNode.createRelationshipTo(signatureTypeNode, Relationships.SIGNATURE_TYPE)
   }
 
 
-  private def isImplicitConvFunctionType(returnType: TypeRef): Option[(Node, Node)] = {
-    // is function A => B, where A,B is non-unit type
-    if (returnType.declarationId != FUNCTION1_DECLARATIONID ||
-      returnType.typeArguments.size != 2) {
-      None
-    }
-    else {
-      val fromTypeArg = returnType.typeArguments.head
-      val toTypeArg = returnType.typeArguments.tail.head
+  private def getAnonymousConversion(returnType: TypeRef): Option[(Node,Node)] = {
+    if (ModelLogic.isImplicitConvFunction(returnType)) {
+      val (fromType, toType) = ModelLogic.getConversionTypes(returnType)
 
-      if (fromTypeArg.declarationId == UNIT_DECLARATIONID || toTypeArg.declarationId == UNIT_DECLARATIONID)
-        None
-      else {
-        val fromNode = proxy.mergeTypeReferenceNode(fromTypeArg)
-        val toNode = proxy.mergeTypeReferenceNode(toTypeArg)
-        Some(fromNode, toNode)
-      }
+      val fromNode = proxy.mergeTypeReferenceNode(fromType)
+      val toNode = proxy.mergeTypeReferenceNode(toType)
+      Some(fromNode, toNode)
     }
+    else
+      None
   }
 
-  private def isMethodImplicitConv(parameterLists: Seq[ParameterList], returnType: TypeRef): Option[(Node, Node)] = {
-    // is function A=>B with exactly one non-implicit parameter in the first parameter list
-    // and zero or more implicit parameters in second parameter list
-    if (returnType.declarationId == UNIT_DECLARATIONID)
-      return None
-    val toTypeRefNode = proxy.mergeTypeReferenceNode(returnType)
+  private def getMethodConversion(parameterLists: Seq[ParameterList], returnType: TypeRef): Option[(Node,Node)] = {
+    if (ModelLogic.isImplicitConvMethod(parameterLists, returnType)) {
+      val (fromType, toType) = ModelLogic.getConversionTypes(parameterLists, returnType)
 
-    if (parameterLists.isEmpty || parameterLists.head.parameters.size != 1)
-      return None
-
-    val firstListParameter = parameterLists.head.parameters.head
-
-    if (firstListParameter.isImplicit || firstListParameter.tpe.declarationId == UNIT_DECLARATIONID)
-      return None
-
-    val fromTypeRefNode = proxy.mergeTypeReferenceNode(firstListParameter.tpe)
-
-    if (parameterLists.size > 2)
-      return None
-
-    if (parameterLists.size == 2 && !parameterLists(1).parameters.forall(param => param.isImplicit))
+      val fromTypeRefNode = proxy.mergeTypeReferenceNode(fromType)
+      val toTypeRefNode = proxy.mergeTypeReferenceNode(toType)
+      Some(fromTypeRefNode, toTypeRefNode)
+    }
+    else
       None
-    Some(fromTypeRefNode, toTypeRefNode)
   }
+
 
   // returns from/to typereferences of implicit conversion
   private def getImplicitConversion(implicitDeclaration: Declaration): Option[(Node,Node)] = {
-    assert(isImplicit(implicitDeclaration))
+    assert(ModelLogic.isImplicit(implicitDeclaration))
     implicitDeclaration.signature match {
       case MethodSignature(_, parameterLists, returnType) =>
         val isAnonymous = parameterLists.isEmpty
         if (isAnonymous)
-          isImplicitConvFunctionType(returnType)
+          getAnonymousConversion(returnType)
         else
-          isMethodImplicitConv(parameterLists, returnType)
+          getMethodConversion(parameterLists, returnType)
       case ClassSignature(_, parents) =>
         // TODO is this really correct?
         if (parents.size != 1)
           None
         else
-          isImplicitConvFunctionType(parents.head)
-      case ValueSignature(_) => Option.empty
-      case _ => Option.empty
+          getAnonymousConversion(parents.head)
+      case ValueSignature(tpe) => getAnonymousConversion(tpe)
+      case _ => None
     }
   }
 
   private def connectDeclaration(declaration: Declaration, declarationNode: Node): Unit = {
-    // check whether the signature is not already connected - declaration was connected, when processing different module
+    // check whether the signature is not already connected -
+    // declaration might have been connected, when processing different module was processed
     if (declarationNode.hasRelationship(Direction.OUTGOING, Relationships.DECLARATION_SIGNATURE))
       return
 
-    if (isImplicit(declaration)) {
+    if (ModelLogic.isImplicit(declaration)) {
       declarationNode.addLabel(Labels.ImplicitDeclaration)
       getImplicitConversion(declaration).map {
         case (fromNode, toNode) =>
@@ -234,9 +229,6 @@ class Converter(proxy: Proxy) {
       declarationNode.createRelationshipTo(annotationNode, Relationships.ANNOTATION)
     })
   }
-
-  def isImplicit(declaration: Declaration): Boolean = (declaration.properties & 0x20) != 0
-
 
   private def createCallSiteNode(callSite: CallSite): Node = {
     val properties = Map(("code", callSite.code))
@@ -277,7 +269,7 @@ class Converter(proxy: Proxy) {
   }
 
   private def mergeDeclarationNodeWrapper(declaration: Declaration): Node = {
-    val (groupId, artifactId) = Utils.getGroupArtifact(declaration)(moduleContext)
+    val (groupId, artifactId) = ModelLogic.getGroupArtifact(declaration)(moduleContext)
     proxy.mergeDeclarationNode(declaration, artifactId, groupId)
   }
 }

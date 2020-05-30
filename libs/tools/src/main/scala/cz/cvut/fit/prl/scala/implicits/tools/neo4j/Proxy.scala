@@ -14,15 +14,15 @@ class Proxy(cache: NodesCache) {
     val declarationOpt = module.declarations.get(tpe.declarationId)
     val (declaration, groupId, artifactId) = declarationOpt match {
       case Some(d) =>
-        val (g, a) = Utils.getGroupArtifact(d)(module)
+        val (g, a) = ModelLogic.getGroupArtifact(d)(module)
         (d, g, a)
       case None =>
         (Utils.createUnknownDeclaration(), Utils.UNKNOWN_GROUP_ID, Utils.UNKNOWN_ARTIFACT_ID)
     }
 
-    val (declarationNode, typeReferenceCache) = cache.getDeclarationTuple(groupId, artifactId, declaration)
+    val (declarationNode, typeReferenceCache) = cache.getDeclarationTuple(groupId, artifactId, declaration.declarationId)
 
-    val typeExpression = Utils.getTypeExpression(tpe)
+    val typeExpression = ModelLogic.getTypeExpression(tpe)
 
     typeReferenceCache(typeExpression).getOrElse({
       val typeRefNode = createNode(Labels.TypeReference, Map("typeExpression" -> typeExpression))

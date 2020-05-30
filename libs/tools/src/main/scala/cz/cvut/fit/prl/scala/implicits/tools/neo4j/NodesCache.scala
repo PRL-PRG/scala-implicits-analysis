@@ -1,6 +1,5 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
-import cz.cvut.fit.prl.scala.implicits.model.Declaration
 import org.neo4j.graphdb.{Node, Transaction}
 
 import scala.collection.mutable
@@ -13,8 +12,8 @@ class NodesCache(val cache: mutable.Map[String,(Long, ArtifactCache)] ) {
     cache.put(key, (node.getId, artifactCache))
     artifactCache
   }
-  def getDeclarationTuple(groupId: String, artifactId: String, declaration: Declaration)(implicit transaction: Transaction): (Node, TypeReferenceCache) =
-    NodeMapper(cache(groupId)._2.cache(artifactId)._2.cache(declaration.declarationId))
+  def getDeclarationTuple(groupId: String, artifactId: String, declarationId: String)(implicit transaction: Transaction): (Node, TypeReferenceCache) =
+    NodeMapper(cache(groupId)._2.cache(artifactId)._2.cache(declarationId))
 }
 
 object NodesCache {
@@ -52,6 +51,7 @@ class ArtifactCache(val cache: mutable.Map[String, (Long, DeclarationCache)]) {
     declarationCache
   }
 }
+
 object ArtifactCache {
   def apply(): ArtifactCache = new ArtifactCache(new mutable.HashMap[String, (Long, DeclarationCache)])
 }
