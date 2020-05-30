@@ -70,6 +70,8 @@ lazy val tools = (project in file("tools"))
       ScalaLogging,
       LogBack,
       ScalaTest,
+      ScalaMock,
+      Mockito,
       ScalaCheck
     ),
     // do not know how to extract at the bottom, the scalaVersion.value needs ot be in :=
@@ -136,5 +138,7 @@ lazy val ScalaLogging = "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2
 lazy val LogBack = "ch.qos.logback" % "logback-classic" % "1.2.3"
 
 lazy val ScalaTest = "org.scalatest" %% "scalatest" % "3.2.0-SNAP10" % Test
+lazy val ScalaMock = "org.scalamock" %% "scalamock" % "4.4.0" % Test
+lazy val Mockito = "org.mockito" % "mockito-all" % "1.8.4"
 // ScalaTest missing dependency
 lazy val ScalaCheck = "org.scalacheck" %% "scalacheck" % "1.13.5" % Test
