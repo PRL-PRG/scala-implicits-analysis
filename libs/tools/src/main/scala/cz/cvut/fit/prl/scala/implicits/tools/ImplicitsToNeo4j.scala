@@ -57,6 +57,9 @@ object ImplicitsToNeo4j extends App {
   }
 
   private def exportProjects(converter: Converter, graphDb: GraphDatabaseService, implicitsFile: File): Unit = {
+    var totalConversionTime: Long = 0
+    var totalCommittingTime: Long = 0
+    var exportedProjects = 0
     implicitsFile.inputStream.apply(
       input => Project.streamFrom(input).foreach(
         project => {
@@ -66,17 +69,23 @@ object ImplicitsToNeo4j extends App {
           print(s"Converting ${project.projectId}:")
           val time = System.currentTimeMillis()
           converter.createProject(project, transaction)
+          totalConversionTime += System.currentTimeMillis() - time
           print(
-            s" Converted in ${System.currentTimeMillis() - time}ms")
+            s" Converted in ${System.currentTimeMillis() - time} ms")
 
 
           val transactionCommitTime = System.currentTimeMillis()
           transaction.commit()
-          print(s", Commit in ${System.currentTimeMillis() - transactionCommitTime}ms")
-          println(s", total transaction time ${System.currentTimeMillis() - transactionTime}ms")
+          totalCommittingTime += System.currentTimeMillis() - transactionCommitTime
+          print(s", Commit in ${System.currentTimeMillis() - transactionCommitTime} ms")
+          println(s", total transaction time ${System.currentTimeMillis() - transactionTime} ms")
+          exportedProjects += 1
         }
       )
     )
+    println(s"Total conversion time: $totalConversionTime ms")
+    println(s"Total committing time: $totalCommittingTime ms")
+    println(s"Total exported projects: $exportedProjects")
   }
 
   private def createManagementService(projectDir: File):DatabaseManagementService = {
