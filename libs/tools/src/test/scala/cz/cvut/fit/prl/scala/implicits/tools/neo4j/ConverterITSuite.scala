@@ -2,7 +2,6 @@ package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
 import better.files.File
 import cz.cvut.fit.prl.scala.implicits.model.{CallSite, ClassSignature, ClasspathEntry, Declaration, Language, Location, MethodSignature, Module, Parameter, ParameterList, PathEntry, Project, SourcepathEntry, TypeRef, ValueRef, ValueSignature}
-import cz.cvut.fit.prl.scala.implicits.tools.ImplicitsToNeo4j.cleanUpDatabase
 import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.Labels
 import org.neo4j.dbms.api.DatabaseManagementServiceBuilder
 import org.neo4j.graphdb.GraphDatabaseService
@@ -14,10 +13,11 @@ import scala.reflect.io.Directory
 
 class ConverterITSuite extends FunSuite with Matchers {
   test("convertProject") {
-
-    val resourcesPath = this.getClass.getResource("/").getFile
-    val dbDirectory = File(resourcesPath + "/Neo4jDB").createDirectory()
-//    val dbDirectoryPath = this.getClass.getResource("/Neo4jDB").getFile
+    val tmpDirPath = sys.props("java.io.tmpdir")
+    val dbDirectory = File(tmpDirPath + "/ImplicitsToNeo4jITtests/convertProjectTest")
+    if (dbDirectory.exists)
+      new Directory(dbDirectory.toJava).deleteRecursively()
+    dbDirectory.createDirectories()
 
     // opening/creating new graph db
     val managementService = new DatabaseManagementServiceBuilder(dbDirectory.toJava)
@@ -27,7 +27,6 @@ class ConverterITSuite extends FunSuite with Matchers {
     val DEFAULT_DB_NAME = "neo4j"
     val graphDb: GraphDatabaseService = managementService.database(DEFAULT_DB_NAME)
 
-//    cleanUpDatabase(graphDb)
 
     val beforeTransactionTime = System.currentTimeMillis()
     val converter = Converter()

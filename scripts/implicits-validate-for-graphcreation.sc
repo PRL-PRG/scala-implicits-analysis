@@ -23,7 +23,7 @@ import cz.cvut.fit.prl.scala.implicits.tools.ImplicitsPathAdjuster
           Project.streamFrom(input).foreach(project => {
 						val fixedPathsProject = ImplicitsPathAdjuster.fixProjectsPaths(project)
             projectCount += 1
-            if (isValid(project)) {
+            if (isValid(fixedPathsProject)) {
               Project.write(fixedPathsProject, os)
             } else {
               removedCount += 1
