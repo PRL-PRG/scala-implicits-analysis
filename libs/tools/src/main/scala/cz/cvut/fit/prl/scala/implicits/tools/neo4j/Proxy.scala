@@ -28,17 +28,13 @@ class Proxy(cache: NodesCache) {
       val typeRefNode = createNode(Labels.TypeReference, Map("typeExpression" -> typeExpression))
       typeReferenceCache.put(typeExpression, typeRefNode)
       typeRefNode.createRelationshipTo(declarationNode, Relationships.TYPEREF_DECLARATION)
+      connectTypeArguments(typeRefNode, tpe)
       typeRefNode
     })
   }
 
-
   // Gets declaration node, if it is available or creates new one with the connection to the artifactId and groupId
   // Could be simplified by creating all groupIds and artifacts beforehand
-  // TODO Edit - at least create sub-functions
-  // TODO refactor java stream to scala iterator - conversion cost?
-  // TODO Module declares Declaration relationShip wont be ever created in case module does not declare this declaration
-  //  - Is this relation necessary? This relation-ship is already present in form of artifact relation
   def mergeDeclarationNode(declaration: Declaration, artifactId: String, groupId: String)(implicit module:Module, moduleNode: Node, transaction: Transaction): Node = {
     val groupTupleOpt = cache(groupId)
 
@@ -76,8 +72,9 @@ class Proxy(cache: NodesCache) {
       }
       else {
         val (artifactNode, declarationCache) = artifactTupleOpt.get
+        val declarationTupleOpt = declarationCache(declaration.declarationId)
 
-        val declarationTuple = declarationCache(declaration.declarationId).getOrElse({
+        val declarationTuple = declarationTupleOpt.getOrElse({
           val declarationNode = createDeclarationNode(declaration)
 
           artifactNode.createRelationshipTo(declarationNode, Relationships.ARTIFACT_DECLARATION)
@@ -85,7 +82,15 @@ class Proxy(cache: NodesCache) {
             moduleNode.createRelationshipTo(declarationNode, Relationships.DECLARES)
           (declarationNode, declarationCache.put(declaration.declarationId, declarationNode))
         })
-        declarationTuple._1
+        val declarationNode = declarationTuple._1
+
+        if (declarationTupleOpt.nonEmpty) {
+          if (module.artifactId == artifactId && module.groupId == groupId) {
+            if (!declarationNode.hasRelationship(Relationships.DECLARES))
+              moduleNode.createRelationshipTo(declarationNode, Relationships.DECLARES)
+          }
+        }
+        declarationNode
       }
     }
   }
@@ -124,6 +129,12 @@ class Proxy(cache: NodesCache) {
   def createNode(label: Labels)(implicit transaction: Transaction): Node =
     transaction.createNode(label)
 
+  private def connectTypeArguments(typeRefNode: Node, typeRef: TypeRef)(implicit module: Module, moduleNode: Node, transaction: Transaction): Unit = {
+    typeRef.typeArguments.foreach(typeArg => {
+      val typeArgNode = mergeTypeReferenceNode(typeArg)
+      typeRefNode.createRelationshipTo(typeArgNode, Relationships.TYPE_ARGUMENT)
+    })
+  }
 
   private def createDeclarationNode(declaration: Declaration)(implicit transaction: Transaction): Node = {
     val properties = Map("declarationId" -> declaration.declarationId,
