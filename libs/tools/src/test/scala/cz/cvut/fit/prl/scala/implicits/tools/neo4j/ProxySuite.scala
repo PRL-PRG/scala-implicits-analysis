@@ -1,38 +1,97 @@
 package cz.cvut.fit.prl.scala.implicits.tools.neo4j
 
-import java.{lang, util}
+import java.util
 
-import org.neo4j.graphdb.{Entity, Label, Lock, Node, Relationship, RelationshipType, ResourceIterable, ResourceIterator, Result, StringSearchMode, Transaction}
-import org.scalamock.scalatest.MockFactory
-import org.scalatest.{FunSuite, Matchers}
-import cz.cvut.fit.prl.scala.implicits.model.{ClasspathEntry, Declaration, Language, Location, Module, Parameter, ParameterList, PathEntry, SourcepathEntry, TypeRef}
-import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.{Labels, Relationships}
+import cz.cvut.fit.prl.scala.implicits.tools.graphDbEntities.Labels
 import org.mockito.Mockito
-import org.mockito.internal.matchers.Any
-import org.neo4j.graphdb.schema.Schema
-import org.neo4j.graphdb.traversal.{BidirectionalTraversalDescription, TraversalDescription}
+import org.neo4j.graphdb.{Label, Node, ResourceIterator, Transaction}
 import org.scalatest.mockito.MockitoSugar
+import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.HashMap
 
 class ProxySuite extends FunSuite with Matchers with MockitoSugar {
 
-  def createNodesCache(): NodesCache = {
-    val cache = NodesCache()
-    // todo add something to the cache
-    cache
+  implicit class ResourceIteratorImpl[T](list: util.ArrayList[T]) extends ResourceIterator[T] {
+    override def close(): Unit = {}
+
+    override def hasNext: Boolean = !list.isEmpty
+
+    override def next(): T = {
+      val n = list.get(0)
+      list.remove(0)
+      n
+    }
+  }
+
+  test("createNode") {
+    implicit val transaction: Transaction = mock[Transaction]
+    val declarationNode = mock[Node]
+
+
+    val listOfLabels = new util.ArrayList[Label](util.Arrays.asList(Labels.Declaration))
+    Mockito.when(declarationNode.getLabels) thenReturn listOfLabels
+
+    Mockito.when(transaction.createNode(Labels.Declaration)) thenReturn declarationNode
+    val proxy = Proxy()
+    val createdNode = proxy.createNode(Labels.Declaration)
+
+    createdNode.getLabels.asScala.head shouldEqual Labels.Declaration
+  }
+
+  test("createNodeSetProperties") {
+    implicit val transaction: Transaction = mock[Transaction]
+    val declarationNode = mock[Node]
+    val propertyName = "name"
+    val propertyValue = "value"
+
+    Mockito.when(transaction.createNode(Labels.Declaration)) thenReturn declarationNode
+
+    val proxy = Proxy()
+    val createdNode = proxy.createNode(Labels.Declaration, Map(propertyName -> propertyValue))
+    Mockito.verify(declarationNode).setProperty(propertyName, propertyValue)
+
+    createdNode shouldEqual declarationNode
+  }
+
+  test("mergeNode1") {
+    implicit val transaction: Transaction = mock[Transaction]
+    val declarationNode = mock[Node]
+
+    val listOfLabels: ResourceIteratorImpl[Node] = ResourceIteratorImpl(new util.ArrayList[Node](util.Arrays.asList(declarationNode)))
+
+
+    Mockito.when(transaction.findNodes(Labels.Declaration)) thenReturn listOfLabels
+
+    val proxy = Proxy()
+    val mergedNode = proxy.mergeNode(Labels.Declaration)
+
+    mergedNode shouldEqual declarationNode
+  }
+
+  test("mergeNode2") {
+    implicit val transaction: Transaction = mock[Transaction]
+    val declarationNode = mock[Node]
+
+    val listOfLabels: ResourceIteratorImpl[Node] = ResourceIteratorImpl(new util.ArrayList[Node](util.Arrays.asList()))
+
+    Mockito.when(transaction.findNodes(Labels.Declaration)) thenReturn listOfLabels
+    Mockito.when(transaction.createNode(Labels.Declaration)) thenReturn declarationNode
+
+
+    val proxy = Proxy()
+    val mergedNode = proxy.mergeNode(Labels.Declaration)
+
+    mergedNode shouldEqual declarationNode
   }
 
 
-//  test("mergeDeclarationNode") {
-//    val transaction = mock[Transaction]
-//    val node = mock[Node]
-//
-//    Mockito.when(transaction.createNode(Labels.Group)).thenReturn(node)
-//
-//    transaction.createNode(Labels.Group) shouldEqual node
+//  def createNodesCache(): NodesCache = {
+//    val cache = NodesCache()
+//    // todo add something to the cache
+//    cache
 //  }
+
 //  test("mergeDeclarationNode") {
 //    val moduleGroupId = "mGroupId"
 //    val moduleArtifactId = "mArtifactId"
